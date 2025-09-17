@@ -11,10 +11,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function navigateToLogin() {
+  window.location.assign('index.html');
+}
+
 async function initializeDashboard() {
   const currentUser = loadActiveUser();
   if (!currentUser) {
-    window.location.replace('index.html');
+    navigateToLogin();
     return;
   }
 
@@ -41,7 +45,7 @@ async function initializeDashboard() {
 
   logoutButton?.addEventListener('click', () => {
     clearActiveUser();
-    window.location.replace('index.html');
+    navigateToLogin();
   });
 
   navButtons.forEach((button) => {

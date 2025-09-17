@@ -13,12 +13,16 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+function navigateToDashboard() {
+  window.location.assign('dashboard.html');
+}
+
 async function initializeAuth() {
   await ensureDefaultAdmins();
 
   const activeUser = loadActiveUser();
   if (activeUser) {
-    window.location.replace('dashboard.html');
+    navigateToDashboard();
     return;
   }
 
@@ -31,9 +35,16 @@ async function initializeAuth() {
   const showRegisterBtn = document.getElementById('show-register');
   const showLoginBtn = document.getElementById('show-login');
 
+  function setSectionVisibility(section, isVisible) {
+    if (!section) {
+      return;
+    }
+    section.hidden = !isVisible;
+  }
+
   function showLoginView() {
-    loginSection?.removeAttribute('hidden');
-    registerSection?.setAttribute('hidden', '');
+    setSectionVisibility(loginSection, true);
+    setSectionVisibility(registerSection, false);
     if (loginError) {
       loginError.textContent = '';
     }
@@ -43,14 +54,20 @@ async function initializeAuth() {
   }
 
   function showRegisterView() {
-    loginSection?.setAttribute('hidden', '');
-    registerSection?.removeAttribute('hidden');
+    setSectionVisibility(loginSection, false);
+    setSectionVisibility(registerSection, true);
     if (registerError) {
       registerError.textContent = '';
     }
     window.requestAnimationFrame(() => {
       document.getElementById('register-username')?.focus();
     });
+  }
+
+  function displayLoginError(message) {
+    if (loginError) {
+      loginError.textContent = message;
+    }
   }
 
   showLoginView();
@@ -78,33 +95,46 @@ async function initializeAuth() {
     const password = (formData.get('password') || '').toString();
 
     if (!username || !password) {
-      if (loginError) {
-        loginError.textContent = 'Veuillez renseigner vos identifiants.';
-      }
+      displayLoginError('Veuillez renseigner vos identifiants.');
       return;
     }
 
     const store = loadUserStore();
     const user = store.users[username];
 
-    if (!user || !user.passwordHash) {
-      if (loginError) {
-        loginError.textContent = 'Identifiant ou mot de passe invalide.';
+    if (!user) {
+      displayLoginError("L'utilisateur n'est pas reconnu.");
+      return;
+    }
+
+    let storedPasswordHash = user.passwordHash;
+
+    if (!storedPasswordHash && typeof user.password === 'string') {
+      if (user.password === password) {
+        storedPasswordHash = await hashPassword(password);
+        user.passwordHash = storedPasswordHash;
+        delete user.password;
+        saveUserStore(store);
+      } else {
+        displayLoginError('Mot de passe incorrect.');
+        return;
       }
+    }
+
+    if (!storedPasswordHash) {
+      displayLoginError("L'utilisateur n'est pas reconnu.");
       return;
     }
 
     const passwordHash = await hashPassword(password);
-    if (passwordHash !== user.passwordHash) {
-      if (loginError) {
-        loginError.textContent = 'Identifiant ou mot de passe invalide.';
-      }
+    if (passwordHash !== storedPasswordHash) {
+      displayLoginError('Mot de passe incorrect.');
       return;
     }
 
     saveActiveUser(username);
     loginForm.reset();
-    window.location.replace('dashboard.html');
+    navigateToDashboard();
   });
 
   registerForm?.addEventListener('submit', async (event) => {
@@ -178,7 +208,7 @@ async function initializeAuth() {
     saveUserStore(store);
     saveActiveUser(username);
     registerForm.reset();
-    window.location.replace('dashboard.html');
+    navigateToDashboard();
   });
 }
 
