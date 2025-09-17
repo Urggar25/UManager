@@ -43,10 +43,12 @@ async function initializeDashboard() {
     currentUsernameEl.textContent = currentUser;
   }
 
-  logoutButton?.addEventListener('click', () => {
-    clearActiveUser();
-    navigateToLogin();
-  });
+  if (logoutButton) {
+    logoutButton.addEventListener('click', () => {
+      clearActiveUser();
+      navigateToLogin();
+    });
+  }
 
   navButtons.forEach((button) => {
     button.addEventListener('click', () => {
@@ -84,36 +86,38 @@ async function initializeDashboard() {
     });
   });
 
-  keywordForm?.addEventListener('submit', (event) => {
-    event.preventDefault();
-    const formData = new FormData(keywordForm);
-    const name = (formData.get('keyword-name') || '').toString().trim();
-    const description = (formData.get('keyword-description') || '').toString().trim();
+  if (keywordForm) {
+    keywordForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const formData = new FormData(keywordForm);
+      const name = (formData.get('keyword-name') || '').toString().trim();
+      const description = (formData.get('keyword-description') || '').toString().trim();
 
-    if (!name) {
+      if (!name) {
+        const nameInput = keywordForm.querySelector('#keyword-name');
+        if (nameInput instanceof HTMLInputElement) {
+          nameInput.focus();
+        }
+        return;
+      }
+
+      data.keywords.push({
+        id: generateId(),
+        name,
+        description,
+      });
+
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      keywordForm.reset();
       const nameInput = keywordForm.querySelector('#keyword-name');
       if (nameInput instanceof HTMLInputElement) {
         nameInput.focus();
       }
-      return;
-    }
-
-    data.keywords.push({
-      id: generateId(),
-      name,
-      description,
+      renderMetrics();
+      renderKeywords();
     });
-
-    data.lastUpdated = new Date().toISOString();
-    saveDataForUser(currentUser, data);
-    keywordForm.reset();
-    const nameInput = keywordForm.querySelector('#keyword-name');
-    if (nameInput instanceof HTMLInputElement) {
-      nameInput.focus();
-    }
-    renderMetrics();
-    renderKeywords();
-  });
+  }
 
   showPage('dashboard');
   renderMetrics();
@@ -129,7 +133,7 @@ async function initializeDashboard() {
   }
 
   function renderMetrics() {
-    const metrics = data?.metrics ?? {};
+    const metrics = data && typeof data === 'object' && data.metrics ? data.metrics : {};
 
     metricValues.forEach((metricValue) => {
       const key = metricValue.dataset.metric;
@@ -209,13 +213,17 @@ async function initializeDashboard() {
           descriptionEl.classList.toggle('keyword-description--empty', !keyword.description);
         }
 
-        editButton?.addEventListener('click', () => {
-          startKeywordEdition(keyword.id);
-        });
+        if (editButton) {
+          editButton.addEventListener('click', () => {
+            startKeywordEdition(keyword.id);
+          });
+        }
 
-        deleteButton?.addEventListener('click', () => {
-          deleteKeyword(keyword.id);
-        });
+        if (deleteButton) {
+          deleteButton.addEventListener('click', () => {
+            deleteKeyword(keyword.id);
+          });
+        }
 
         fragment.appendChild(listItem);
       });

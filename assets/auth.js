@@ -59,7 +59,10 @@ async function initializeAuth() {
       loginError.textContent = '';
     }
     window.requestAnimationFrame(() => {
-      document.getElementById('login-username')?.focus();
+      const loginUsername = document.getElementById('login-username');
+      if (loginUsername && typeof loginUsername.focus === 'function') {
+        loginUsername.focus();
+      }
     });
   }
 
@@ -70,7 +73,10 @@ async function initializeAuth() {
       registerError.textContent = '';
     }
     window.requestAnimationFrame(() => {
-      document.getElementById('register-username')?.focus();
+      const registerUsername = document.getElementById('register-username');
+      if (registerUsername && typeof registerUsername.focus === 'function') {
+        registerUsername.focus();
+      }
     });
   }
 
@@ -82,23 +88,36 @@ async function initializeAuth() {
 
   showLoginView();
 
-  showRegisterBtn?.addEventListener('click', () => {
-    loginError && (loginError.textContent = '');
-    registerError && (registerError.textContent = '');
-    showRegisterView();
-  });
+  if (showRegisterBtn) {
+    showRegisterBtn.addEventListener('click', () => {
+      if (loginError) {
+        loginError.textContent = '';
+      }
+      if (registerError) {
+        registerError.textContent = '';
+      }
+      showRegisterView();
+    });
+  }
 
-  showLoginBtn?.addEventListener('click', () => {
-    loginError && (loginError.textContent = '');
-    registerError && (registerError.textContent = '');
-    showLoginView();
-  });
+  if (showLoginBtn) {
+    showLoginBtn.addEventListener('click', () => {
+      if (loginError) {
+        loginError.textContent = '';
+      }
+      if (registerError) {
+        registerError.textContent = '';
+      }
+      showLoginView();
+    });
+  }
 
-  loginForm?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (loginError) {
-      loginError.textContent = '';
-    }
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (loginError) {
+        loginError.textContent = '';
+      }
 
     const formData = new FormData(loginForm);
     const username = (formData.get('username') || '').toString().trim();
@@ -160,11 +179,12 @@ async function initializeAuth() {
     navigateToDashboard();
   });
 
-  registerForm?.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (registerError) {
-      registerError.textContent = '';
-    }
+  if (registerForm) {
+    registerForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (registerError) {
+        registerError.textContent = '';
+      }
 
     const formData = new FormData(registerForm);
     const username = (formData.get('username') || '').toString().trim();
@@ -243,6 +263,7 @@ async function initializeAuth() {
     registerForm.reset();
     navigateToDashboard();
   });
+  }
 }
 
 function isValidEmail(value) {
