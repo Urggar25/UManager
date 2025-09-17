@@ -21,6 +21,9 @@
           <button class="nav-button active" data-target="dashboard" type="button">
             Accueil
           </button>
+          <button class="nav-button" data-target="categories" type="button">
+            Catégories
+          </button>
           <button class="nav-button" data-target="keywords" type="button">
             Mots clés
           </button>
@@ -132,23 +135,71 @@
                 <span class="summary-value" id="total-datasets">0</span>
               </div>
               <div class="summary-item">
-                <span class="summary-label">Mots clés configurés</span>
+                <span class="summary-label">Catégories configurées</span>
+                <span class="summary-value" id="categories-count">0</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Mots clés enregistrés</span>
                 <span class="summary-value" id="keywords-count">0</span>
               </div>
             </div>
             <p class="summary-note">
               Ajustez vos indicateurs ci-dessus pour refléter la réalité de votre base. Les
-              mots clés personnalisés vous aident à catégoriser précisément les données
-              collectées.
+              catégories personnalisées vous aident à structurer précisément vos données, tandis
+              que les mots clés facilitent les recherches ciblées.
             </p>
           </section>
+        </section>
+        <section id="categories" class="page" aria-labelledby="categories-title">
+          <header class="page-header">
+            <div>
+              <h1 id="categories-title">Gestion des catégories</h1>
+              <p class="page-subtitle">
+                Créez, modifiez et supprimez les catégories qui structurent vos données.
+              </p>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Catégories actives</span>
+              <span class="insight-value" id="categories-active-count">0</span>
+            </div>
+          </header>
+          <form id="category-form" class="category-form" autocomplete="off">
+            <div class="form-row">
+              <label for="category-name">Nom de la catégorie *</label>
+              <input
+                id="category-name"
+                name="category-name"
+                type="text"
+                required
+                maxlength="80"
+                placeholder="Ex. Donateurs, Bénévoles, Prospects"
+              />
+            </div>
+            <div class="form-row">
+              <label for="category-description">Description</label>
+              <textarea
+                id="category-description"
+                name="category-description"
+                maxlength="240"
+                placeholder="Décrivez la catégorie pour vos équipes (optionnel)."
+                rows="3"
+              ></textarea>
+            </div>
+            <button type="submit" class="primary-button">Ajouter la catégorie</button>
+          </form>
+          <div class="category-list-wrapper">
+            <ul id="category-list" class="category-list" aria-live="polite"></ul>
+            <p id="category-empty-state" class="empty-state">
+              Ajoutez vos premières catégories pour organiser vos données professionnelles.
+            </p>
+          </div>
         </section>
         <section id="keywords" class="page" aria-labelledby="keywords-title">
           <header class="page-header">
             <div>
               <h1 id="keywords-title">Gestion des mots clés</h1>
               <p class="page-subtitle">
-                Créez, modifiez et supprimez les catégories qui structurent vos données.
+                Créez des mots clés libres pour affiner vos recherches avancées.
               </p>
             </div>
             <div class="insight-card">
@@ -165,7 +216,7 @@
                 type="text"
                 required
                 maxlength="80"
-                placeholder="Ex. Donateurs, Bénévoles, Prospects"
+                placeholder="Ex. Mécène, Relance, Association locale"
               />
             </div>
             <div class="form-row">
@@ -174,7 +225,7 @@
                 id="keyword-description"
                 name="keyword-description"
                 maxlength="240"
-                placeholder="Décrivez la catégorie pour vos équipes (optionnel)."
+                placeholder="Précisez l'usage du mot clé pour vos équipes (optionnel)."
                 rows="3"
               ></textarea>
             </div>
@@ -183,7 +234,7 @@
           <div class="keyword-list-wrapper">
             <ul id="keyword-list" class="keyword-list" aria-live="polite"></ul>
             <p id="keyword-empty-state" class="empty-state">
-              Ajoutez vos premiers mots clés pour organiser vos données professionnelles.
+              Ajoutez vos premiers mots clés pour affiner vos filtres de recherche.
             </p>
           </div>
         </section>
@@ -192,7 +243,7 @@
             <div>
               <h1 id="contacts-add-title">Ajouter un contact</h1>
               <p class="page-subtitle">
-                Créez un contact manuellement et associez-le aux mots clés pertinents.
+                Créez un contact manuellement et associez-le aux catégories et mots clés pertinents.
               </p>
             </div>
             <div class="insight-card">
@@ -201,45 +252,227 @@
             </div>
           </header>
           <form id="contact-form" class="contact-form" autocomplete="off">
-            <div class="form-row">
-              <label for="contact-name">Nom complet *</label>
-              <input
-                id="contact-name"
-                name="contact-name"
-                type="text"
-                required
-                maxlength="120"
-                placeholder="Ex. Jeanne Dupont"
-              />
+            <div class="form-grid">
+              <div class="form-row">
+                <label for="contact-first-name">Prénom *</label>
+                <input
+                  id="contact-first-name"
+                  name="contact-first-name"
+                  type="text"
+                  required
+                  maxlength="80"
+                  placeholder="Ex. Jeanne"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-usage-name">Nom d'usage *</label>
+                <input
+                  id="contact-usage-name"
+                  name="contact-usage-name"
+                  type="text"
+                  required
+                  maxlength="80"
+                  placeholder="Ex. Dupont"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-birth-name">Nom de naissance</label>
+                <input
+                  id="contact-birth-name"
+                  name="contact-birth-name"
+                  type="text"
+                  maxlength="80"
+                  placeholder="Ex. Martin"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-gender">Genre</label>
+                <select id="contact-gender" name="contact-gender">
+                  <option value="">Non précisé</option>
+                  <option value="femme">Femme</option>
+                  <option value="homme">Homme</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="contact-age-range">Âge (ex. 60-80)</label>
+                <input
+                  id="contact-age-range"
+                  name="contact-age-range"
+                  type="text"
+                  maxlength="20"
+                  placeholder="Ex. 45-55"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-email">Adresse e-mail</label>
+                <input
+                  id="contact-email"
+                  name="contact-email"
+                  type="email"
+                  maxlength="160"
+                  placeholder="Ex. jeanne.dupont@email.fr"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-mobile">Mobile</label>
+                <input
+                  id="contact-mobile"
+                  name="contact-mobile"
+                  type="tel"
+                  maxlength="40"
+                  placeholder="Ex. 06 12 34 56 78"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-landline">Téléphone fixe</label>
+                <input
+                  id="contact-landline"
+                  name="contact-landline"
+                  type="tel"
+                  maxlength="40"
+                  placeholder="Ex. 01 23 45 67 89"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-street">Rue et numéro</label>
+                <input
+                  id="contact-street"
+                  name="contact-street"
+                  type="text"
+                  maxlength="120"
+                  placeholder="Ex. 10 rue Victor Hugo"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-city">Ville</label>
+                <input
+                  id="contact-city"
+                  name="contact-city"
+                  type="text"
+                  maxlength="80"
+                  placeholder="Ex. Lyon"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-postal-code">Code postal</label>
+                <input
+                  id="contact-postal-code"
+                  name="contact-postal-code"
+                  type="text"
+                  maxlength="20"
+                  placeholder="Ex. 69002"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-country">Pays</label>
+                <input
+                  id="contact-country"
+                  name="contact-country"
+                  type="text"
+                  maxlength="60"
+                  placeholder="Ex. France"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-zone">Zone</label>
+                <input
+                  id="contact-zone"
+                  name="contact-zone"
+                  type="text"
+                  maxlength="60"
+                  placeholder="Ex. Grand Est"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-campaign-status">Statut pour les campagnes</label>
+                <select id="contact-campaign-status" name="contact-campaign-status">
+                  <option value="">Non défini</option>
+                  <option value="actif">Actif</option>
+                  <option value="pause">Pause</option>
+                  <option value="a-exclure">À exclure</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="contact-engagement-level">Niveau d'engagement</label>
+                <select id="contact-engagement-level" name="contact-engagement-level">
+                  <option value="">Non défini</option>
+                  <option value="normal">Normal</option>
+                  <option value="prioritaire">Prioritaire</option>
+                  <option value="a-relancer">À relancer</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="contact-archive-theme">Archiver un thème activé</label>
+                <select id="contact-archive-theme" name="contact-archive-theme">
+                  <option value="">Non défini</option>
+                  <option value="oui">Oui</option>
+                  <option value="non">Non</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label for="contact-mandate">Mandat</label>
+                <input
+                  id="contact-mandate"
+                  name="contact-mandate"
+                  type="text"
+                  maxlength="120"
+                  placeholder="Ex. Président"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-profession">Profession</label>
+                <input
+                  id="contact-profession"
+                  name="contact-profession"
+                  type="text"
+                  maxlength="120"
+                  placeholder="Ex. Enseignant"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-last-membership">Date dernière adhésion</label>
+                <input id="contact-last-membership" name="contact-last-membership" type="date" />
+              </div>
+              <div class="form-row">
+                <label for="contact-custom-field">Custom</label>
+                <input
+                  id="contact-custom-field"
+                  name="contact-custom-field"
+                  type="text"
+                  maxlength="160"
+                  placeholder="Valeur libre"
+                />
+              </div>
+              <div class="form-row">
+                <label for="contact-organization">Organisme</label>
+                <input
+                  id="contact-organization"
+                  name="contact-organization"
+                  type="text"
+                  maxlength="160"
+                  placeholder="Ex. Association Lumière"
+                />
+              </div>
             </div>
-            <div class="form-row">
-              <label for="contact-email">Adresse e-mail</label>
-              <input
-                id="contact-email"
-                name="contact-email"
-                type="email"
-                maxlength="160"
-                placeholder="Ex. jeanne.dupont@email.fr"
-              />
-            </div>
-            <div class="form-row">
-              <label for="contact-phone">Téléphone</label>
-              <input
-                id="contact-phone"
-                name="contact-phone"
-                type="tel"
-                maxlength="40"
-                placeholder="Ex. 06 12 34 56 78"
-              />
-            </div>
+            <fieldset id="contact-categories-fieldset" class="form-fieldset">
+              <legend>Catégories associées</legend>
+              <p class="form-hint">
+                Sélectionnez une ou plusieurs catégories créées dans l’onglet «&nbsp;Catégories&nbsp;».
+              </p>
+              <div id="contact-categories-container" class="checkbox-grid" aria-live="polite"></div>
+              <p id="contact-categories-empty" class="empty-state" hidden>
+                Aucune catégorie disponible pour le moment. Ajoutez vos catégories dans l’onglet «&nbsp;Catégories&nbsp;».
+              </p>
+            </fieldset>
             <fieldset id="contact-keywords-fieldset" class="form-fieldset">
               <legend>Mots clés associés</legend>
               <p class="form-hint">
-                Sélectionnez un ou plusieurs mots clés pour catégoriser ce contact.
+                Sélectionnez les mots clés pertinents créés dans l’onglet «&nbsp;Mots clés&nbsp;».
               </p>
               <div id="contact-keywords-container" class="checkbox-grid" aria-live="polite"></div>
               <p id="contact-keywords-empty" class="empty-state" hidden>
-                Aucun mot clé disponible pour le moment. Ajoutez vos catégories dans l’onglet «&nbsp;Mots clés&nbsp;».
+                Aucun mot clé disponible pour le moment. Ajoutez vos mots clés dans l’onglet «&nbsp;Mots clés&nbsp;».
               </p>
             </fieldset>
             <div class="form-row">
@@ -260,7 +493,8 @@
             <div>
               <h1 id="contacts-search-title">Recherche de contact</h1>
               <p class="page-subtitle">
-                Parcourez les contacts enregistrés et filtrez-les grâce aux mots clés.
+                Parcourez les contacts enregistrés et filtrez-les grâce aux catégories, mots clés et
+                critères avancés.
               </p>
             </div>
             <div class="insight-card">
@@ -274,14 +508,131 @@
               <input
                 id="contact-search-input"
                 type="search"
-                placeholder="Rechercher par nom, e-mail, téléphone ou mot clé"
+                placeholder="Rechercher par nom, e-mail, téléphone, catégorie ou mot clé"
                 autocomplete="off"
               />
-              <label class="sr-only" for="contact-keyword-filter">Filtrer par mot clé</label>
-              <select id="contact-keyword-filter">
-                <option value="__all__">Tous les mots clés</option>
-              </select>
             </div>
+            <form id="contact-advanced-search" class="contact-advanced-search" autocomplete="off">
+              <div class="advanced-grid">
+                <div class="form-row">
+                  <label for="search-first-name">Prénom</label>
+                  <input id="search-first-name" name="search-first-name" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-usage-name">Nom d'usage</label>
+                  <input id="search-usage-name" name="search-usage-name" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-birth-name">Nom de naissance</label>
+                  <input id="search-birth-name" name="search-birth-name" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-category">Catégorie</label>
+                  <select id="search-category" name="search-category">
+                    <option value="">Toutes les catégories</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="search-gender">Genre</label>
+                  <select id="search-gender" name="search-gender">
+                    <option value="">Tous</option>
+                    <option value="femme">Femme</option>
+                    <option value="homme">Homme</option>
+                    <option value="autre">Autre</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="search-age">Âge (ex. 60-80)</label>
+                  <input id="search-age" name="search-age" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-email">Email</label>
+                  <input id="search-email" name="search-email" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-mobile">Mobile</label>
+                  <input id="search-mobile" name="search-mobile" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-street">Rue N°</label>
+                  <input id="search-street" name="search-street" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-city">Ville</label>
+                  <input id="search-city" name="search-city" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-postal-code">CP</label>
+                  <input id="search-postal-code" name="search-postal-code" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-country">Pays</label>
+                  <input id="search-country" name="search-country" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-zone">Zones</label>
+                  <input id="search-zone" name="search-zone" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-campaign-status">Statut pour les campagnes</label>
+                  <select id="search-campaign-status" name="search-campaign-status">
+                    <option value="">Tous</option>
+                    <option value="actif">Actif</option>
+                    <option value="pause">Pause</option>
+                    <option value="a-exclure">À exclure</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="search-engagement">Niveau d'engagement</label>
+                  <select id="search-engagement" name="search-engagement">
+                    <option value="">Tous</option>
+                    <option value="normal">Normal</option>
+                    <option value="prioritaire">Prioritaire</option>
+                    <option value="a-relancer">À relancer</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="search-archive">Archiver un thème</label>
+                  <select id="search-archive" name="search-archive">
+                    <option value="">Tous</option>
+                    <option value="oui">Oui</option>
+                    <option value="non">Non</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="search-mandate">Mandat</label>
+                  <input id="search-mandate" name="search-mandate" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-profession">Profession</label>
+                  <input id="search-profession" name="search-profession" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-landline">Tél fixe</label>
+                  <input id="search-landline" name="search-landline" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-last-membership">Date dernière adhésion</label>
+                  <input id="search-last-membership" name="search-last-membership" type="date" />
+                </div>
+                <div class="form-row">
+                  <label for="search-custom">Custom</label>
+                  <input id="search-custom" name="search-custom" type="text" />
+                </div>
+                <div class="form-row">
+                  <label for="search-organization">Organisme</label>
+                  <input id="search-organization" name="search-organization" type="text" />
+                </div>
+                <div class="form-row advanced-multiselect">
+                  <label for="search-keywords">Sélectionnez mes mots clés</label>
+                  <select id="search-keywords" name="search-keywords" multiple></select>
+                </div>
+              </div>
+              <div class="advanced-actions">
+                <button type="submit" class="primary-button">Appliquer les filtres</button>
+                <button type="reset" class="secondary-button">Réinitialiser</button>
+              </div>
+            </form>
           </div>
           <ul id="contact-list" class="contact-list" aria-live="polite"></ul>
           <p id="contact-empty-state" class="empty-state" hidden>
@@ -300,7 +651,22 @@
           <p class="contact-coordinates"></p>
           <p class="contact-notes"></p>
         </div>
+        <div class="contact-categories"></div>
         <div class="contact-keywords"></div>
+      </li>
+    </template>
+    <template id="category-item-template">
+      <li class="category-item">
+        <div class="category-main">
+          <h3 class="category-title"></h3>
+          <p class="category-description"></p>
+        </div>
+        <div class="category-actions">
+          <button type="button" class="category-button" data-action="edit">Modifier</button>
+          <button type="button" class="category-button category-button--danger" data-action="delete">
+            Supprimer
+          </button>
+        </div>
       </li>
     </template>
     <template id="keyword-item-template">
