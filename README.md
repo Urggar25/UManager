@@ -4,6 +4,7 @@ Interface web légère permettant de suivre les indicateurs de votre base de don
 
 ## Fonctionnalités
 
+- **Authentification** : connexion avec comptes administrateurs préconfigurés ou création de nouveaux accès.
 - **Tableau de bord** : visualisation du nombre de personnes enregistrées, de téléphones et d'adresses mail.
 - **Mises à jour rapides** : modification des compteurs directement depuis les cartes du tableau de bord.
 - **Gestion des mots clés** : ajout, édition et suppression des catégories qui qualifient vos données.
@@ -15,8 +16,18 @@ Aucun prérequis n'est nécessaire :
 
 1. Télécharger ou cloner ce dépôt.
 2. Ouvrir le fichier `index.html` dans votre navigateur préféré.
+3. Connectez-vous avec l'un des comptes administrateurs par défaut (`admin1`/`emsal1`, `admin2`/`emsal2`, `admin3`/`emsal3`) ou créez un nouvel accès.
 
 Les données saisies sont stockées localement. Pour réinitialiser l'application, videz le stockage local de votre navigateur pour le domaine utilisé.
+
+## Structure des pages
+
+- `index.html` : écran d'authentification (connexion et création de compte).
+- `dashboard.html` : interface principale (tableau de bord, synthèse et gestion des mots clés).
+- `assets/styles.css` : styles partagés entre les deux vues.
+- `assets/auth.js` : logique de connexion/inscription.
+- `assets/dashboard.js` : interactions de l'application après authentification.
+- `assets/storage.js` : utilitaires de persistance locale et génération des comptes par défaut.
 
 ## Technologies
 
@@ -25,4 +36,4 @@ Les données saisies sont stockées localement. Pour réinitialiser l'applicatio
 
 ## Personnalisation
 
-Vous pouvez adapter ce gestionnaire en connectant `assets/app.js` à votre propre API ou à une base de données distante.
+Vous pouvez adapter ce gestionnaire en connectant `assets/dashboard.js` et les helpers de `assets/storage.js` à votre propre API ou à une base de données distante.
