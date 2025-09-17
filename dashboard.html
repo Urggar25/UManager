@@ -24,6 +24,12 @@
           <button class="nav-button" data-target="keywords" type="button">
             Mots clés
           </button>
+          <button class="nav-button" data-target="contacts-add" type="button">
+            Ajouter des contacts
+          </button>
+          <button class="nav-button" data-target="contacts-search" type="button">
+            Recherche de contact
+          </button>
         </nav>
         <div class="sidebar-footer">
           <div class="sidebar-user" aria-live="polite">
@@ -181,8 +187,122 @@
             </p>
           </div>
         </section>
+        <section id="contacts-add" class="page" aria-labelledby="contacts-add-title">
+          <header class="page-header">
+            <div>
+              <h1 id="contacts-add-title">Ajouter un contact</h1>
+              <p class="page-subtitle">
+                Créez un contact manuellement et associez-le aux mots clés pertinents.
+              </p>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Contacts enregistrés</span>
+              <span class="insight-value" id="contacts-count">0</span>
+            </div>
+          </header>
+          <form id="contact-form" class="contact-form" autocomplete="off">
+            <div class="form-row">
+              <label for="contact-name">Nom complet *</label>
+              <input
+                id="contact-name"
+                name="contact-name"
+                type="text"
+                required
+                maxlength="120"
+                placeholder="Ex. Jeanne Dupont"
+              />
+            </div>
+            <div class="form-row">
+              <label for="contact-email">Adresse e-mail</label>
+              <input
+                id="contact-email"
+                name="contact-email"
+                type="email"
+                maxlength="160"
+                placeholder="Ex. jeanne.dupont@email.fr"
+              />
+            </div>
+            <div class="form-row">
+              <label for="contact-phone">Téléphone</label>
+              <input
+                id="contact-phone"
+                name="contact-phone"
+                type="tel"
+                maxlength="40"
+                placeholder="Ex. 06 12 34 56 78"
+              />
+            </div>
+            <fieldset id="contact-keywords-fieldset" class="form-fieldset">
+              <legend>Mots clés associés</legend>
+              <p class="form-hint">
+                Sélectionnez un ou plusieurs mots clés pour catégoriser ce contact.
+              </p>
+              <div id="contact-keywords-container" class="checkbox-grid" aria-live="polite"></div>
+              <p id="contact-keywords-empty" class="empty-state" hidden>
+                Aucun mot clé disponible pour le moment. Ajoutez vos catégories dans l’onglet «&nbsp;Mots clés&nbsp;».
+              </p>
+            </fieldset>
+            <div class="form-row">
+              <label for="contact-notes">Notes</label>
+              <textarea
+                id="contact-notes"
+                name="contact-notes"
+                rows="3"
+                maxlength="500"
+                placeholder="Informations complémentaires (optionnel)."
+              ></textarea>
+            </div>
+            <button type="submit" class="primary-button">Ajouter le contact</button>
+          </form>
+        </section>
+        <section id="contacts-search" class="page" aria-labelledby="contacts-search-title">
+          <header class="page-header">
+            <div>
+              <h1 id="contacts-search-title">Recherche de contact</h1>
+              <p class="page-subtitle">
+                Parcourez les contacts enregistrés et filtrez-les grâce aux mots clés.
+              </p>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Résultats affichés</span>
+              <span class="insight-value" id="contact-search-count">0</span>
+            </div>
+          </header>
+          <div class="contact-search-panel">
+            <div class="contact-search-controls">
+              <label class="sr-only" for="contact-search-input">Rechercher un contact</label>
+              <input
+                id="contact-search-input"
+                type="search"
+                placeholder="Rechercher par nom, e-mail, téléphone ou mot clé"
+                autocomplete="off"
+              />
+              <label class="sr-only" for="contact-keyword-filter">Filtrer par mot clé</label>
+              <select id="contact-keyword-filter">
+                <option value="__all__">Tous les mots clés</option>
+              </select>
+            </div>
+          </div>
+          <ul id="contact-list" class="contact-list" aria-live="polite"></ul>
+          <p id="contact-empty-state" class="empty-state" hidden>
+            Ajoutez vos premiers contacts pour les retrouver ici.
+          </p>
+        </section>
       </main>
     </div>
+    <template id="contact-item-template">
+      <li class="contact-item">
+        <div class="contact-header">
+          <h3 class="contact-name"></h3>
+          <span class="contact-created"></span>
+        </div>
+        <div class="contact-details">
+          <p class="contact-coordinates"></p>
+          <p class="contact-notes"></p>
+        </div>
+        <div class="contact-keywords"></div>
+      </li>
+    </template>
     <template id="keyword-item-template">
       <li class="keyword-item">
         <div class="keyword-main">
