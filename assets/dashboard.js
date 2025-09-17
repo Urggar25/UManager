@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function navigateToLogin() {
-  window.location.assign('index.html');
+  window.location.replace('index.html');
 }
 
 async function initializeDashboard() {

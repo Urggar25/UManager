@@ -14,7 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function navigateToDashboard() {
-  window.location.assign('dashboard.html');
+  window.location.replace('dashboard.html');
 }
 
 async function initializeAuth() {
@@ -39,7 +39,17 @@ async function initializeAuth() {
     if (!section) {
       return;
     }
-    section.hidden = !isVisible;
+
+    if (isVisible) {
+      section.hidden = false;
+      section.removeAttribute('hidden');
+      return;
+    }
+
+    section.hidden = true;
+    if (!section.hasAttribute('hidden')) {
+      section.setAttribute('hidden', '');
+    }
   }
 
   function showLoginView() {
@@ -111,7 +121,13 @@ async function initializeAuth() {
 
     if (!storedPasswordHash && typeof user.password === 'string') {
       if (user.password === password) {
-        storedPasswordHash = await hashPassword(password);
+        try {
+          storedPasswordHash = await hashPassword(password);
+        } catch (error) {
+          console.error('Impossible de générer le hachage du mot de passe :', error);
+          displayLoginError('Une erreur est survenue. Veuillez réessayer.');
+          return;
+        }
         user.passwordHash = storedPasswordHash;
         delete user.password;
         saveUserStore(store);
@@ -126,7 +142,14 @@ async function initializeAuth() {
       return;
     }
 
-    const passwordHash = await hashPassword(password);
+    let passwordHash;
+    try {
+      passwordHash = await hashPassword(password);
+    } catch (error) {
+      console.error('Impossible de vérifier le mot de passe :', error);
+      displayLoginError('Une erreur est survenue. Veuillez réessayer.');
+      return;
+    }
     if (passwordHash !== storedPasswordHash) {
       displayLoginError('Mot de passe incorrect.');
       return;
@@ -199,7 +222,17 @@ async function initializeAuth() {
       return;
     }
 
-    const passwordHash = await hashPassword(password);
+    let passwordHash;
+    try {
+      passwordHash = await hashPassword(password);
+    } catch (error) {
+      console.error('Impossible de sécuriser le mot de passe :', error);
+      if (registerError) {
+        registerError.textContent =
+          "Une erreur est survenue lors de la création du compte. Veuillez réessayer.";
+      }
+      return;
+    }
     store.users[username] = {
       email,
       passwordHash,
