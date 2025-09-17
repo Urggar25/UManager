@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UManager · Gestionnaire de données professionnelles</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    />
+    <link rel="stylesheet" href="assets/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar" aria-label="Navigation principale">
+        <div class="brand">
+          <span class="brand-logo" aria-hidden="true">📊</span>
+          <span class="brand-name">UManager</span>
+        </div>
+        <nav class="sidebar-nav">
+          <button class="nav-button active" data-target="dashboard" type="button">
+            Accueil
+          </button>
+          <button class="nav-button" data-target="keywords" type="button">
+            Mots clés
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <p class="sidebar-tagline">
+            Gérez vos données professionnelles, associations et structures en toute
+            simplicité.
+          </p>
+        </div>
+      </aside>
+      <main class="content">
+        <section id="dashboard" class="page active" aria-labelledby="dashboard-title">
+          <header class="page-header">
+            <div>
+              <h1 id="dashboard-title">Tableau de bord</h1>
+              <p class="page-subtitle">
+                Visualisez en un clin d'œil les indicateurs clés de votre base de données.
+              </p>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Dernière mise à jour</span>
+              <time id="last-updated" class="insight-value">—</time>
+            </div>
+          </header>
+          <div class="metrics-grid" role="list">
+            <article class="metric-card" role="listitem">
+              <header>
+                <h2>Personnes enregistrées</h2>
+                <p class="metric-caption">Nombre total de profils actifs dans votre base.</p>
+              </header>
+              <p class="metric-value" data-metric="peopleCount">0</p>
+              <form class="metric-form" data-form="peopleCount">
+                <label class="sr-only" for="people-count-input">
+                  Mettre à jour le nombre de personnes enregistrées
+                </label>
+                <input
+                  id="people-count-input"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  data-input="peopleCount"
+                  placeholder="Mettre à jour"
+                />
+                <button type="submit">Enregistrer</button>
+              </form>
+            </article>
+            <article class="metric-card" role="listitem">
+              <header>
+                <h2>Téléphones recensés</h2>
+                <p class="metric-caption">
+                  Total des numéros de téléphone collectés et vérifiés.
+                </p>
+              </header>
+              <p class="metric-value" data-metric="phoneCount">0</p>
+              <form class="metric-form" data-form="phoneCount">
+                <label class="sr-only" for="phone-count-input">
+                  Mettre à jour le nombre de téléphones recensés
+                </label>
+                <input
+                  id="phone-count-input"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  data-input="phoneCount"
+                  placeholder="Mettre à jour"
+                />
+                <button type="submit">Enregistrer</button>
+              </form>
+            </article>
+            <article class="metric-card" role="listitem">
+              <header>
+                <h2>Adresses mail collectées</h2>
+                <p class="metric-caption">Total des courriels valides en base.</p>
+              </header>
+              <p class="metric-value" data-metric="emailCount">0</p>
+              <form class="metric-form" data-form="emailCount">
+                <label class="sr-only" for="email-count-input">
+                  Mettre à jour le nombre d'adresses mail collectées
+                </label>
+                <input
+                  id="email-count-input"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  data-input="emailCount"
+                  placeholder="Mettre à jour"
+                />
+                <button type="submit">Enregistrer</button>
+              </form>
+            </article>
+          </div>
+          <section class="summary" aria-labelledby="summary-title">
+            <h2 id="summary-title">Synthèse</h2>
+            <div class="summary-grid">
+              <div class="summary-item">
+                <span class="summary-label">Données totales suivies</span>
+                <span class="summary-value" id="total-datasets">0</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Mots clés configurés</span>
+                <span class="summary-value" id="keywords-count">0</span>
+              </div>
+            </div>
+            <p class="summary-note">
+              Ajustez vos indicateurs ci-dessus pour refléter la réalité de votre base. Les
+              mots clés personnalisés vous aident à catégoriser précisément les données
+              collectées.
+            </p>
+          </section>
+        </section>
+        <section id="keywords" class="page" aria-labelledby="keywords-title">
+          <header class="page-header">
+            <div>
+              <h1 id="keywords-title">Gestion des mots clés</h1>
+              <p class="page-subtitle">
+                Créez, modifiez et supprimez les catégories qui structurent vos données.
+              </p>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Mots clés actifs</span>
+              <span class="insight-value" id="keywords-active-count">0</span>
+            </div>
+          </header>
+          <form id="keyword-form" class="keyword-form" autocomplete="off">
+            <div class="form-row">
+              <label for="keyword-name">Nom du mot clé *</label>
+              <input
+                id="keyword-name"
+                name="keyword-name"
+                type="text"
+                required
+                maxlength="80"
+                placeholder="Ex. Donateurs, Bénévoles, Prospects"
+              />
+            </div>
+            <div class="form-row">
+              <label for="keyword-description">Description</label>
+              <textarea
+                id="keyword-description"
+                name="keyword-description"
+                maxlength="240"
+                placeholder="Décrivez la catégorie pour vos équipes (optionnel)."
+                rows="3"
+              ></textarea>
+            </div>
+            <button type="submit" class="primary-button">Ajouter le mot clé</button>
+          </form>
+          <div class="keyword-list-wrapper">
+            <ul id="keyword-list" class="keyword-list" aria-live="polite"></ul>
+            <p id="keyword-empty-state" class="empty-state">
+              Ajoutez vos premiers mots clés pour organiser vos données professionnelles.
+            </p>
+          </div>
+        </section>
+      </main>
+    </div>
+    <template id="keyword-item-template">
+      <li class="keyword-item">
+        <div class="keyword-main">
+          <h3 class="keyword-title"></h3>
+          <p class="keyword-description"></p>
+        </div>
+        <div class="keyword-actions">
+          <button type="button" class="keyword-button" data-action="edit">Modifier</button>
+          <button type="button" class="keyword-button keyword-button--danger" data-action="delete">
+            Supprimer
+          </button>
+        </div>
+      </li>
+    </template>
+    <script src="assets/app.js" defer></script>
+  </body>
+</html>
