@@ -323,16 +323,13 @@
     const categoryList = document.getElementById('category-list');
     const categoryEmptyState = document.getElementById('category-empty-state');
     const categoryTemplate = document.getElementById('category-item-template');
-    const categoryTypeSelect = document.getElementById('category-type');
-    const categoryOptionsRow = document.getElementById('category-options-row');
-    const categoryOptionsInput = document.getElementById('category-options');
     const keywordForm = document.getElementById('keyword-form');
     const keywordList = document.getElementById('keyword-list');
     const keywordEmptyState = document.getElementById('keyword-empty-state');
     const keywordTemplate = document.getElementById('keyword-item-template');
     const contactsCountEl = document.getElementById('contacts-count');
     const contactForm = document.getElementById('contact-form');
-    const contactCategoryFieldsContainer = document.getElementById('contact-category-fields');
+    const contactCategoriesContainer = document.getElementById('contact-categories-container');
     const contactCategoriesEmpty = document.getElementById('contact-categories-empty');
     const contactKeywordsContainer = document.getElementById('contact-keywords-container');
     const contactKeywordsEmpty = document.getElementById('contact-keywords-empty');
@@ -344,22 +341,12 @@
     const searchKeywordsSelect = document.getElementById('search-keywords');
     const contactSearchCountEl = document.getElementById('contact-search-count');
     const contactTemplate = document.getElementById('contact-item-template');
-    const contactSubmitButton = document.getElementById('contact-submit-button');
-    const contactCancelEditButton = document.getElementById('contact-cancel-edit');
 
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
 
     let contactSearchTerm = '';
     let advancedFilters = createEmptyAdvancedFilters();
-    const CATEGORY_TYPE_ORDER = ['text', 'number', 'date', 'list'];
-    const CATEGORY_TYPES = new Set(CATEGORY_TYPE_ORDER);
-    const CATEGORY_TYPE_LABELS = {
-      text: 'Texte',
-      number: 'Nombre',
-      date: 'Date',
-      list: 'Liste',
-    };
 
     if (currentUsernameEl) {
       currentUsernameEl.textContent = currentUser;
@@ -369,13 +356,6 @@
       logoutButton.addEventListener('click', () => {
         clearActiveUser();
         navigateToLogin();
-      });
-    }
-
-    updateCategoryOptionsVisibility();
-    if (categoryTypeSelect) {
-      categoryTypeSelect.addEventListener('change', () => {
-        updateCategoryOptionsVisibility();
       });
     }
 
@@ -421,28 +401,6 @@
         const formData = new FormData(categoryForm);
         const name = (formData.get('category-name') || '').toString().trim();
         const description = (formData.get('category-description') || '').toString().trim();
-        let typeValue = (formData.get('category-type') || 'text').toString();
-        if (!CATEGORY_TYPES.has(typeValue)) {
-          typeValue = 'text';
-        }
-
-        let options = [];
-        if (categoryOptionsInput instanceof HTMLTextAreaElement) {
-          categoryOptionsInput.setCustomValidity('');
-        }
-
-        if (typeValue === 'list') {
-          const rawOptions = (formData.get('category-options') || '').toString();
-          options = parseCategoryOptions(rawOptions);
-          if (categoryOptionsInput instanceof HTMLTextAreaElement) {
-            if (options.length === 0) {
-              categoryOptionsInput.setCustomValidity('Veuillez renseigner au moins une valeur.');
-              categoryOptionsInput.reportValidity();
-              return;
-            }
-            categoryOptionsInput.setCustomValidity('');
-          }
-        }
 
         if (!name) {
           const nameInput = categoryForm.querySelector('#category-name');
@@ -456,29 +414,17 @@
           id: generateId('category'),
           name,
           description,
-          type: typeValue,
-          options,
         });
 
         data.lastUpdated = new Date().toISOString();
         saveDataForUser(currentUser, data);
         categoryForm.reset();
-        updateCategoryOptionsVisibility();
         const nameInput = categoryForm.querySelector('#category-name');
         if (nameInput instanceof HTMLInputElement) {
           nameInput.focus();
         }
         renderMetrics();
         renderCategories();
-      });
-
-      categoryForm.addEventListener('reset', () => {
-        window.requestAnimationFrame(() => {
-          if (categoryOptionsInput instanceof HTMLTextAreaElement) {
-            categoryOptionsInput.setCustomValidity('');
-          }
-          updateCategoryOptionsVisibility();
-        });
       });
     }
 
@@ -541,59 +487,10 @@
         const customField = (formData.get('contact-custom-field') || '').toString().trim();
         const organization = (formData.get('contact-organization') || '').toString().trim();
         const notes = (formData.get('contact-notes') || '').toString().trim();
+        const categoryIds = formData
+          .getAll('contact-categories')
+          .map((value) => value.toString());
         const keywordIds = formData.getAll('contact-keywords').map((value) => value.toString());
-
-        const categoryInputs = contactForm.querySelectorAll('[data-category-input]');
-        const categoryValues = {};
-        let hasInvalidCategoryValue = false;
-
-        categoryInputs.forEach((element) => {
-          if (
-            !(
-              element instanceof HTMLInputElement ||
-              element instanceof HTMLTextAreaElement ||
-              element instanceof HTMLSelectElement
-            )
-          ) {
-            return;
-          }
-
-          element.setCustomValidity('');
-          if (!element.checkValidity()) {
-            element.reportValidity();
-            hasInvalidCategoryValue = true;
-            return;
-          }
-
-          const categoryId = element.dataset.categoryId || '';
-          if (!categoryId) {
-            return;
-          }
-
-          const type = element.dataset.categoryType || 'text';
-          const rawValue = element.value != null ? element.value.toString().trim() : '';
-          if (!rawValue) {
-            return;
-          }
-
-          if (type === 'number') {
-            const parsed = Number(element.value);
-            if (Number.isFinite(parsed)) {
-              categoryValues[categoryId] = parsed.toString();
-            } else {
-              element.setCustomValidity('Veuillez renseigner un nombre valide.');
-              element.reportValidity();
-              hasInvalidCategoryValue = true;
-            }
-            return;
-          }
-
-          categoryValues[categoryId] = element.value.toString().trim();
-        });
-
-        if (hasInvalidCategoryValue) {
-          return;
-        }
 
         const firstNameInput = contactForm.querySelector('#contact-first-name');
         if (!firstName) {
@@ -622,86 +519,46 @@
         }
 
         const fullName = `${firstName} ${usageName}`.trim();
-        const editingId = contactForm.dataset.editingId || '';
-        const editingIndex = editingId
-          ? data.contacts.findIndex((contact) => contact.id === editingId)
-          : -1;
 
-        if (editingId && editingIndex !== -1) {
-          const contactToUpdate = data.contacts[editingIndex];
-          contactToUpdate.firstName = firstName;
-          contactToUpdate.usageName = usageName;
-          contactToUpdate.birthName = birthName;
-          contactToUpdate.fullName = fullName || usageName || firstName;
-          contactToUpdate.gender = gender;
-          contactToUpdate.ageRange = ageRange;
-          contactToUpdate.email = email;
-          contactToUpdate.mobile = mobile;
-          contactToUpdate.landline = landline;
-          contactToUpdate.phone = mobile || landline;
-          contactToUpdate.street = street;
-          contactToUpdate.city = city;
-          contactToUpdate.postalCode = postalCode;
-          contactToUpdate.country = country;
-          contactToUpdate.zone = zone;
-          contactToUpdate.campaignStatus = campaignStatus;
-          contactToUpdate.engagementLevel = engagementLevel;
-          contactToUpdate.archiveTheme = archiveTheme;
-          contactToUpdate.mandate = mandate;
-          contactToUpdate.profession = profession;
-          contactToUpdate.lastMembership = lastMembership;
-          contactToUpdate.customField = customField;
-          contactToUpdate.organization = organization;
-          contactToUpdate.notes = notes;
-          contactToUpdate.categoryValues = { ...categoryValues };
-          contactToUpdate.keywords = keywordIds;
-          contactToUpdate.updatedAt = new Date().toISOString();
-        } else {
-          data.contacts.push({
-            id: generateId('contact'),
-            firstName,
-            usageName,
-            birthName,
-            fullName: fullName || usageName || firstName,
-            gender,
-            ageRange,
-            email,
-            mobile,
-            landline,
-            phone: mobile || landline,
-            street,
-            city,
-            postalCode,
-            country,
-            zone,
-            campaignStatus,
-            engagementLevel,
-            archiveTheme,
-            mandate,
-            profession,
-            lastMembership,
-            customField,
-            organization,
-            notes,
-            categoryValues: { ...categoryValues },
-            keywords: keywordIds,
-            createdAt: new Date().toISOString(),
-            updatedAt: null,
-          });
-        }
+        data.contacts.push({
+          id: generateId('contact'),
+          firstName,
+          usageName,
+          birthName,
+          fullName: fullName || usageName || firstName,
+          gender,
+          ageRange,
+          email,
+          mobile,
+          landline,
+          phone: mobile || landline,
+          street,
+          city,
+          postalCode,
+          country,
+          zone,
+          campaignStatus,
+          engagementLevel,
+          archiveTheme,
+          mandate,
+          profession,
+          lastMembership,
+          customField,
+          organization,
+          notes,
+          categories: categoryIds,
+          keywords: keywordIds,
+          createdAt: new Date().toISOString(),
+        });
 
         data.lastUpdated = new Date().toISOString();
-        updateMetricsFromContacts();
         saveDataForUser(currentUser, data);
-        resetContactForm();
+        contactForm.reset();
+        if (firstNameInput instanceof HTMLInputElement) {
+          firstNameInput.focus();
+        }
         renderMetrics();
         renderContacts();
-      });
-    }
-
-    if (contactCancelEditButton) {
-      contactCancelEditButton.addEventListener('click', () => {
-        resetContactForm();
       });
     }
 
@@ -821,7 +678,7 @@
 
     function renderCategories() {
       if (!categoryList || !categoryEmptyState) {
-        renderContactCategoryFields();
+        renderContactCategoryOptions();
         renderSearchCategoryOptions();
         renderContacts();
         return;
@@ -835,7 +692,7 @@
 
       if (categories.length === 0) {
         categoryEmptyState.hidden = false;
-        renderContactCategoryFields();
+        renderContactCategoryOptions();
         renderSearchCategoryOptions();
         renderContacts();
         return;
@@ -858,7 +715,6 @@
 
         const titleEl = listItem.querySelector('.category-title');
         const descriptionEl = listItem.querySelector('.category-description');
-        const metaEl = listItem.querySelector('.category-meta');
         const editButton = listItem.querySelector('[data-action="edit"]');
         const deleteButton = listItem.querySelector('[data-action="delete"]');
 
@@ -869,17 +725,6 @@
         if (descriptionEl) {
           descriptionEl.textContent = category.description || 'Aucune description renseignée.';
           descriptionEl.classList.toggle('category-description--empty', !category.description);
-        }
-
-        if (metaEl) {
-          const typeKey = CATEGORY_TYPES.has(category.type) ? category.type : 'text';
-          const typeLabel = CATEGORY_TYPE_LABELS[typeKey] || CATEGORY_TYPE_LABELS.text;
-          let metaText = `Type : ${typeLabel}`;
-          if (typeKey === 'list') {
-            const options = Array.isArray(category.options) ? category.options.filter((value) => value) : [];
-            metaText += options.length > 0 ? ` · ${options.join(', ')}` : ' · Aucune valeur définie';
-          }
-          metaEl.textContent = metaText;
         }
 
         if (editButton) {
@@ -898,7 +743,7 @@
       });
 
       categoryList.appendChild(fragment);
-      renderContactCategoryFields();
+      renderContactCategoryOptions();
       renderSearchCategoryOptions();
       renderContacts();
     }
@@ -975,152 +820,49 @@
       renderContacts();
     }
 
-    function renderContactCategoryFields() {
+    function renderContactCategoryOptions() {
       const categories = Array.isArray(data.categories)
         ? data.categories.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
         : [];
 
-      if (!contactCategoryFieldsContainer) {
-        if (contactCategoriesEmpty) {
-          contactCategoriesEmpty.hidden = categories.length > 0;
-        }
-        return;
-      }
+      if (contactCategoriesContainer) {
+        contactCategoriesContainer.innerHTML = '';
 
-      const previousValues = new Map();
-      contactCategoryFieldsContainer.querySelectorAll('[data-category-input]').forEach((element) => {
-        if (
-          !element ||
-          !(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)
-        ) {
-          return;
-        }
-        const categoryId = element.dataset.categoryId || '';
-        if (categoryId) {
-          previousValues.set(categoryId, element.value);
-        }
-      });
-
-      contactCategoryFieldsContainer.innerHTML = '';
-
-      if (categories.length === 0) {
-        if (contactCategoriesEmpty) {
-          contactCategoriesEmpty.hidden = false;
-        }
-        return;
-      }
-
-      if (contactCategoriesEmpty) {
-        contactCategoriesEmpty.hidden = true;
-      }
-
-      const editingId = contactForm && contactForm.dataset.editingId ? contactForm.dataset.editingId : '';
-      let editingValues = null;
-      if (editingId) {
-        const editingContact = data.contacts.find((contact) => contact.id === editingId);
-        if (editingContact && editingContact.categoryValues && typeof editingContact.categoryValues === 'object') {
-          editingValues = editingContact.categoryValues;
-        }
-      }
-
-      const fragment = document.createDocumentFragment();
-
-      categories.forEach((category) => {
-        const fieldWrapper = document.createElement('div');
-        fieldWrapper.className = 'form-row';
-
-        const fieldId = `contact-category-${category.id}`;
-        const label = document.createElement('label');
-        label.setAttribute('for', fieldId);
-        label.textContent = category.name;
-
-        const description = (category.description || '').toString().trim();
-        let input;
-
-        const baseType = CATEGORY_TYPES.has(category.type) ? category.type : 'text';
-
-        if (baseType === 'number') {
-          const numberInput = document.createElement('input');
-          numberInput.type = 'number';
-          numberInput.inputMode = 'decimal';
-          numberInput.id = fieldId;
-          numberInput.name = `contact-category-${category.id}`;
-          if (description) {
-            numberInput.placeholder = description;
+        if (categories.length === 0) {
+          if (contactCategoriesEmpty) {
+            contactCategoriesEmpty.hidden = false;
           }
-          input = numberInput;
-        } else if (baseType === 'date') {
-          const dateInput = document.createElement('input');
-          dateInput.type = 'date';
-          dateInput.id = fieldId;
-          dateInput.name = `contact-category-${category.id}`;
-          input = dateInput;
-        } else if (baseType === 'list') {
-          const select = document.createElement('select');
-          select.id = fieldId;
-          select.name = `contact-category-${category.id}`;
-
-          const defaultOption = document.createElement('option');
-          defaultOption.value = '';
-          defaultOption.textContent = 'Sélectionnez une valeur';
-          select.appendChild(defaultOption);
-
-          const options = Array.isArray(category.options) ? category.options : [];
-          options.forEach((optionValue) => {
-            const option = document.createElement('option');
-            option.value = optionValue;
-            option.textContent = optionValue;
-            select.appendChild(option);
-          });
-          input = select;
         } else {
-          const textInput = document.createElement('input');
-          textInput.type = 'text';
-          textInput.id = fieldId;
-          textInput.name = `contact-category-${category.id}`;
-          textInput.maxLength = 200;
-          if (description) {
-            textInput.placeholder = description;
+          if (contactCategoriesEmpty) {
+            contactCategoriesEmpty.hidden = true;
           }
-          input = textInput;
+
+          const fragment = document.createDocumentFragment();
+
+          categories.forEach((category) => {
+            const checkboxId = `contact-category-${category.id}`;
+            const item = document.createElement('div');
+            item.className = 'checkbox-item';
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = checkboxId;
+            input.name = 'contact-categories';
+            input.value = category.id || '';
+
+            const label = document.createElement('label');
+            label.setAttribute('for', checkboxId);
+            label.textContent = category.name;
+
+            item.append(input, label);
+            fragment.appendChild(item);
+          });
+
+          contactCategoriesContainer.appendChild(fragment);
         }
-
-        input.dataset.categoryId = category.id || '';
-        input.dataset.categoryType = baseType;
-        input.setAttribute('data-category-input', 'true');
-
-        let initialValue = '';
-        if (category.id && previousValues.has(category.id)) {
-          initialValue = previousValues.get(category.id) || '';
-        } else if (category.id && editingValues && category.id in editingValues) {
-          const rawValue = editingValues[category.id];
-          initialValue = rawValue != null ? rawValue.toString() : '';
-        }
-
-        if (input instanceof HTMLSelectElement) {
-          const options = Array.from(input.options).map((option) => option.value);
-          if (options.includes(initialValue)) {
-            input.value = initialValue;
-          } else {
-            input.value = '';
-          }
-        } else if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
-          input.value = initialValue;
-        }
-
-        fieldWrapper.append(label, input);
-
-        if (description && (baseType === 'list' || baseType === 'date')) {
-          const hint = document.createElement('p');
-          hint.className = 'form-hint';
-          hint.textContent = description;
-          fieldWrapper.appendChild(hint);
-        }
-
-        fragment.appendChild(fieldWrapper);
-      });
-
-      contactCategoryFieldsContainer.appendChild(fragment);
+      } else if (contactCategoriesEmpty) {
+        contactCategoriesEmpty.hidden = categories.length > 0;
+      }
     }
 
     function renderContactKeywordOptions() {
@@ -1129,23 +871,6 @@
         : [];
 
       if (contactKeywordsContainer) {
-        const previousSelection = new Set();
-        contactKeywordsContainer
-          .querySelectorAll('input[name="contact-keywords"]')
-          .forEach((input) => {
-            if (input instanceof HTMLInputElement && input.checked) {
-              previousSelection.add(input.value);
-            }
-          });
-
-        const editingContactId = contactForm && contactForm.dataset.editingId ? contactForm.dataset.editingId : '';
-        const editingContact = editingContactId
-          ? data.contacts.find((contact) => contact.id === editingContactId)
-          : null;
-        const editingKeywords = editingContact && Array.isArray(editingContact.keywords)
-          ? new Set(editingContact.keywords)
-          : new Set();
-
         contactKeywordsContainer.innerHTML = '';
 
         if (keywords.length === 0) {
@@ -1169,9 +894,6 @@
             input.id = checkboxId;
             input.name = 'contact-keywords';
             input.value = keyword.id || '';
-            if (keyword.id && (previousSelection.has(keyword.id) || editingKeywords.has(keyword.id))) {
-              input.checked = true;
-            }
 
             const label = document.createElement('label');
             label.setAttribute('for', checkboxId);
@@ -1333,21 +1055,11 @@
 
       const filteredContacts = contacts
         .filter((contact) => {
-          const categoryValues =
-            contact && typeof contact === 'object' && contact.categoryValues && typeof contact.categoryValues === 'object'
-              ? contact.categoryValues
-              : {};
+          const categories = Array.isArray(contact.categories) ? contact.categories : [];
           const keywords = Array.isArray(contact.keywords) ? contact.keywords : [];
 
-          if (exactFilters.category) {
-            const rawCategoryValue = categoryValues[exactFilters.category];
-            const normalizedCategoryValue =
-              rawCategoryValue === undefined || rawCategoryValue === null
-                ? ''
-                : rawCategoryValue.toString().trim();
-            if (!normalizedCategoryValue) {
-              return false;
-            }
+          if (exactFilters.category && !categories.includes(exactFilters.category)) {
+            return false;
           }
 
           if (keywordFilters.length > 0) {
@@ -1462,38 +1174,18 @@
             return true;
           }
 
-          const categoryEntries = Object.entries(categoryValues)
-            .map(([categoryId, rawValue]) => {
+          const categoryNames = categories
+            .map((categoryId) => {
               const category = categoriesById.get(categoryId);
-              if (!category) {
-                return null;
-              }
-              const valueString = rawValue === undefined || rawValue === null ? '' : rawValue.toString();
-              return {
-                id: categoryId,
-                name: category.name,
-                value: valueString,
-              };
+              return category ? category.name : '';
             })
-            .filter((entry) => Boolean(entry));
+            .filter(Boolean);
           const keywordNames = keywords
             .map((keywordId) => {
               const keyword = keywordsById.get(keywordId);
               return keyword ? keyword.name : '';
             })
             .filter(Boolean);
-
-          const categoryNames = categoryEntries
-            .map((entry) => entry && entry.name)
-            .filter((value) => Boolean(value));
-          const categoryValueTexts = categoryEntries
-            .map((entry) => {
-              if (!entry) {
-                return '';
-              }
-              return entry.value != null ? entry.value.toString().trim() : '';
-            })
-            .filter((value) => Boolean(value));
 
           const haystackParts = [
             contact.fullName || '',
@@ -1508,7 +1200,6 @@
             contact.city || '',
             contact.customField || '',
             categoryNames.join(' '),
-            categoryValueTexts.join(' '),
             keywordNames.join(' '),
           ];
 
@@ -1615,38 +1306,25 @@
         const categoriesContainer = listItem.querySelector('.contact-categories');
         if (categoriesContainer) {
           categoriesContainer.innerHTML = '';
-          const categoryValues =
-            contact && typeof contact === 'object' && contact.categoryValues && typeof contact.categoryValues === 'object'
-              ? contact.categoryValues
-              : {};
-
-          const associatedCategories = Object.entries(categoryValues)
-            .map(([categoryId, rawValue]) => {
-              const category = categoriesById.get(categoryId);
-              if (!category) {
-                return null;
-              }
-              const valueString = rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
-              return { name: category.name, value: valueString };
-            })
-            .filter((entry) => entry && entry.value);
+          const associatedCategories = Array.isArray(contact.categories)
+            ? contact.categories
+                .map((categoryId) => categoriesById.get(categoryId))
+                .filter((category) => Boolean(category))
+            : [];
 
           if (associatedCategories.length > 0) {
             associatedCategories
               .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
-              .forEach((entry) => {
-                if (!entry) {
-                  return;
-                }
+              .forEach((category) => {
                 const chip = document.createElement('span');
                 chip.className = 'category-chip';
-                chip.textContent = `${entry.name} : ${entry.value}`;
+                chip.textContent = category.name;
                 categoriesContainer.appendChild(chip);
               });
           } else {
             const chip = document.createElement('span');
             chip.className = 'category-chip category-chip--empty';
-            chip.textContent = 'Aucune donnée personnalisée';
+            chip.textContent = 'Sans catégorie';
             categoriesContainer.appendChild(chip);
           }
         }
@@ -1677,135 +1355,10 @@
           }
         }
 
-        const editContactButton = listItem.querySelector('[data-action="edit-contact"]');
-        if (editContactButton instanceof HTMLButtonElement) {
-          if (contact.id) {
-            editContactButton.disabled = false;
-            editContactButton.addEventListener('click', () => {
-              startContactEdition(contact.id);
-            });
-          } else {
-            editContactButton.disabled = true;
-          }
-        }
-
         fragment.appendChild(listItem);
       });
 
       contactList.appendChild(fragment);
-    }
-
-    function resetContactForm() {
-      if (!contactForm) {
-        return;
-      }
-
-      contactForm.reset();
-      exitContactEditMode();
-      renderContactCategoryFields();
-
-      if (contactKeywordsContainer) {
-        contactKeywordsContainer
-          .querySelectorAll('input[name="contact-keywords"]')
-          .forEach((input) => {
-            if (input instanceof HTMLInputElement) {
-              input.checked = false;
-            }
-          });
-      }
-
-      const firstNameInput = contactForm.querySelector('#contact-first-name');
-      if (firstNameInput instanceof HTMLInputElement) {
-        firstNameInput.focus();
-      }
-    }
-
-    function exitContactEditMode() {
-      if (!contactForm) {
-        return;
-      }
-
-      delete contactForm.dataset.editingId;
-      if (contactSubmitButton) {
-        contactSubmitButton.textContent = 'Ajouter le contact';
-      }
-      if (contactCancelEditButton) {
-        contactCancelEditButton.hidden = true;
-      }
-    }
-
-    function startContactEdition(contactId) {
-      if (!contactForm) {
-        return;
-      }
-
-      const contact = data.contacts.find((item) => item.id === contactId);
-      if (!contact) {
-        return;
-      }
-
-      showPage('contacts-add');
-      contactForm.reset();
-      contactForm.dataset.editingId = contactId;
-      if (contactSubmitButton) {
-        contactSubmitButton.textContent = 'Enregistrer les modifications';
-      }
-      if (contactCancelEditButton) {
-        contactCancelEditButton.hidden = false;
-      }
-
-      const assignValue = (selector, value) => {
-        const element = contactForm.querySelector(selector);
-        if (
-          element instanceof HTMLInputElement ||
-          element instanceof HTMLSelectElement ||
-          element instanceof HTMLTextAreaElement
-        ) {
-          element.value = value != null ? value : '';
-        }
-      };
-
-      assignValue('#contact-first-name', contact.firstName || '');
-      assignValue('#contact-usage-name', contact.usageName || '');
-      assignValue('#contact-birth-name', contact.birthName || '');
-      assignValue('#contact-gender', contact.gender || '');
-      assignValue('#contact-age-range', contact.ageRange || '');
-      assignValue('#contact-email', contact.email || '');
-      assignValue('#contact-mobile', contact.mobile || '');
-      assignValue('#contact-landline', contact.landline || '');
-      assignValue('#contact-street', contact.street || '');
-      assignValue('#contact-city', contact.city || '');
-      assignValue('#contact-postal-code', contact.postalCode || '');
-      assignValue('#contact-country', contact.country || '');
-      assignValue('#contact-zone', contact.zone || '');
-      assignValue('#contact-campaign-status', contact.campaignStatus || '');
-      assignValue('#contact-engagement-level', contact.engagementLevel || '');
-      assignValue('#contact-archive-theme', contact.archiveTheme || '');
-      assignValue('#contact-mandate', contact.mandate || '');
-      assignValue('#contact-profession', contact.profession || '');
-      assignValue('#contact-last-membership', contact.lastMembership || '');
-      assignValue('#contact-custom-field', contact.customField || '');
-      assignValue('#contact-organization', contact.organization || '');
-      assignValue('#contact-notes', contact.notes || '');
-
-      renderContactCategoryFields();
-
-      const keywordIds = Array.isArray(contact.keywords) ? new Set(contact.keywords) : new Set();
-      if (contactKeywordsContainer) {
-        contactKeywordsContainer
-          .querySelectorAll('input[name="contact-keywords"]')
-          .forEach((input) => {
-            if (input instanceof HTMLInputElement) {
-              input.checked = keywordIds.has(input.value);
-            }
-          });
-      }
-
-      const firstNameInput = contactForm.querySelector('#contact-first-name');
-      if (firstNameInput instanceof HTMLInputElement) {
-        firstNameInput.focus();
-        firstNameInput.setSelectionRange(firstNameInput.value.length, firstNameInput.value.length);
-      }
     }
 
     function startCategoryEdition(categoryId) {
@@ -1854,62 +1407,6 @@
       descriptionInput.value = category.description || '';
       descriptionRow.append(descriptionLabel, descriptionInput);
 
-      const typeRow = document.createElement('div');
-      typeRow.className = 'form-row';
-      const typeLabel = document.createElement('label');
-      const typeSelect = document.createElement('select');
-      const typeId = `edit-category-type-${categoryId}`;
-      typeLabel.setAttribute('for', typeId);
-      typeLabel.textContent = 'Type de valeur *';
-      typeSelect.id = typeId;
-      typeSelect.name = 'type';
-      CATEGORY_TYPE_ORDER.forEach((typeKey) => {
-        const option = document.createElement('option');
-        option.value = typeKey;
-        option.textContent = CATEGORY_TYPE_LABELS[typeKey] || typeKey;
-        if (typeKey === (CATEGORY_TYPES.has(category.type) ? category.type : 'text')) {
-          option.selected = true;
-        }
-        typeSelect.appendChild(option);
-      });
-      typeRow.append(typeLabel, typeSelect);
-
-      const optionsRow = document.createElement('div');
-      optionsRow.className = 'form-row';
-      const optionsLabel = document.createElement('label');
-      const optionsTextarea = document.createElement('textarea');
-      const optionsId = `edit-category-options-${categoryId}`;
-      optionsLabel.setAttribute('for', optionsId);
-      optionsLabel.textContent = 'Liste de valeurs';
-      optionsTextarea.id = optionsId;
-      optionsTextarea.name = 'options';
-      optionsTextarea.rows = 3;
-      optionsTextarea.maxLength = 500;
-      optionsTextarea.value = Array.isArray(category.options) ? category.options.join('\n') : '';
-      const optionsHint = document.createElement('p');
-      optionsHint.className = 'form-hint';
-      optionsHint.textContent = 'Saisissez une valeur par ligne.';
-      optionsRow.append(optionsLabel, optionsTextarea, optionsHint);
-
-      const toggleOptionsRow = () => {
-        const shouldShow = typeSelect.value === 'list';
-        if (shouldShow) {
-          optionsRow.hidden = false;
-          optionsRow.removeAttribute('hidden');
-        } else {
-          optionsRow.hidden = true;
-          if (!optionsRow.hasAttribute('hidden')) {
-            optionsRow.setAttribute('hidden', '');
-          }
-          optionsTextarea.setCustomValidity('');
-        }
-      };
-
-      toggleOptionsRow();
-      typeSelect.addEventListener('change', () => {
-        toggleOptionsRow();
-      });
-
       const actionsRow = document.createElement('div');
       actionsRow.className = 'category-edit-actions';
       const cancelButton = document.createElement('button');
@@ -1922,26 +1419,12 @@
       saveButton.textContent = 'Enregistrer';
       actionsRow.append(cancelButton, saveButton);
 
-      form.append(nameRow, descriptionRow, typeRow, optionsRow, actionsRow);
+      form.append(nameRow, descriptionRow, actionsRow);
 
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         const name = nameInput.value.trim();
         const description = descriptionInput.value.trim();
-        let typeValue = typeSelect.value;
-        if (!CATEGORY_TYPES.has(typeValue)) {
-          typeValue = 'text';
-        }
-        let optionValues = [];
-        optionsTextarea.setCustomValidity('');
-        if (typeValue === 'list') {
-          optionValues = parseCategoryOptions(optionsTextarea.value || '');
-          if (optionValues.length === 0) {
-            optionsTextarea.setCustomValidity('Veuillez renseigner au moins une valeur.');
-            optionsTextarea.reportValidity();
-            return;
-          }
-        }
 
         if (!name) {
           nameInput.focus();
@@ -1950,9 +1433,6 @@
 
         category.name = name;
         category.description = description;
-        category.type = typeValue;
-        category.options = optionValues;
-        cleanupContactCategoryValues();
         data.lastUpdated = new Date().toISOString();
         saveDataForUser(currentUser, data);
         renderMetrics();
@@ -1972,152 +1452,17 @@
       data.categories = data.categories.filter((item) => item.id !== categoryId);
       if (Array.isArray(data.contacts)) {
         data.contacts.forEach((contact) => {
-          if (contact && contact.categoryValues && typeof contact.categoryValues === 'object') {
-            delete contact.categoryValues[categoryId];
+          if (Array.isArray(contact.categories)) {
+            contact.categories = contact.categories.filter((item) => item !== categoryId);
+          } else {
+            contact.categories = [];
           }
         });
       }
-      cleanupContactCategoryValues();
       data.lastUpdated = new Date().toISOString();
       saveDataForUser(currentUser, data);
       renderMetrics();
       renderCategories();
-    }
-
-    function updateCategoryOptionsVisibility() {
-      if (!categoryOptionsRow) {
-        return;
-      }
-
-      const currentType = categoryTypeSelect ? categoryTypeSelect.value : 'text';
-      if (currentType === 'list') {
-        categoryOptionsRow.hidden = false;
-        categoryOptionsRow.removeAttribute('hidden');
-        return;
-      }
-
-      categoryOptionsRow.hidden = true;
-      if (!categoryOptionsRow.hasAttribute('hidden')) {
-        categoryOptionsRow.setAttribute('hidden', '');
-      }
-      if (categoryOptionsInput instanceof HTMLTextAreaElement) {
-        categoryOptionsInput.setCustomValidity('');
-        categoryOptionsInput.value = '';
-      }
-    }
-
-    function parseCategoryOptions(rawValue) {
-      if (!rawValue) {
-        return [];
-      }
-
-      const values = rawValue
-        .split(/\r?\n|,/)
-        .map((value) => value.trim())
-        .filter((value) => Boolean(value));
-
-      return Array.from(new Set(values));
-    }
-
-    function updateMetricsFromContacts(target = data) {
-      if (!target || typeof target !== 'object') {
-        return;
-      }
-
-      if (!target.metrics || typeof target.metrics !== 'object') {
-        target.metrics = { ...defaultData.metrics };
-      }
-
-      const contacts = Array.isArray(target.contacts) ? target.contacts : [];
-      let emailCount = 0;
-      let phoneCount = 0;
-
-      contacts.forEach((contact) => {
-        if (!contact || typeof contact !== 'object') {
-          return;
-        }
-
-        const emailValue = contact.email ? contact.email.toString().trim() : '';
-        if (emailValue) {
-          emailCount += 1;
-        }
-
-        const mobileValue = contact.mobile ? contact.mobile.toString().trim() : '';
-        const landlineValue = contact.landline ? contact.landline.toString().trim() : '';
-        if (mobileValue) {
-          phoneCount += 1;
-        }
-        if (landlineValue) {
-          phoneCount += 1;
-        }
-      });
-
-      target.metrics.peopleCount = contacts.length;
-      target.metrics.emailCount = emailCount;
-      target.metrics.phoneCount = phoneCount;
-    }
-
-    function cleanupContactCategoryValues(target = data) {
-      if (!target || typeof target !== 'object') {
-        return;
-      }
-
-      const categoriesById = new Map(
-        Array.isArray(target.categories)
-          ? target.categories.map((category) => [category.id, category])
-          : [],
-      );
-
-      const contacts = Array.isArray(target.contacts) ? target.contacts : [];
-
-      contacts.forEach((contact) => {
-        if (!contact || typeof contact !== 'object') {
-          return;
-        }
-
-        const sourceValues =
-          contact.categoryValues && typeof contact.categoryValues === 'object'
-            ? contact.categoryValues
-            : {};
-        const cleanedValues = {};
-
-        Object.entries(sourceValues).forEach(([categoryId, rawValue]) => {
-          const category = categoriesById.get(categoryId);
-          if (!category) {
-            return;
-          }
-
-          const baseType = CATEGORY_TYPES.has(category.type) ? category.type : 'text';
-          if (rawValue === undefined || rawValue === null) {
-            return;
-          }
-
-          const valueString = rawValue.toString().trim();
-          if (!valueString) {
-            return;
-          }
-
-          if (baseType === 'number') {
-            const parsed = Number(valueString);
-            if (!Number.isFinite(parsed)) {
-              return;
-            }
-            cleanedValues[categoryId] = parsed.toString();
-            return;
-          }
-
-          if (baseType === 'list') {
-            const options = Array.isArray(category.options) ? category.options : [];
-            if (!options.includes(valueString)) {
-              return;
-            }
-          }
-
-          cleanedValues[categoryId] = valueString;
-        });
-
-        contact.categoryValues = cleanedValues;
-      });
     }
 
     function startKeywordEdition(keywordId) {
@@ -2242,23 +1587,6 @@
         }
       }
 
-      base.categories = base.categories
-        .filter((item) => item && typeof item === 'object')
-        .map((category) => {
-          const normalized = { ...category };
-          const typeValue = CATEGORY_TYPES.has(normalized.type) ? normalized.type : 'text';
-          normalized.type = typeValue;
-          if (typeValue === 'list') {
-            const optionValues = Array.isArray(normalized.options)
-              ? normalized.options.map((value) => (value != null ? value.toString().trim() : ''))
-              : [];
-            normalized.options = Array.from(new Set(optionValues.filter((value) => Boolean(value))));
-          } else {
-            normalized.options = [];
-          }
-          return normalized;
-        });
-
       if (!Array.isArray(base.keywords)) {
         base.keywords = [];
       }
@@ -2268,37 +1596,17 @@
       }
 
       base.contacts.forEach((contact) => {
-        if (!contact || typeof contact !== 'object') {
-          return;
+        if (!Array.isArray(contact.categories)) {
+          if (Array.isArray(contact.keywords)) {
+            contact.categories = contact.keywords.slice();
+          } else {
+            contact.categories = [];
+          }
         }
 
         if (!Array.isArray(contact.keywords)) {
           contact.keywords = [];
         }
-
-        const existingCategoryValues =
-          contact.categoryValues && typeof contact.categoryValues === 'object'
-            ? contact.categoryValues
-            : {};
-        const normalizedCategoryValues = {};
-
-        Object.entries(existingCategoryValues).forEach(([categoryId, rawValue]) => {
-          if (rawValue === undefined || rawValue === null) {
-            return;
-          }
-          normalizedCategoryValues[categoryId] = rawValue;
-        });
-
-        if (Array.isArray(contact.categories)) {
-          contact.categories.forEach((categoryId) => {
-            if (categoryId && !(categoryId in normalizedCategoryValues)) {
-              normalizedCategoryValues[categoryId] = 'Oui';
-            }
-          });
-        }
-
-        contact.categoryValues = normalizedCategoryValues;
-        delete contact.categories;
 
         if (!('mobile' in contact) && typeof contact.phone === 'string') {
           contact.mobile = contact.phone;
@@ -2330,9 +1638,6 @@
           }
         }
       });
-
-      cleanupContactCategoryValues(base);
-      updateMetricsFromContacts(base);
 
       if (!('lastUpdated' in base)) {
         base.lastUpdated = null;
@@ -2667,16 +1972,8 @@
     categoriesContainer.className = 'contact-categories';
     const keywordsContainer = document.createElement('div');
     keywordsContainer.className = 'contact-keywords';
-    const actionsContainer = document.createElement('div');
-    actionsContainer.className = 'contact-actions';
-    const editButton = document.createElement('button');
-    editButton.type = 'button';
-    editButton.className = 'contact-action-button';
-    editButton.dataset.action = 'edit-contact';
-    editButton.textContent = 'Modifier';
-    actionsContainer.appendChild(editButton);
 
-    listItem.append(header, details, categoriesContainer, keywordsContainer, actionsContainer);
+    listItem.append(header, details, categoriesContainer, keywordsContainer);
     return listItem;
   }
 
@@ -2690,9 +1987,7 @@
     titleEl.className = 'category-title';
     const descriptionEl = document.createElement('p');
     descriptionEl.className = 'category-description';
-    const metaEl = document.createElement('p');
-    metaEl.className = 'category-meta';
-    categoryMain.append(titleEl, descriptionEl, metaEl);
+    categoryMain.append(titleEl, descriptionEl);
 
     const actions = document.createElement('div');
     actions.className = 'category-actions';

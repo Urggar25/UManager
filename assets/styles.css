@@ -441,13 +441,6 @@ button {
   font-size: 0.9rem;
 }
 
-.form-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
 .checkbox-grid {
   display: grid;
   gap: 12px;
@@ -625,26 +618,6 @@ button {
   gap: 8px;
 }
 
-.contact-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.contact-action-button {
-  padding: 10px 16px;
-  border-radius: var(--radius-sm);
-  font-weight: 600;
-  color: var(--color-primary);
-  background: rgba(37, 99, 235, 0.12);
-  transition: filter 0.2s ease;
-}
-
-.contact-action-button:hover {
-  filter: brightness(0.95);
-}
-
 .category-chip,
 .keyword-chip {
   display: inline-flex;
@@ -701,12 +674,6 @@ button {
 .keyword-description--empty {
   font-style: italic;
   color: rgba(71, 85, 105, 0.72);
-}
-
-.category-meta {
-  margin: 0;
-  color: rgba(15, 23, 42, 0.6);
-  font-size: 0.85rem;
 }
 
 .category-actions,
