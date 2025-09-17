@@ -185,6 +185,26 @@
                 rows="3"
               ></textarea>
             </div>
+            <div class="form-row">
+              <label for="category-type">Type de valeur *</label>
+              <select id="category-type" name="category-type" required>
+                <option value="text" selected>Texte</option>
+                <option value="number">Nombre</option>
+                <option value="date">Date</option>
+                <option value="list">Liste</option>
+              </select>
+            </div>
+            <div class="form-row" id="category-options-row" hidden>
+              <label for="category-options">Liste de valeurs</label>
+              <textarea
+                id="category-options"
+                name="category-options"
+                rows="3"
+                maxlength="500"
+                placeholder="Saisissez une valeur par ligne"
+              ></textarea>
+              <p class="form-hint">Ces valeurs seront proposées lors de la saisie du contact.</p>
+            </div>
             <button type="submit" class="primary-button">Ajouter la catégorie</button>
           </form>
           <div class="category-list-wrapper">
@@ -456,11 +476,11 @@
               </div>
             </div>
             <fieldset id="contact-categories-fieldset" class="form-fieldset">
-              <legend>Catégories associées</legend>
+              <legend>Données personnalisées</legend>
               <p class="form-hint">
-                Sélectionnez une ou plusieurs catégories créées dans l’onglet «&nbsp;Catégories&nbsp;».
+                Renseignez les valeurs associées à chaque catégorie créée dans l’onglet «&nbsp;Catégories&nbsp;».
               </p>
-              <div id="contact-categories-container" class="checkbox-grid" aria-live="polite"></div>
+              <div id="contact-category-fields" class="form-grid" aria-live="polite"></div>
               <p id="contact-categories-empty" class="empty-state" hidden>
                 Aucune catégorie disponible pour le moment. Ajoutez vos catégories dans l’onglet «&nbsp;Catégories&nbsp;».
               </p>
@@ -485,7 +505,14 @@
                 placeholder="Informations complémentaires (optionnel)."
               ></textarea>
             </div>
-            <button type="submit" class="primary-button">Ajouter le contact</button>
+            <div class="form-actions">
+              <button type="submit" class="primary-button" id="contact-submit-button">
+                Ajouter le contact
+              </button>
+              <button type="button" class="secondary-button" id="contact-cancel-edit" hidden>
+                Annuler la modification
+              </button>
+            </div>
           </form>
         </section>
         <section id="contacts-search" class="page" aria-labelledby="contacts-search-title">
@@ -653,6 +680,11 @@
         </div>
         <div class="contact-categories"></div>
         <div class="contact-keywords"></div>
+        <div class="contact-actions">
+          <button type="button" class="contact-action-button" data-action="edit-contact">
+            Modifier
+          </button>
+        </div>
       </li>
     </template>
     <template id="category-item-template">
@@ -660,6 +692,7 @@
         <div class="category-main">
           <h3 class="category-title"></h3>
           <p class="category-description"></p>
+          <p class="category-meta"></p>
         </div>
         <div class="category-actions">
           <button type="button" class="category-button" data-action="edit">Modifier</button>
