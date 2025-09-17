@@ -11,7 +11,79 @@
     <link rel="stylesheet" href="assets/styles.css" />
   </head>
   <body>
-    <div class="app">
+    <div id="auth-view" class="auth-view">
+      <div class="auth-card" role="dialog" aria-modal="true">
+        <section id="login-section" class="auth-section" aria-labelledby="login-title">
+          <h1 id="login-title" class="auth-title">Connexion</h1>
+          <p class="auth-text">
+            Identifiez-vous pour accéder à votre espace UManager sécurisé.
+          </p>
+          <form id="login-form" class="auth-form" autocomplete="off">
+            <div class="form-row">
+              <label for="login-username">Identifiant *</label>
+              <input id="login-username" name="username" type="text" required />
+            </div>
+            <div class="form-row">
+              <label for="login-password">Mot de passe *</label>
+              <input id="login-password" name="password" type="password" required />
+            </div>
+            <p id="login-error" class="auth-error" role="alert" aria-live="assertive"></p>
+            <button type="submit" class="primary-button">Se connecter</button>
+          </form>
+          <p class="auth-switch">
+            Pas encore de compte ?
+            <button id="show-register" type="button" class="auth-link">Créer un compte</button>
+          </p>
+        </section>
+        <section
+          id="register-section"
+          class="auth-section"
+          aria-labelledby="register-title"
+          hidden
+        >
+          <h1 id="register-title" class="auth-title">Créer un compte</h1>
+          <p class="auth-text">
+            Renseignez les informations suivantes pour activer votre espace personnel.
+          </p>
+          <form id="register-form" class="auth-form" autocomplete="off">
+            <div class="form-row">
+              <label for="register-username">Identifiant *</label>
+              <input id="register-username" name="username" type="text" required />
+            </div>
+            <div class="form-row">
+              <label for="register-email">Adresse mail *</label>
+              <input id="register-email" name="email" type="email" required />
+            </div>
+            <div class="form-row">
+              <label for="register-password">Mot de passe *</label>
+              <input
+                id="register-password"
+                name="password"
+                type="password"
+                minlength="6"
+                required
+              />
+            </div>
+            <div class="form-row">
+              <label for="register-password-confirm">Confirmer le mot de passe *</label>
+              <input
+                id="register-password-confirm"
+                name="password-confirm"
+                type="password"
+                minlength="6"
+                required
+              />
+            </div>
+            <p id="register-error" class="auth-error" role="alert" aria-live="assertive"></p>
+            <div class="auth-actions">
+              <button type="submit" class="primary-button">Créer le compte</button>
+              <button id="show-login" type="button" class="secondary-button">Retour</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+    <div class="app" hidden>
       <aside class="sidebar" aria-label="Navigation principale">
         <div class="brand">
           <span class="brand-logo" aria-hidden="true">📊</span>
@@ -26,6 +98,11 @@
           </button>
         </nav>
         <div class="sidebar-footer">
+          <div class="sidebar-user" aria-live="polite">
+            <span class="sidebar-user-label">Connecté :</span>
+            <strong id="current-username">—</strong>
+          </div>
+          <button id="logout-button" class="logout-button" type="button">Se déconnecter</button>
           <p class="sidebar-tagline">
             Gérez vos données professionnelles, associations et structures en toute
             simplicité.

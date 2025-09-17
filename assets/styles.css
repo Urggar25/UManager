@@ -48,6 +48,87 @@ button {
   background: none;
 }
 
+.auth-view {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+}
+
+.auth-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.auth-title {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.auth-text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-error {
+  min-height: 20px;
+  color: var(--color-danger);
+  font-weight: 600;
+  margin: 4px 0 0;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.auth-switch {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.auth-link {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}
+
+.auth-section[hidden] {
+  display: none;
+}
+
+.secondary-button {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--color-text);
+  padding: 12px 18px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.secondary-button:hover {
+  background: rgba(15, 23, 42, 0.14);
+}
+
 .app {
   display: flex;
   min-height: 100vh;
@@ -111,6 +192,35 @@ button {
   font-size: 0.85rem;
   line-height: 1.4;
   color: rgba(226, 232, 240, 0.75);
+}
+
+.sidebar-user {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.sidebar-user-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.logout-button {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 600;
+  margin-bottom: 20px;
+  transition: background 0.2s ease;
+}
+
+.logout-button:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .content {
@@ -474,6 +584,10 @@ button {
 }
 
 @media (max-width: 600px) {
+  .auth-card {
+    padding: 24px;
+  }
+
   .content {
     padding: 24px 18px 40px;
   }
