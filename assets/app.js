@@ -16,6 +16,7 @@
       emailCount: 0,
     },
     keywords: [],
+    contacts: [],
     lastUpdated: null,
   };
 
@@ -319,8 +320,25 @@
     const keywordList = document.getElementById('keyword-list');
     const keywordEmptyState = document.getElementById('keyword-empty-state');
     const keywordTemplate = document.getElementById('keyword-item-template');
+    const contactsCountEl = document.getElementById('contacts-count');
+    const contactForm = document.getElementById('contact-form');
+    const contactKeywordsContainer = document.getElementById('contact-keywords-container');
+    const contactKeywordsEmpty = document.getElementById('contact-keywords-empty');
+    const contactList = document.getElementById('contact-list');
+    const contactEmptyState = document.getElementById('contact-empty-state');
+    const contactSearchInput = document.getElementById('contact-search-input');
+    const contactKeywordFilter = document.getElementById('contact-keyword-filter');
+    const contactSearchCountEl = document.getElementById('contact-search-count');
+    const contactTemplate = document.getElementById('contact-item-template');
 
     let data = loadDataForUser(currentUser);
+    if (!Array.isArray(data.contacts)) {
+      data.contacts = [];
+    }
+
+    const ALL_KEYWORD_FILTER_VALUE = '__all__';
+    let contactSearchTerm = '';
+    let activeKeywordFilter = ALL_KEYWORD_FILTER_VALUE;
 
     if (currentUsernameEl) {
       currentUsernameEl.textContent = currentUser;
@@ -385,7 +403,7 @@
         }
 
         data.keywords.push({
-          id: generateId(),
+          id: generateId('keyword'),
           name,
           description,
         });
@@ -399,6 +417,71 @@
         }
         renderMetrics();
         renderKeywords();
+      });
+    }
+
+    if (contactForm) {
+      contactForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const formData = new FormData(contactForm);
+        const fullName = (formData.get('contact-name') || '').toString().trim();
+        const email = (formData.get('contact-email') || '').toString().trim();
+        const phone = (formData.get('contact-phone') || '').toString().trim();
+        const notes = (formData.get('contact-notes') || '').toString().trim();
+        const keywordIds = formData.getAll('contact-keywords').map((value) => value.toString());
+
+        const nameInput = contactForm.querySelector('#contact-name');
+        if (!fullName) {
+          if (nameInput instanceof HTMLInputElement) {
+            nameInput.focus();
+          }
+          return;
+        }
+
+        const emailInput = contactForm.querySelector('#contact-email');
+        if (emailInput instanceof HTMLInputElement) {
+          emailInput.setCustomValidity('');
+          if (email && !isValidEmail(email)) {
+            emailInput.setCustomValidity('Veuillez renseigner une adresse e-mail valide.');
+            emailInput.reportValidity();
+            return;
+          }
+        }
+
+        data.contacts.push({
+          id: generateId('contact'),
+          fullName,
+          email,
+          phone,
+          notes,
+          keywords: keywordIds,
+          createdAt: new Date().toISOString(),
+        });
+
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+        contactForm.reset();
+        if (nameInput instanceof HTMLInputElement) {
+          nameInput.focus();
+        }
+        renderMetrics();
+        renderContacts();
+      });
+    }
+
+    if (contactSearchInput) {
+      contactSearchTerm = contactSearchInput.value || '';
+      contactSearchInput.addEventListener('input', () => {
+        contactSearchTerm = contactSearchInput.value;
+        renderContacts();
+      });
+    }
+
+    if (contactKeywordFilter) {
+      contactKeywordFilter.addEventListener('change', () => {
+        const value = contactKeywordFilter.value || ALL_KEYWORD_FILTER_VALUE;
+        activeKeywordFilter = value;
+        renderContacts();
       });
     }
 
@@ -441,6 +524,11 @@
         keywordsActiveCountEl.textContent = data.keywords.length.toString();
       }
 
+      if (contactsCountEl) {
+        const totalContacts = Array.isArray(data.contacts) ? data.contacts.length : 0;
+        contactsCountEl.textContent = totalContacts.toString();
+      }
+
       if (lastUpdatedEl) {
         if (data.lastUpdated) {
           const formatted = new Intl.DateTimeFormat('fr-FR', {
@@ -455,7 +543,7 @@
     }
 
     function renderKeywords() {
-      if (!keywordList || !keywordEmptyState || !keywordTemplate) {
+      if (!keywordList || !keywordEmptyState) {
         return;
       }
 
@@ -463,6 +551,8 @@
 
       if (!data || data.keywords.length === 0) {
         keywordEmptyState.hidden = false;
+        renderContactKeywordOptions();
+        renderContacts();
         return;
       }
 
@@ -474,7 +564,7 @@
         .slice()
         .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
         .forEach((keyword) => {
-          const templateItem = keywordTemplate.content.firstElementChild;
+          const templateItem = keywordTemplate ? keywordTemplate.content.firstElementChild : null;
           const listItem = templateItem
             ? templateItem.cloneNode(true)
             : createKeywordListItemFallback();
@@ -512,6 +602,246 @@
         });
 
       keywordList.appendChild(fragment);
+      renderContactKeywordOptions();
+      renderContacts();
+    }
+
+    function renderContactKeywordOptions() {
+      const keywords = Array.isArray(data.keywords)
+        ? data.keywords.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
+        : [];
+
+      if (contactKeywordsContainer) {
+        contactKeywordsContainer.innerHTML = '';
+
+        if (keywords.length === 0) {
+          if (contactKeywordsEmpty) {
+            contactKeywordsEmpty.hidden = false;
+          }
+        } else {
+          if (contactKeywordsEmpty) {
+            contactKeywordsEmpty.hidden = true;
+          }
+
+          const fragment = document.createDocumentFragment();
+
+          keywords.forEach((keyword) => {
+            const checkboxId = `contact-keyword-${keyword.id}`;
+            const item = document.createElement('div');
+            item.className = 'checkbox-item';
+
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = checkboxId;
+            input.name = 'contact-keywords';
+            input.value = keyword.id;
+
+            const label = document.createElement('label');
+            label.setAttribute('for', checkboxId);
+            label.textContent = keyword.name;
+
+            item.append(input, label);
+            fragment.appendChild(item);
+          });
+
+          contactKeywordsContainer.appendChild(fragment);
+        }
+      }
+
+      if (contactKeywordFilter) {
+        const previousValue = contactKeywordFilter.value;
+        contactKeywordFilter.innerHTML = '';
+
+        const defaultOption = document.createElement('option');
+        defaultOption.value = ALL_KEYWORD_FILTER_VALUE;
+        defaultOption.textContent = 'Tous les mots clés';
+        contactKeywordFilter.appendChild(defaultOption);
+
+        keywords.forEach((keyword) => {
+          const option = document.createElement('option');
+          option.value = keyword.id;
+          option.textContent = keyword.name;
+          contactKeywordFilter.appendChild(option);
+        });
+
+        const allowedValues = new Set([ALL_KEYWORD_FILTER_VALUE, ...keywords.map((keyword) => keyword.id)]);
+        if (previousValue && allowedValues.has(previousValue)) {
+          contactKeywordFilter.value = previousValue;
+        } else {
+          contactKeywordFilter.value = ALL_KEYWORD_FILTER_VALUE;
+        }
+
+        activeKeywordFilter = contactKeywordFilter.value || ALL_KEYWORD_FILTER_VALUE;
+      }
+    }
+
+    function renderContacts() {
+      const contacts = Array.isArray(data.contacts) ? data.contacts.slice() : [];
+
+      if (contactSearchCountEl) {
+        contactSearchCountEl.textContent = '0';
+      }
+
+      if (!contactList || !contactEmptyState) {
+        return;
+      }
+
+      contactList.innerHTML = '';
+
+      const normalizedTerm = contactSearchTerm.trim().toLowerCase();
+      const filteredContacts = contacts
+        .filter((contact) => {
+          const keywords = Array.isArray(contact.keywords) ? contact.keywords : [];
+          if (activeKeywordFilter !== ALL_KEYWORD_FILTER_VALUE && !keywords.includes(activeKeywordFilter)) {
+            return false;
+          }
+
+          if (!normalizedTerm) {
+            return true;
+          }
+
+          const haystackParts = [
+            (contact.fullName || '').toString(),
+            (contact.email || '').toString(),
+            (contact.phone || '').toString(),
+            (contact.notes || '').toString(),
+          ];
+
+          if (keywords.length > 0) {
+            const keywordNames = keywords
+              .map((keywordId) => {
+                const keyword = data.keywords.find((item) => item.id === keywordId);
+                return keyword ? keyword.name : '';
+              })
+              .join(' ');
+            haystackParts.push(keywordNames);
+          }
+
+          const haystack = haystackParts.join(' ').toLowerCase();
+          return haystack.includes(normalizedTerm);
+        })
+        .sort((a, b) => {
+          const nameA = (a.fullName || '').toString();
+          const nameB = (b.fullName || '').toString();
+          return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+        });
+
+      if (contactSearchCountEl) {
+        contactSearchCountEl.textContent = filteredContacts.length.toString();
+      }
+
+      if (filteredContacts.length === 0) {
+        contactEmptyState.hidden = false;
+        if (contacts.length === 0) {
+          contactEmptyState.textContent = 'Ajoutez vos premiers contacts pour les retrouver ici.';
+        } else if (normalizedTerm || activeKeywordFilter !== ALL_KEYWORD_FILTER_VALUE) {
+          contactEmptyState.textContent = 'Aucun contact ne correspond à vos critères de recherche.';
+        } else {
+          contactEmptyState.textContent = 'Aucun contact à afficher pour le moment.';
+        }
+        return;
+      }
+
+      contactEmptyState.hidden = true;
+
+      const fragment = document.createDocumentFragment();
+      const dateTimeFormatter = new Intl.DateTimeFormat('fr-FR', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+
+      filteredContacts.forEach((contact) => {
+        const templateItem = contactTemplate && contactTemplate.content
+          ? contactTemplate.content.firstElementChild
+          : null;
+        const listItem = templateItem
+          ? templateItem.cloneNode(true)
+          : createContactListItemFallback();
+
+        listItem.classList.add('contact-item');
+        if (contact.id) {
+          listItem.dataset.id = contact.id;
+        } else {
+          delete listItem.dataset.id;
+        }
+
+        const nameEl = listItem.querySelector('.contact-name');
+        if (nameEl) {
+          nameEl.textContent = (contact.fullName || '').toString();
+        }
+
+        const createdEl = listItem.querySelector('.contact-created');
+        if (createdEl) {
+          const createdValue = contact.createdAt ? new Date(contact.createdAt) : null;
+          if (createdValue && !Number.isNaN(createdValue.getTime())) {
+            createdEl.textContent = `Ajouté le ${dateTimeFormatter.format(createdValue)}`;
+          } else {
+            createdEl.textContent = '';
+          }
+        }
+
+        const coordinatesEl = listItem.querySelector('.contact-coordinates');
+        if (coordinatesEl) {
+          const coordinates = [];
+          const phoneValue = (contact.phone || '').toString().trim();
+          const emailValue = (contact.email || '').toString().trim();
+          if (phoneValue) {
+            coordinates.push(phoneValue);
+          }
+          if (emailValue) {
+            coordinates.push(emailValue);
+          }
+          if (coordinates.length > 0) {
+            coordinatesEl.textContent = coordinates.join(' · ');
+            coordinatesEl.classList.remove('contact-coordinates--empty');
+          } else {
+            coordinatesEl.textContent = 'Aucun moyen de contact renseigné.';
+            coordinatesEl.classList.add('contact-coordinates--empty');
+          }
+        }
+
+        const notesEl = listItem.querySelector('.contact-notes');
+        if (notesEl) {
+          const notesValue = (contact.notes || '').toString().trim();
+          if (notesValue) {
+            notesEl.textContent = notesValue;
+            notesEl.classList.remove('contact-notes--empty');
+          } else {
+            notesEl.textContent = 'Aucune note supplémentaire.';
+            notesEl.classList.add('contact-notes--empty');
+          }
+        }
+
+        const keywordsContainer = listItem.querySelector('.contact-keywords');
+        if (keywordsContainer) {
+          keywordsContainer.innerHTML = '';
+          const associatedKeywords = Array.isArray(contact.keywords)
+            ? contact.keywords
+                .map((keywordId) => data.keywords.find((item) => item.id === keywordId))
+                .filter((keyword) => Boolean(keyword))
+            : [];
+
+          if (associatedKeywords.length > 0) {
+            associatedKeywords
+              .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
+              .forEach((keyword) => {
+                const chip = document.createElement('span');
+                chip.className = 'keyword-chip';
+                chip.textContent = keyword.name;
+                keywordsContainer.appendChild(chip);
+              });
+          } else {
+            const chip = document.createElement('span');
+            chip.className = 'keyword-chip keyword-chip--empty';
+            chip.textContent = 'Sans mot clé';
+            keywordsContainer.appendChild(chip);
+          }
+        }
+
+        fragment.appendChild(listItem);
+      });
+
+      contactList.appendChild(fragment);
     }
 
     function startKeywordEdition(keywordId) {
@@ -603,6 +933,15 @@
 
     function deleteKeyword(keywordId) {
       data.keywords = data.keywords.filter((item) => item.id !== keywordId);
+      if (Array.isArray(data.contacts)) {
+        data.contacts.forEach((contact) => {
+          if (Array.isArray(contact.keywords)) {
+            contact.keywords = contact.keywords.filter((item) => item !== keywordId);
+          } else {
+            contact.keywords = [];
+          }
+        });
+      }
       data.lastUpdated = new Date().toISOString();
       saveDataForUser(currentUser, data);
       renderMetrics();
@@ -706,6 +1045,7 @@
         return {
           metrics: { ...defaultData.metrics, ...(parsed.metrics || {}) },
           keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
+          contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [],
           lastUpdated: parsed.lastUpdated || null,
         };
       }
@@ -733,6 +1073,7 @@
     return {
       metrics: { ...defaultData.metrics },
       keywords: [],
+      contacts: [],
       lastUpdated: null,
     };
   }
@@ -872,11 +1213,38 @@
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
   }
 
-  function generateId() {
+  function generateId(prefix = 'item') {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();
     }
-    return `kw-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function createContactListItemFallback() {
+    const listItem = document.createElement('li');
+    listItem.className = 'contact-item';
+
+    const header = document.createElement('div');
+    header.className = 'contact-header';
+    const nameEl = document.createElement('h3');
+    nameEl.className = 'contact-name';
+    const createdEl = document.createElement('span');
+    createdEl.className = 'contact-created';
+    header.append(nameEl, createdEl);
+
+    const details = document.createElement('div');
+    details.className = 'contact-details';
+    const coordinatesEl = document.createElement('p');
+    coordinatesEl.className = 'contact-coordinates contact-coordinates--empty';
+    const notesEl = document.createElement('p');
+    notesEl.className = 'contact-notes contact-notes--empty';
+    details.append(coordinatesEl, notesEl);
+
+    const keywordsContainer = document.createElement('div');
+    keywordsContainer.className = 'contact-keywords';
+
+    listItem.append(header, details, keywordsContainer);
+    return listItem;
   }
 
   function createKeywordListItemFallback() {
