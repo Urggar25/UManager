@@ -550,20 +550,26 @@
     }
 
     if (taskForm) {
-      taskForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-        createTaskFromForm();
-      });
+	  taskForm.addEventListener('submit', (event) => {
+		event.preventDefault();
+		if (editingTaskId) {
+		  applyTaskEditsFromForm();   // NOUVEAU : en mode édition
+		} else {
+		  createTaskFromForm();       // Existant : création
+		}
+	  });
 
-      taskForm.addEventListener('reset', () => {
-        window.requestAnimationFrame(() => {
-          resetTaskFormDefaults();
-          if (taskTitleInput instanceof HTMLInputElement) {
-            taskTitleInput.focus();
-          }
-        });
-      });
-    }
+	  taskForm.addEventListener('reset', () => {
+		window.requestAnimationFrame(() => {
+		  // En reset, on sort du mode édition si on y était
+		  editingTaskId = '';
+		  setTaskFormMode('create');
+		  resetTaskFormDefaults();
+		  if (taskTitleInput instanceof HTMLInputElement) taskTitleInput.focus();
+		});
+	  });
+	}
+
 
     if (taskList) {
       taskList.addEventListener('click', (event) => {
@@ -577,6 +583,11 @@
             deleteTask(taskId);
           }
         }
+		if (target.dataset.action === 'edit-task') {
+		  const taskId = target.dataset.taskId || '';
+		  if (taskId) startEditTask(taskId);
+		  return;
+		}
       });
 
       taskList.addEventListener('submit', (event) => {
@@ -1863,6 +1874,14 @@
 
         const actions = document.createElement('div');
         actions.className = 'task-actions';
+		
+		const editButton = document.createElement('button');
+		editButton.type = 'button';
+		editButton.className = 'task-action-button';
+		editButton.dataset.action = 'edit-task';
+		editButton.dataset.taskId = task.id || '';
+		editButton.textContent = 'Modifier';
+		actions.appendChild(editButton);
 
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
@@ -2009,6 +2028,115 @@
       saveDataForUser(currentUser, data);
       renderTasks();
     }
+	
+	// État local : id de la tâche en cours d’édition
+	let editingTaskId = '';
+
+	function setTaskFormMode(mode /* 'create' | 'edit' */) {
+	  if (!taskForm) return;
+	  const submitBtn = taskForm.querySelector('button[type="submit"]');
+	  const resetBtn  = taskForm.querySelector('button[type="reset"]');
+
+	  taskForm.dataset.mode = mode;
+	  if (submitBtn instanceof HTMLButtonElement) {
+		submitBtn.textContent = mode === 'edit' ? 'Enregistrer' : 'Ajouter la tâche';
+	  }
+	  if (resetBtn instanceof HTMLButtonElement) {
+		resetBtn.textContent = mode === 'edit' ? 'Annuler la modification' : 'Réinitialiser';
+	  }
+	}
+
+	function startEditTask(taskId) {
+	  if (!Array.isArray(data.tasks)) return;
+	  const t = data.tasks.find((x) => x && x.id === taskId);
+	  if (!t) return;
+
+	  // Ouvre la page "Tâches" si besoin
+	  showPage && showPage('tasks');
+
+	  // Remplit le formulaire
+	  if (taskTitleInput instanceof HTMLInputElement) taskTitleInput.value = t.title || '';
+	  if (taskDueDateInput instanceof HTMLInputElement) taskDueDateInput.value = t.dueDate || '';
+	  if (taskColorInput instanceof HTMLInputElement) taskColorInput.value = normalizeTaskColor(t.color || DEFAULT_TASK_COLOR);
+	  if (taskDescriptionInput instanceof HTMLTextAreaElement) taskDescriptionInput.value = t.description || '';
+
+	  if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
+		Array.from(taskMemberSelect.options).forEach((opt) => {
+		  opt.selected = Array.isArray(t.assignedMembers) ? t.assignedMembers.includes(opt.value) : false;
+		});
+	  }
+
+	  editingTaskId = t.id;
+	  setTaskFormMode('edit');
+
+	  // Focus UX
+	  window.requestAnimationFrame(() => {
+		taskTitleInput && taskTitleInput.focus();
+		taskTitleInput && taskTitleInput.setSelectionRange(taskTitleInput.value.length, taskTitleInput.value.length);
+	  });
+	}
+
+	function applyTaskEditsFromForm() {
+	  if (!taskForm || !editingTaskId) return;
+	  if (!(taskTitleInput instanceof HTMLInputElement)) return;
+
+	  const formData = new FormData(taskForm);
+	  const title = (formData.get('task-title') || '').toString().trim();
+	  if (!title) {
+		taskTitleInput.focus();
+		return;
+	  }
+
+	  // Validation date (on réutilise ta logique existante)
+	  let dueDate = '';
+	  const dueDateRaw = (formData.get('task-due-date') || '').toString().trim();
+	  if (taskDueDateInput instanceof HTMLInputElement) taskDueDateInput.setCustomValidity('');
+	  if (dueDateRaw) {
+		if (isValidDateKey(dueDateRaw)) {
+		  dueDate = dueDateRaw;
+		} else if (taskDueDateInput instanceof HTMLInputElement) {
+		  taskDueDateInput.setCustomValidity('Veuillez sélectionner une date valide.');
+		  taskDueDateInput.reportValidity();
+		  taskDueDateInput.focus();
+		  return;
+		}
+	  }
+
+	  const colorValue = normalizeTaskColor(
+		(formData.get('task-color') || DEFAULT_TASK_COLOR).toString(),
+	  );
+	  const descriptionValue = (formData.get('task-description') || '').toString().trim();
+
+	  const members = [];
+	  if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
+		Array.from(taskMemberSelect.selectedOptions).forEach((option) => {
+		  if (option && option.value) members.push(option.value);
+		});
+	  }
+
+	  // Met à jour l’objet existant
+	  const task = Array.isArray(data.tasks) ? data.tasks.find((x) => x && x.id === editingTaskId) : null;
+	  if (!task) return;
+
+	  task.title = title;
+	  task.dueDate = dueDate;
+	  task.color = colorValue;
+	  task.description = descriptionValue;
+	  task.assignedMembers = members;
+
+	  // Sauvegarde + re-render
+	  data.tasks = data.tasks.map((it) => normalizeTask(it)).sort(compareTasks);
+	  data.lastUpdated = new Date().toISOString();
+	  saveDataForUser(currentUser, data);
+
+	  // Reset mode
+	  editingTaskId = '';
+	  taskForm.reset();
+	  resetTaskFormDefaults();
+	  setTaskFormMode('create');
+	  renderTasks();
+	}
+
 
     function addCommentToTask(taskId, rawContent) {
       if (!taskId || typeof rawContent !== 'string') {
