@@ -67,20 +67,6 @@
                 <p class="metric-caption">Nombre total de profils actifs dans votre base.</p>
               </header>
               <p class="metric-value" data-metric="peopleCount">0</p>
-              <form class="metric-form" data-form="peopleCount">
-                <label class="sr-only" for="people-count-input">
-                  Mettre à jour le nombre de personnes enregistrées
-                </label>
-                <input
-                  id="people-count-input"
-                  type="number"
-                  inputmode="numeric"
-                  min="0"
-                  data-input="peopleCount"
-                  placeholder="Mettre à jour"
-                />
-                <button type="submit">Enregistrer</button>
-              </form>
             </article>
             <article class="metric-card" role="listitem">
               <header>
@@ -90,20 +76,7 @@
                 </p>
               </header>
               <p class="metric-value" data-metric="phoneCount">0</p>
-              <form class="metric-form" data-form="phoneCount">
-                <label class="sr-only" for="phone-count-input">
-                  Mettre à jour le nombre de téléphones recensés
-                </label>
-                <input
-                  id="phone-count-input"
-                  type="number"
-                  inputmode="numeric"
-                  min="0"
-                  data-input="phoneCount"
-                  placeholder="Mettre à jour"
-                />
-                <button type="submit">Enregistrer</button>
-              </form>
+              <p class="metric-subtext" data-metric-share="phone">0 % des contacts</p>
             </article>
             <article class="metric-card" role="listitem">
               <header>
@@ -111,22 +84,55 @@
                 <p class="metric-caption">Total des courriels valides en base.</p>
               </header>
               <p class="metric-value" data-metric="emailCount">0</p>
-              <form class="metric-form" data-form="emailCount">
-                <label class="sr-only" for="email-count-input">
-                  Mettre à jour le nombre d'adresses mail collectées
-                </label>
-                <input
-                  id="email-count-input"
-                  type="number"
-                  inputmode="numeric"
-                  min="0"
-                  data-input="emailCount"
-                  placeholder="Mettre à jour"
-                />
-                <button type="submit">Enregistrer</button>
-              </form>
+              <p class="metric-subtext" data-metric-share="email">0 % des contacts</p>
             </article>
           </div>
+          <section class="metrics-coverage" aria-labelledby="metrics-coverage-title">
+            <h2 id="metrics-coverage-title">Répartition des coordonnées collectées</h2>
+            <div class="coverage-content">
+              <div
+                id="contact-coverage-chart"
+                class="coverage-chart"
+                role="img"
+                aria-live="polite"
+                aria-label="Aucune donnée de contact disponible."
+              ></div>
+              <ul class="coverage-legend">
+                <li>
+                  <span class="coverage-dot coverage-dot--both" aria-hidden="true"></span>
+                  <div class="coverage-legend-text">
+                    <span class="coverage-name">Téléphone + e-mail</span>
+                    <span class="coverage-count" data-coverage-count="both">0 contact</span>
+                  </div>
+                  <span class="coverage-percent" data-coverage-percent="both">0 %</span>
+                </li>
+                <li>
+                  <span class="coverage-dot coverage-dot--phone" aria-hidden="true"></span>
+                  <div class="coverage-legend-text">
+                    <span class="coverage-name">Téléphone uniquement</span>
+                    <span class="coverage-count" data-coverage-count="phone">0 contact</span>
+                  </div>
+                  <span class="coverage-percent" data-coverage-percent="phone">0 %</span>
+                </li>
+                <li>
+                  <span class="coverage-dot coverage-dot--email" aria-hidden="true"></span>
+                  <div class="coverage-legend-text">
+                    <span class="coverage-name">E-mail uniquement</span>
+                    <span class="coverage-count" data-coverage-count="email">0 contact</span>
+                  </div>
+                  <span class="coverage-percent" data-coverage-percent="email">0 %</span>
+                </li>
+                <li>
+                  <span class="coverage-dot coverage-dot--none" aria-hidden="true"></span>
+                  <div class="coverage-legend-text">
+                    <span class="coverage-name">Aucune coordonnée</span>
+                    <span class="coverage-count" data-coverage-count="none">0 contact</span>
+                  </div>
+                  <span class="coverage-percent" data-coverage-percent="none">0 %</span>
+                </li>
+              </ul>
+            </div>
+          </section>
           <section class="summary" aria-labelledby="summary-title">
             <h2 id="summary-title">Synthèse</h2>
             <div class="summary-grid">
@@ -272,209 +278,6 @@
             </div>
           </header>
           <form id="contact-form" class="contact-form" autocomplete="off">
-            <div class="form-grid">
-              <div class="form-row">
-                <label for="contact-first-name">Prénom *</label>
-                <input
-                  id="contact-first-name"
-                  name="contact-first-name"
-                  type="text"
-                  required
-                  maxlength="80"
-                  placeholder="Ex. Jeanne"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-usage-name">Nom d'usage *</label>
-                <input
-                  id="contact-usage-name"
-                  name="contact-usage-name"
-                  type="text"
-                  required
-                  maxlength="80"
-                  placeholder="Ex. Dupont"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-birth-name">Nom de naissance</label>
-                <input
-                  id="contact-birth-name"
-                  name="contact-birth-name"
-                  type="text"
-                  maxlength="80"
-                  placeholder="Ex. Martin"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-gender">Genre</label>
-                <select id="contact-gender" name="contact-gender">
-                  <option value="">Non précisé</option>
-                  <option value="femme">Femme</option>
-                  <option value="homme">Homme</option>
-                  <option value="autre">Autre</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label for="contact-age-range">Âge (ex. 60-80)</label>
-                <input
-                  id="contact-age-range"
-                  name="contact-age-range"
-                  type="text"
-                  maxlength="20"
-                  placeholder="Ex. 45-55"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-email">Adresse e-mail</label>
-                <input
-                  id="contact-email"
-                  name="contact-email"
-                  type="email"
-                  maxlength="160"
-                  placeholder="Ex. jeanne.dupont@email.fr"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-mobile">Mobile</label>
-                <input
-                  id="contact-mobile"
-                  name="contact-mobile"
-                  type="tel"
-                  maxlength="40"
-                  placeholder="Ex. 06 12 34 56 78"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-landline">Téléphone fixe</label>
-                <input
-                  id="contact-landline"
-                  name="contact-landline"
-                  type="tel"
-                  maxlength="40"
-                  placeholder="Ex. 01 23 45 67 89"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-street">Rue et numéro</label>
-                <input
-                  id="contact-street"
-                  name="contact-street"
-                  type="text"
-                  maxlength="120"
-                  placeholder="Ex. 10 rue Victor Hugo"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-city">Ville</label>
-                <input
-                  id="contact-city"
-                  name="contact-city"
-                  type="text"
-                  maxlength="80"
-                  placeholder="Ex. Lyon"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-postal-code">Code postal</label>
-                <input
-                  id="contact-postal-code"
-                  name="contact-postal-code"
-                  type="text"
-                  maxlength="20"
-                  placeholder="Ex. 69002"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-country">Pays</label>
-                <input
-                  id="contact-country"
-                  name="contact-country"
-                  type="text"
-                  maxlength="60"
-                  placeholder="Ex. France"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-zone">Zone</label>
-                <input
-                  id="contact-zone"
-                  name="contact-zone"
-                  type="text"
-                  maxlength="60"
-                  placeholder="Ex. Grand Est"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-campaign-status">Statut pour les campagnes</label>
-                <select id="contact-campaign-status" name="contact-campaign-status">
-                  <option value="">Non défini</option>
-                  <option value="actif">Actif</option>
-                  <option value="pause">Pause</option>
-                  <option value="a-exclure">À exclure</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label for="contact-engagement-level">Niveau d'engagement</label>
-                <select id="contact-engagement-level" name="contact-engagement-level">
-                  <option value="">Non défini</option>
-                  <option value="normal">Normal</option>
-                  <option value="prioritaire">Prioritaire</option>
-                  <option value="a-relancer">À relancer</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label for="contact-archive-theme">Archiver un thème activé</label>
-                <select id="contact-archive-theme" name="contact-archive-theme">
-                  <option value="">Non défini</option>
-                  <option value="oui">Oui</option>
-                  <option value="non">Non</option>
-                </select>
-              </div>
-              <div class="form-row">
-                <label for="contact-mandate">Mandat</label>
-                <input
-                  id="contact-mandate"
-                  name="contact-mandate"
-                  type="text"
-                  maxlength="120"
-                  placeholder="Ex. Président"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-profession">Profession</label>
-                <input
-                  id="contact-profession"
-                  name="contact-profession"
-                  type="text"
-                  maxlength="120"
-                  placeholder="Ex. Enseignant"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-last-membership">Date dernière adhésion</label>
-                <input id="contact-last-membership" name="contact-last-membership" type="date" />
-              </div>
-              <div class="form-row">
-                <label for="contact-custom-field">Custom</label>
-                <input
-                  id="contact-custom-field"
-                  name="contact-custom-field"
-                  type="text"
-                  maxlength="160"
-                  placeholder="Valeur libre"
-                />
-              </div>
-              <div class="form-row">
-                <label for="contact-organization">Organisme</label>
-                <input
-                  id="contact-organization"
-                  name="contact-organization"
-                  type="text"
-                  maxlength="160"
-                  placeholder="Ex. Association Lumière"
-                />
-              </div>
-            </div>
             <fieldset id="contact-categories-fieldset" class="form-fieldset">
               <legend>Données personnalisées</legend>
               <p class="form-hint">
@@ -535,125 +338,18 @@
               <input
                 id="contact-search-input"
                 type="search"
-                placeholder="Rechercher par nom, e-mail, téléphone, catégorie ou mot clé"
+                placeholder="Rechercher par valeur de catégorie, note ou mot clé"
                 autocomplete="off"
               />
             </div>
             <form id="contact-advanced-search" class="contact-advanced-search" autocomplete="off">
-              <div class="advanced-grid">
-                <div class="form-row">
-                  <label for="search-first-name">Prénom</label>
-                  <input id="search-first-name" name="search-first-name" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-usage-name">Nom d'usage</label>
-                  <input id="search-usage-name" name="search-usage-name" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-birth-name">Nom de naissance</label>
-                  <input id="search-birth-name" name="search-birth-name" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-category">Catégorie</label>
-                  <select id="search-category" name="search-category">
-                    <option value="">Toutes les catégories</option>
-                  </select>
-                </div>
-                <div class="form-row">
-                  <label for="search-gender">Genre</label>
-                  <select id="search-gender" name="search-gender">
-                    <option value="">Tous</option>
-                    <option value="femme">Femme</option>
-                    <option value="homme">Homme</option>
-                    <option value="autre">Autre</option>
-                  </select>
-                </div>
-                <div class="form-row">
-                  <label for="search-age">Âge (ex. 60-80)</label>
-                  <input id="search-age" name="search-age" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-email">Email</label>
-                  <input id="search-email" name="search-email" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-mobile">Mobile</label>
-                  <input id="search-mobile" name="search-mobile" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-street">Rue N°</label>
-                  <input id="search-street" name="search-street" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-city">Ville</label>
-                  <input id="search-city" name="search-city" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-postal-code">CP</label>
-                  <input id="search-postal-code" name="search-postal-code" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-country">Pays</label>
-                  <input id="search-country" name="search-country" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-zone">Zones</label>
-                  <input id="search-zone" name="search-zone" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-campaign-status">Statut pour les campagnes</label>
-                  <select id="search-campaign-status" name="search-campaign-status">
-                    <option value="">Tous</option>
-                    <option value="actif">Actif</option>
-                    <option value="pause">Pause</option>
-                    <option value="a-exclure">À exclure</option>
-                  </select>
-                </div>
-                <div class="form-row">
-                  <label for="search-engagement">Niveau d'engagement</label>
-                  <select id="search-engagement" name="search-engagement">
-                    <option value="">Tous</option>
-                    <option value="normal">Normal</option>
-                    <option value="prioritaire">Prioritaire</option>
-                    <option value="a-relancer">À relancer</option>
-                  </select>
-                </div>
-                <div class="form-row">
-                  <label for="search-archive">Archiver un thème</label>
-                  <select id="search-archive" name="search-archive">
-                    <option value="">Tous</option>
-                    <option value="oui">Oui</option>
-                    <option value="non">Non</option>
-                  </select>
-                </div>
-                <div class="form-row">
-                  <label for="search-mandate">Mandat</label>
-                  <input id="search-mandate" name="search-mandate" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-profession">Profession</label>
-                  <input id="search-profession" name="search-profession" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-landline">Tél fixe</label>
-                  <input id="search-landline" name="search-landline" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-last-membership">Date dernière adhésion</label>
-                  <input id="search-last-membership" name="search-last-membership" type="date" />
-                </div>
-                <div class="form-row">
-                  <label for="search-custom">Custom</label>
-                  <input id="search-custom" name="search-custom" type="text" />
-                </div>
-                <div class="form-row">
-                  <label for="search-organization">Organisme</label>
-                  <input id="search-organization" name="search-organization" type="text" />
-                </div>
-                <div class="form-row advanced-multiselect">
-                  <label for="search-keywords">Sélectionnez mes mots clés</label>
-                  <select id="search-keywords" name="search-keywords" multiple></select>
-                </div>
+              <div class="advanced-grid" id="search-category-fields" aria-live="polite"></div>
+              <p id="search-categories-empty" class="empty-state" hidden>
+                Ajoutez vos premières catégories pour filtrer vos contacts.
+              </p>
+              <div class="form-row advanced-multiselect">
+                <label for="search-keywords">Sélectionnez mes mots clés</label>
+                <select id="search-keywords" name="search-keywords" multiple></select>
               </div>
               <div class="advanced-actions">
                 <button type="submit" class="primary-button">Appliquer les filtres</button>
