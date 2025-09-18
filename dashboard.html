@@ -312,6 +312,9 @@
               <button type="submit" class="primary-button" id="contact-submit-button">
                 Ajouter le contact
               </button>
+              <button type="button" class="secondary-button" id="contact-back-to-search" hidden>
+                Retour à la recherche
+              </button>
               <button type="button" class="secondary-button" id="contact-cancel-edit" hidden>
                 Annuler la modification
               </button>
@@ -380,11 +383,28 @@
           <button type="button" class="contact-action-button" data-action="edit-contact">
             Modifier
           </button>
+          <button
+            type="button"
+            class="contact-action-button contact-action-button--danger"
+            data-action="delete-contact"
+          >
+            Supprimer
+          </button>
         </div>
       </li>
     </template>
     <template id="category-item-template">
       <li class="category-item">
+        <button
+          type="button"
+          class="category-drag-handle"
+          data-drag-handle
+          aria-label="Réorganiser la catégorie"
+          title="Déplacer la catégorie"
+          draggable="true"
+        >
+          ⋮⋮
+        </button>
         <div class="category-main">
           <h3 class="category-title"></h3>
           <p class="category-description"></p>

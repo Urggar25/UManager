@@ -735,6 +735,15 @@ button {
   filter: brightness(0.95);
 }
 
+.contact-action-button--danger {
+  color: #fff;
+  background: rgba(220, 38, 38, 0.9);
+}
+
+.contact-action-button--danger:hover {
+  filter: brightness(0.92);
+}
+
 .category-chip,
 .keyword-chip {
   display: inline-flex;
@@ -764,14 +773,52 @@ button {
   display: flex;
   gap: 20px;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: stretch;
   box-shadow: var(--shadow-card);
   border: 1px solid rgba(15, 23, 42, 0.05);
 }
 
 .category-main,
 .keyword-main {
+  flex: 1 1 auto;
   max-width: 640px;
+}
+
+.category-drag-handle {
+  align-self: stretch;
+  border: none;
+  background: transparent;
+  cursor: grab;
+  color: var(--color-text-secondary);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s ease;
+}
+
+.category-drag-handle:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.category-drag-handle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.category-item.dragging {
+  opacity: 0.6;
+}
+
+.category-item.dragging .category-drag-handle {
+  cursor: grabbing;
+}
+
+.category-item.editing .category-drag-handle {
+  display: none;
 }
 
 .category-title,
