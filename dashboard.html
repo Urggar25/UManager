@@ -48,6 +48,38 @@
       </aside>
       <main class="content">
         <section id="dashboard" class="page active" aria-labelledby="dashboard-title">
+          <div
+            class="dashboard-toolbar"
+            role="toolbar"
+            aria-label="Actions rapides du tableau de bord"
+          >
+            <button
+              id="dashboard-calendar-button"
+              class="dashboard-toolbar-button dashboard-toolbar-button--primary"
+              type="button"
+            >
+              <span class="dashboard-toolbar-icon" aria-hidden="true">📅</span>
+              <span>Calendrier</span>
+            </button>
+            <button
+              id="dashboard-shortcut-contacts"
+              class="dashboard-toolbar-button"
+              type="button"
+              data-shortcut-target="contacts-add"
+            >
+              <span class="dashboard-toolbar-icon" aria-hidden="true">➕</span>
+              <span>Ajouter un contact</span>
+            </button>
+            <button
+              id="dashboard-shortcut-categories"
+              class="dashboard-toolbar-button"
+              type="button"
+              data-shortcut-target="categories"
+            >
+              <span class="dashboard-toolbar-icon" aria-hidden="true">🗂️</span>
+              <span>Gérer les catégories</span>
+            </button>
+          </div>
           <header class="page-header">
             <div>
               <h1 id="dashboard-title">Tableau de bord</h1>
@@ -365,6 +397,127 @@
             Ajoutez vos premiers contacts pour les retrouver ici.
           </p>
         </section>
+        <div
+          id="calendar-overlay"
+          class="calendar-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="calendar-dialog-title"
+          aria-hidden="true"
+          hidden
+        >
+          <div class="calendar-dialog">
+            <header class="calendar-header">
+              <div>
+                <h2 id="calendar-dialog-title">Calendrier des évènements</h2>
+                <p class="calendar-subtitle">
+                  Planifiez vos actions et notez vos rendez-vous importants.
+                </p>
+              </div>
+              <button
+                id="calendar-close-button"
+                class="calendar-close-button"
+                type="button"
+                aria-label="Fermer le calendrier"
+              >
+                ✕
+              </button>
+            </header>
+            <div class="calendar-toolbar">
+              <div
+                class="calendar-view-toggle"
+                role="group"
+                aria-label="Changer la vue du calendrier"
+              >
+                <button
+                  type="button"
+                  class="calendar-view-button"
+                  data-calendar-view="week"
+                  aria-pressed="false"
+                >
+                  Semaine
+                </button>
+                <button
+                  type="button"
+                  class="calendar-view-button active"
+                  data-calendar-view="month"
+                  aria-pressed="true"
+                >
+                  Mois
+                </button>
+              </div>
+              <div class="calendar-navigation">
+                <button
+                  type="button"
+                  class="calendar-nav-button"
+                  data-calendar-nav="prev"
+                  aria-label="Période précédente"
+                >
+                  ◀
+                </button>
+                <span id="calendar-current-period" class="calendar-current-period">—</span>
+                <button
+                  type="button"
+                  class="calendar-nav-button"
+                  data-calendar-nav="next"
+                  aria-label="Période suivante"
+                >
+                  ▶
+                </button>
+              </div>
+            </div>
+            <div class="calendar-layout">
+              <div class="calendar-main">
+                <div id="calendar-grid" class="calendar-grid" role="grid" aria-live="polite"></div>
+              </div>
+              <aside class="calendar-side">
+                <div class="calendar-selected-date">
+                  <h3 id="calendar-selected-date-label">—</h3>
+                  <p id="calendar-selected-date-summary" class="calendar-selected-date-summary">
+                    Choisissez un jour pour afficher les détails.
+                  </p>
+                </div>
+                <form id="calendar-event-form" class="calendar-event-form">
+                  <h3 class="calendar-form-title">Nouvel évènement</h3>
+                  <div class="form-row">
+                    <label for="calendar-event-title">Titre *</label>
+                    <input id="calendar-event-title" name="title" type="text" required maxlength="120" />
+                  </div>
+                  <div class="calendar-form-row">
+                    <div class="form-row">
+                      <label for="calendar-event-date">Date *</label>
+                      <input id="calendar-event-date" name="date" type="date" required />
+                    </div>
+                    <div class="form-row">
+                      <label for="calendar-event-time">Heure</label>
+                      <input id="calendar-event-time" name="time" type="time" />
+                    </div>
+                  </div>
+                  <div class="form-row">
+                    <label for="calendar-event-notes">Notes</label>
+                    <textarea
+                      id="calendar-event-notes"
+                      name="notes"
+                      rows="3"
+                      placeholder="Ajoutez des détails ou des objectifs."
+                    ></textarea>
+                  </div>
+                  <div class="calendar-form-actions">
+                    <button type="reset" class="secondary-button">Réinitialiser</button>
+                    <button type="submit" class="primary-button">Ajouter</button>
+                  </div>
+                </form>
+                <div class="calendar-events-wrapper">
+                  <h3 class="calendar-events-title">Évènements du jour</h3>
+                  <p id="calendar-event-empty" class="calendar-empty-state">
+                    Aucun évènement enregistré pour cette date.
+                  </p>
+                  <ul id="calendar-event-list" class="calendar-event-list"></ul>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
     <template id="contact-item-template">
