@@ -1402,6 +1402,57 @@
       saveDataForUser(currentUser, data);
       renderCalendar();
     }
+	
+	function upsertCalendarEventForTask(task) {
+	  const EVENT_TIME  = '20:00';
+	  const EVENT_TITLE = `📝 Tâche · ${task.title}`;
+	  if (!Array.isArray(data.events)) data.events = [];
+
+	  // Pas de deadline → supprimer l’éventuel évènement lié
+	  if (!task.dueDate) {
+		if (task.calendarEventId) {
+		  deleteCalendarEvent(task.calendarEventId);
+		  task.calendarEventId = '';
+		}
+		return;
+	  }
+
+	  const existingId = (typeof task.calendarEventId === 'string' && task.calendarEventId) ? task.calendarEventId : '';
+	  const existing   = existingId ? data.events.find(e => e && e.id === existingId) : null;
+
+	  if (existing) {
+		const updated = {
+		  ...existing,
+		  title: EVENT_TITLE,
+		  date: task.dueDate,        // <-- nouvelle date
+		  time: EVENT_TIME,
+		  notes: task.description || '',
+		};
+
+		// Si la date a changé, on supprime puis on ré-ajoute (évite les caches internes)
+		if (existing.date !== updated.date) {
+		  data.events = data.events.filter(e => e && e.id !== existingId);
+		  data.events.push(updated);
+		} else {
+		  // Sinon, remplacement immuable dans le tableau
+		  data.events = data.events.map(e => (e && e.id === existingId) ? updated : e);
+		}
+	  } else {
+		// Pas encore lié → on crée l’évènement
+		const newId = generateId('event');
+		data.events = [...data.events, {
+		  id: newId,
+		  title: EVENT_TITLE,
+		  date: task.dueDate,
+		  time: EVENT_TIME,
+		  notes: task.description || '',
+		}];
+		task.calendarEventId = newId;
+	  }
+
+	  if (Array.isArray(data.events)) data.events.sort(compareCalendarEvents);
+	}
+
 
     function getEventsForDate(date) {
       const dateKey = formatDateKey(date instanceof Date ? date : new Date(date));
@@ -1767,6 +1818,26 @@
         createdBy: currentUser,
         comments: [],
       });
+	  
+	  if (newTask.dueDate) {
+	    const eventId = generateId('event');
+	    // Titre d’évènement explicite ; ajuste si tu veux quelque chose de plus court
+	    const eventTitle = `📝 Tâche · ${newTask.title}`;
+
+	    data.events.push({
+		  id: eventId,
+		  title: eventTitle,
+		  date: newTask.dueDate,
+		  time: '20:00',           // <- à 20h
+		  notes: newTask.description || '',
+	    });
+
+	    // Lier l’évènement à la tâche
+	    newTask.calendarEventId = eventId;
+  
+	    // Garder le tri et l’état cohérents dans le calendrier
+	    data.events.sort(compareCalendarEvents);
+	  }
 
       data.tasks.push(newTask);
       data.tasks = data.tasks.map((item) => normalizeTask(item)).sort(compareTasks);
@@ -2011,23 +2082,31 @@
     }
 
     function deleteTask(taskId) {
-      if (!taskId) {
-        return;
-      }
+	  if (!taskId) return;
 
-      const initialLength = Array.isArray(data.tasks) ? data.tasks.length : 0;
-      data.tasks = Array.isArray(data.tasks)
-        ? data.tasks.filter((task) => task && task.id !== taskId)
-        : [];
+	  // Chercher la tâche pour savoir si elle a un évènement lié
+	  const existingTask = Array.isArray(data.tasks)
+		? data.tasks.find((t) => t && t.id === taskId)
+		: null;
 
-      if (data.tasks.length === initialLength) {
-        return;
-      }
+	  // Supprimer la tâche
+	  const initialLength = Array.isArray(data.tasks) ? data.tasks.length : 0;
+	  data.tasks = Array.isArray(data.tasks)
+		? data.tasks.filter((task) => task && task.id !== taskId)
+		: [];
 
-      data.lastUpdated = new Date().toISOString();
-      saveDataForUser(currentUser, data);
-      renderTasks();
-    }
+	  if (data.tasks.length === initialLength) return;
+
+	  // S’il y a un évènement lié, on le supprime aussi
+	  if (existingTask && typeof existingTask.calendarEventId === 'string' && existingTask.calendarEventId) {
+		deleteCalendarEvent(existingTask.calendarEventId);
+		// deleteCalendarEvent() fait déjà save + renderCalendar()
+	  }
+
+	  data.lastUpdated = new Date().toISOString();
+	  saveDataForUser(currentUser, data);
+	  renderTasks();
+	}
 	
 	// État local : id de la tâche en cours d’édition
 	let editingTaskId = '';
@@ -2082,18 +2161,15 @@
 
 	  const formData = new FormData(taskForm);
 	  const title = (formData.get('task-title') || '').toString().trim();
-	  if (!title) {
-		taskTitleInput.focus();
-		return;
-	  }
+	  if (!title) { taskTitleInput.focus(); return; }
 
-	  // Validation date (on réutilise ta logique existante)
+	  // Date
 	  let dueDate = '';
 	  const dueDateRaw = (formData.get('task-due-date') || '').toString().trim();
 	  if (taskDueDateInput instanceof HTMLInputElement) taskDueDateInput.setCustomValidity('');
 	  if (dueDateRaw) {
 		if (isValidDateKey(dueDateRaw)) {
-		  dueDate = dueDateRaw;
+		  dueDate = dueDateRaw; // attendu: YYYY-MM-DD
 		} else if (taskDueDateInput instanceof HTMLInputElement) {
 		  taskDueDateInput.setCustomValidity('Veuillez sélectionner une date valide.');
 		  taskDueDateInput.reportValidity();
@@ -2102,9 +2178,7 @@
 		}
 	  }
 
-	  const colorValue = normalizeTaskColor(
-		(formData.get('task-color') || DEFAULT_TASK_COLOR).toString(),
-	  );
+	  const colorValue       = normalizeTaskColor((formData.get('task-color') || DEFAULT_TASK_COLOR).toString());
 	  const descriptionValue = (formData.get('task-description') || '').toString().trim();
 
 	  const members = [];
@@ -2114,28 +2188,34 @@
 		});
 	  }
 
-	  // Met à jour l’objet existant
+	  // Récupérer & mettre à jour la tâche
 	  const task = Array.isArray(data.tasks) ? data.tasks.find((x) => x && x.id === editingTaskId) : null;
 	  if (!task) return;
 
-	  task.title = title;
-	  task.dueDate = dueDate;
-	  task.color = colorValue;
-	  task.description = descriptionValue;
+	  task.title           = title;
+	  task.dueDate         = dueDate;               // peut devenir ''
+	  task.color           = colorValue;
+	  task.description     = descriptionValue;
 	  task.assignedMembers = members;
 
-	  // Sauvegarde + re-render
+	  // >>> Synchronisation calendrier (IMMUTABLE + prise en charge du changement de date)
+	  upsertCalendarEventForTask(task);
+
+	  // Sauvegarde + rendu
 	  data.tasks = data.tasks.map((it) => normalizeTask(it)).sort(compareTasks);
 	  data.lastUpdated = new Date().toISOString();
 	  saveDataForUser(currentUser, data);
 
-	  // Reset mode
+	  if (typeof renderCalendar === 'function') renderCalendar();
+
+	  // Reset mode édition
 	  editingTaskId = '';
 	  taskForm.reset();
 	  resetTaskFormDefaults();
 	  setTaskFormMode('create');
 	  renderTasks();
 	}
+
 
 
     function addCommentToTask(taskId, rawContent) {
@@ -4300,6 +4380,11 @@
             .map((comment) => normalizeTaskComment(comment))
             .filter((comment) => comment && comment.content)
         : [];
+		
+	  let calendarEventId = '';
+		if (typeof baseTask.calendarEventId === 'string' && baseTask.calendarEventId.trim() !== '') {
+		  calendarEventId = baseTask.calendarEventId.trim();
+		}
 
       return {
         id,
@@ -4311,6 +4396,7 @@
         createdAt,
         createdBy,
         comments,
+		calendarEventId,
       };
     }
 
