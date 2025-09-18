@@ -19,6 +19,7 @@
     keywords: [],
     contacts: [],
     events: [],
+    tasks: [],
     lastUpdated: null,
   };
 
@@ -385,6 +386,18 @@
     const calendarEventNotesInput = document.getElementById('calendar-event-notes');
     const calendarViewButtons = Array.from(document.querySelectorAll('[data-calendar-view]'));
     const calendarNavButtons = Array.from(document.querySelectorAll('[data-calendar-nav]'));
+    const taskToggleButton = document.getElementById('dashboard-tasklist-button');
+    const taskPanel = document.getElementById('dashboard-task-panel');
+    const taskPanelDescription = document.getElementById('task-panel-description');
+    const taskForm = document.getElementById('task-form');
+    const taskList = document.getElementById('task-list');
+    const taskEmptyState = document.getElementById('task-empty-state');
+    const taskTitleInput = document.getElementById('task-title');
+    const taskDueDateInput = document.getElementById('task-due-date');
+    const taskColorInput = document.getElementById('task-color');
+    const taskDescriptionInput = document.getElementById('task-description');
+    const taskMemberSelect = document.getElementById('task-members');
+    const taskCountBadge = document.getElementById('task-count-badge');
 
     const CATEGORY_TYPE_ORDER = ['text', 'number', 'date', 'list'];
     const CATEGORY_TYPES = new Set(CATEGORY_TYPE_ORDER);
@@ -398,6 +411,14 @@
     const PHONE_KEYWORDS = ['tel', 'telephone', 'mobile', 'portable', 'phone', 'gsm'];
     const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
     const isoTimePattern = /^\d{2}:\d{2}$/;
+    const DEFAULT_TASK_COLOR = '#2563eb';
+    const taskPanelDescriptionDefault = taskPanelDescription
+      ? taskPanelDescription.textContent || ''
+      : '';
+    const taskPanelDescriptionDefaultTrimmed = taskPanelDescriptionDefault.trim();
+    const taskPanelDescriptionNoMembers = taskPanelDescriptionDefaultTrimmed
+      ? `${taskPanelDescriptionDefaultTrimmed} Ajoutez des comptes pour pouvoir attribuer des tâches.`
+      : 'Ajoutez des comptes pour pouvoir attribuer des tâches.';
     const calendarMonthFormatter = new Intl.DateTimeFormat('fr-FR', {
       month: 'long',
       year: 'numeric',
@@ -420,6 +441,13 @@
     const calendarShortWeekdayFormatter = new Intl.DateTimeFormat('fr-FR', {
       weekday: 'short',
     });
+    const taskDateFormatter = new Intl.DateTimeFormat('fr-FR', {
+      dateStyle: 'medium',
+    });
+    const taskCommentDateFormatter = new Intl.DateTimeFormat('fr-FR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
 
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
@@ -439,8 +467,14 @@
     let calendarSelectedDate = startOfDay(new Date());
     let calendarLastFocusedElement = null;
     let calendarHasBeenOpened = false;
+    const teamMembers = loadTeamMembers();
+    const teamMembersById = new Map(teamMembers.map((member) => [member.username, member]));
 
     normalizeCategoryOrders();
+    populateTaskMemberOptions();
+    updateTaskPanelDescription();
+    resetTaskFormDefaults();
+    renderTasks();
 
     if (currentUsernameEl) {
       currentUsernameEl.textContent = currentUser;
@@ -504,6 +538,82 @@
         }
       });
     }
+
+    if (taskToggleButton && taskPanel) {
+      taskToggleButton.addEventListener('click', () => {
+        if (isTaskPanelOpen()) {
+          closeTaskPanel();
+          return;
+        }
+        openTaskPanel();
+      });
+    }
+
+    if (taskForm) {
+      taskForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        createTaskFromForm();
+      });
+
+      taskForm.addEventListener('reset', () => {
+        window.requestAnimationFrame(() => {
+          resetTaskFormDefaults();
+          if (taskTitleInput instanceof HTMLInputElement) {
+            taskTitleInput.focus();
+          }
+        });
+      });
+    }
+
+    if (taskList) {
+      taskList.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+        if (target.dataset.action === 'delete-task') {
+          const taskId = target.dataset.taskId || '';
+          if (taskId) {
+            deleteTask(taskId);
+          }
+        }
+      });
+
+      taskList.addEventListener('submit', (event) => {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || !form.classList.contains('task-comment-form')) {
+          return;
+        }
+        event.preventDefault();
+        const taskId = form.dataset.taskId || '';
+        if (!taskId) {
+          return;
+        }
+        const textarea = form.querySelector('textarea');
+        if (!(textarea instanceof HTMLTextAreaElement)) {
+          return;
+        }
+        const content = textarea.value.trim();
+        if (!content) {
+          textarea.focus();
+          if (typeof textarea.reportValidity === 'function') {
+            textarea.reportValidity();
+          }
+          return;
+        }
+        addCommentToTask(taskId, content);
+      });
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isTaskPanelOpen()) {
+        event.preventDefault();
+        closeTaskPanel();
+        if (taskToggleButton) {
+          taskToggleButton.focus();
+        }
+      }
+    });
 
     calendarViewButtons.forEach((button) => {
       button.addEventListener('click', () => {
@@ -1471,6 +1581,509 @@
       pages.forEach((page) => {
         page.classList.toggle('active', page.id === target);
       });
+    }
+
+    function loadTeamMembers() {
+      const store = loadUserStore();
+      if (!store || typeof store !== 'object' || !store.users) {
+        return [];
+      }
+
+      return Object.entries(store.users)
+        .map(([username, details]) => {
+          const entry = details && typeof details === 'object' ? details : {};
+          const email = typeof entry.email === 'string' ? entry.email : '';
+          return { username, email };
+        })
+        .sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
+    }
+
+    function populateTaskMemberOptions() {
+      if (!(taskMemberSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      taskMemberSelect.innerHTML = '';
+
+      if (!Array.isArray(teamMembers) || teamMembers.length === 0) {
+        taskMemberSelect.disabled = true;
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Aucun membre disponible';
+        option.disabled = true;
+        taskMemberSelect.appendChild(option);
+        return;
+      }
+
+      taskMemberSelect.disabled = false;
+      const fragment = document.createDocumentFragment();
+
+      teamMembers.forEach((member) => {
+        const option = document.createElement('option');
+        option.value = member.username;
+        option.textContent = formatTeamMemberLabel(member);
+        fragment.appendChild(option);
+      });
+
+      taskMemberSelect.appendChild(fragment);
+    }
+
+    function updateTaskPanelDescription() {
+      if (!taskPanelDescription) {
+        return;
+      }
+
+      if (!Array.isArray(teamMembers) || teamMembers.length === 0) {
+        taskPanelDescription.textContent = taskPanelDescriptionNoMembers;
+        return;
+      }
+
+      taskPanelDescription.textContent =
+        taskPanelDescriptionDefaultTrimmed || taskPanelDescriptionDefault || '';
+    }
+
+    function resetTaskFormDefaults() {
+      if (taskColorInput instanceof HTMLInputElement) {
+        taskColorInput.value = DEFAULT_TASK_COLOR;
+      }
+
+      if (taskDueDateInput instanceof HTMLInputElement) {
+        taskDueDateInput.setCustomValidity('');
+      }
+
+      if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
+        Array.from(taskMemberSelect.options).forEach((option) => {
+          option.selected = false;
+        });
+      }
+
+      if (taskDescriptionInput instanceof HTMLTextAreaElement) {
+        taskDescriptionInput.value = '';
+      }
+    }
+
+    function isTaskPanelOpen() {
+      return Boolean(taskPanel && !taskPanel.hidden);
+    }
+
+    function openTaskPanel() {
+      if (!taskPanel) {
+        return;
+      }
+
+      taskPanel.hidden = false;
+      taskPanel.removeAttribute('hidden');
+      if (taskToggleButton) {
+        taskToggleButton.setAttribute('aria-expanded', 'true');
+      }
+
+      window.requestAnimationFrame(() => {
+        if (taskTitleInput instanceof HTMLInputElement) {
+          taskTitleInput.focus();
+        }
+      });
+    }
+
+    function closeTaskPanel() {
+      if (!taskPanel) {
+        return;
+      }
+
+      taskPanel.hidden = true;
+      if (!taskPanel.hasAttribute('hidden')) {
+        taskPanel.setAttribute('hidden', '');
+      }
+      if (taskToggleButton) {
+        taskToggleButton.setAttribute('aria-expanded', 'false');
+      }
+
+      if (taskForm) {
+        taskForm.reset();
+      }
+      resetTaskFormDefaults();
+    }
+
+    function createTaskFromForm() {
+      if (!taskForm || !(taskTitleInput instanceof HTMLInputElement)) {
+        return;
+      }
+
+      const formData = new FormData(taskForm);
+      const title = (formData.get('task-title') || '').toString().trim();
+      if (!title) {
+        taskTitleInput.focus();
+        return;
+      }
+
+      let dueDate = '';
+      const dueDateRaw = (formData.get('task-due-date') || '').toString().trim();
+      if (taskDueDateInput instanceof HTMLInputElement) {
+        taskDueDateInput.setCustomValidity('');
+      }
+      if (dueDateRaw) {
+        if (isValidDateKey(dueDateRaw)) {
+          dueDate = dueDateRaw;
+        } else if (taskDueDateInput instanceof HTMLInputElement) {
+          taskDueDateInput.setCustomValidity('Veuillez sélectionner une date valide.');
+          taskDueDateInput.reportValidity();
+          taskDueDateInput.focus();
+          return;
+        }
+      }
+
+      const colorValue = normalizeTaskColor(
+        (formData.get('task-color') || DEFAULT_TASK_COLOR).toString(),
+      );
+      const descriptionValue = (formData.get('task-description') || '').toString().trim();
+
+      const members = [];
+      if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
+        Array.from(taskMemberSelect.selectedOptions).forEach((option) => {
+          if (option && option.value) {
+            members.push(option.value);
+          }
+        });
+      }
+
+      const newTask = normalizeTask({
+        id: generateId('task'),
+        title,
+        dueDate,
+        color: colorValue,
+        description: descriptionValue,
+        assignedMembers: members,
+        createdAt: new Date().toISOString(),
+        createdBy: currentUser,
+        comments: [],
+      });
+
+      data.tasks.push(newTask);
+      data.tasks = data.tasks.map((item) => normalizeTask(item)).sort(compareTasks);
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      taskForm.reset();
+      resetTaskFormDefaults();
+      renderTasks();
+
+      window.requestAnimationFrame(() => {
+        taskTitleInput.focus();
+      });
+    }
+
+    function renderTasks() {
+      if (!taskList) {
+        return;
+      }
+
+      const tasks = Array.isArray(data.tasks) ? data.tasks.slice() : [];
+      tasks.sort(compareTasks);
+      if (Array.isArray(data.tasks)) {
+        data.tasks = tasks.slice();
+      }
+
+      taskList.innerHTML = '';
+
+      if (taskEmptyState) {
+        if (tasks.length === 0) {
+          taskEmptyState.hidden = false;
+          taskEmptyState.removeAttribute('hidden');
+        } else {
+          taskEmptyState.hidden = true;
+          if (!taskEmptyState.hasAttribute('hidden')) {
+            taskEmptyState.setAttribute('hidden', '');
+          }
+        }
+      }
+
+      updateTaskCountDisplay(tasks.length);
+
+      if (tasks.length === 0) {
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      tasks.forEach((task) => {
+        if (!task || typeof task !== 'object') {
+          return;
+        }
+
+        const listItem = document.createElement('li');
+        listItem.className = 'task-item';
+        listItem.dataset.id = task.id || '';
+
+        const taskColor = normalizeTaskColor(task.color);
+        listItem.style.setProperty('--task-color', taskColor);
+        listItem.style.setProperty('--task-color-soft', hexToRgba(taskColor, 0.12));
+
+        const header = document.createElement('div');
+        header.className = 'task-item-header';
+
+        const titleEl = document.createElement('h3');
+        titleEl.className = 'task-title';
+        titleEl.textContent = task.title || 'Nouvelle tâche';
+
+        const metaContainer = document.createElement('div');
+        metaContainer.className = 'task-meta';
+
+        if (task.dueDate) {
+          const dueDate = parseDateInput(task.dueDate);
+          const dueDateEl = document.createElement('span');
+          dueDateEl.className = 'task-due-date';
+          const formattedDueDate =
+            dueDate instanceof Date && !Number.isNaN(dueDate.getTime())
+              ? capitalizeLabel(taskDateFormatter.format(dueDate))
+              : task.dueDate;
+          dueDateEl.textContent = `Échéance : ${formattedDueDate}`;
+
+          if (dueDate && dueDate.getTime() < startOfDay(new Date()).getTime()) {
+            dueDateEl.classList.add('task-due-date--overdue');
+          }
+
+          metaContainer.appendChild(dueDateEl);
+        }
+
+        if (Array.isArray(task.assignedMembers) && task.assignedMembers.length > 0) {
+          const membersContainer = document.createElement('div');
+          membersContainer.className = 'task-members';
+
+          task.assignedMembers.forEach((memberId) => {
+            if (!memberId) {
+              return;
+            }
+            const chip = document.createElement('span');
+            chip.className = 'task-member-chip';
+            const member = teamMembersById.get(memberId);
+            chip.textContent = member ? formatTeamMemberLabel(member) : memberId;
+            membersContainer.appendChild(chip);
+          });
+
+          metaContainer.appendChild(membersContainer);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'task-actions';
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'task-action-button task-action-button--danger';
+        deleteButton.dataset.action = 'delete-task';
+        deleteButton.dataset.taskId = task.id || '';
+        deleteButton.textContent = 'Supprimer';
+
+        actions.appendChild(deleteButton);
+
+        header.appendChild(titleEl);
+        if (metaContainer.childElementCount > 0) {
+          header.appendChild(metaContainer);
+        }
+        header.appendChild(actions);
+
+        const descriptionEl = document.createElement('p');
+        descriptionEl.className = 'task-description';
+        if (task.description) {
+          descriptionEl.textContent = task.description;
+        } else {
+          descriptionEl.textContent = 'Aucune description pour cette tâche.';
+          descriptionEl.classList.add('task-description--empty');
+        }
+
+        const commentsSection = document.createElement('div');
+        commentsSection.className = 'task-comments';
+
+        const commentsTitle = document.createElement('h4');
+        commentsTitle.className = 'task-comments-title';
+        commentsTitle.textContent = 'Commentaires';
+        commentsSection.appendChild(commentsTitle);
+
+        const commentsList = document.createElement('ul');
+        commentsList.className = 'task-comment-list';
+
+        if (Array.isArray(task.comments) && task.comments.length > 0) {
+          task.comments
+            .slice()
+            .sort((a, b) => {
+              const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+              const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+              return dateA.localeCompare(dateB);
+            })
+            .forEach((comment) => {
+              if (!comment || typeof comment !== 'object' || !comment.content) {
+                return;
+              }
+              const commentItem = document.createElement('li');
+              commentItem.className = 'task-comment';
+              const meta = document.createElement('span');
+              meta.className = 'task-comment-meta';
+              const authorLabel = formatMemberName(comment.author);
+              let dateLabel = '';
+              if (comment.createdAt && !Number.isNaN(new Date(comment.createdAt).getTime())) {
+                dateLabel = capitalizeLabel(
+                  taskCommentDateFormatter.format(new Date(comment.createdAt)),
+                );
+              }
+              meta.textContent = dateLabel ? `${authorLabel} · ${dateLabel}` : authorLabel;
+              const content = document.createElement('p');
+              content.className = 'task-comment-content';
+              content.textContent = comment.content;
+              commentItem.append(meta, content);
+              commentsList.appendChild(commentItem);
+            });
+        } else {
+          const emptyMessage = document.createElement('p');
+          emptyMessage.className = 'task-comment-empty';
+          emptyMessage.textContent = 'Aucun commentaire pour le moment.';
+          commentsSection.appendChild(emptyMessage);
+        }
+
+        commentsSection.appendChild(commentsList);
+
+        const commentForm = document.createElement('form');
+        commentForm.className = 'task-comment-form';
+        commentForm.dataset.taskId = task.id || '';
+
+        const commentLabel = document.createElement('label');
+        commentLabel.className = 'sr-only';
+        const commentFieldId = `task-comment-${task.id}`;
+        commentLabel.setAttribute('for', commentFieldId);
+        commentLabel.textContent = 'Ajouter un commentaire';
+
+        const commentTextarea = document.createElement('textarea');
+        commentTextarea.id = commentFieldId;
+        commentTextarea.name = 'comment';
+        commentTextarea.required = true;
+        commentTextarea.placeholder = 'Écrire un nouveau commentaire';
+
+        const commentSubmit = document.createElement('button');
+        commentSubmit.type = 'submit';
+        commentSubmit.className = 'primary-button task-comment-submit';
+        commentSubmit.textContent = 'Publier';
+
+        commentForm.append(commentLabel, commentTextarea, commentSubmit);
+        commentsSection.appendChild(commentForm);
+
+        listItem.append(header, descriptionEl, commentsSection);
+        fragment.appendChild(listItem);
+      });
+
+      taskList.appendChild(fragment);
+    }
+
+    function updateTaskCountDisplay(count) {
+      let badgeLabel = '';
+      if (count === 0) {
+        badgeLabel = 'Aucune tâche';
+      } else if (count === 1) {
+        badgeLabel = '1 tâche';
+      } else {
+        badgeLabel = `${count} tâches`;
+      }
+
+      if (taskCountBadge) {
+        taskCountBadge.textContent = badgeLabel;
+      }
+
+      if (taskToggleButton) {
+        const ariaLabel =
+          count === 0 ? 'Liste des tâches (aucune tâche)' : `Liste des tâches (${badgeLabel})`;
+        taskToggleButton.setAttribute('aria-label', ariaLabel);
+        taskToggleButton.title = ariaLabel;
+      }
+    }
+
+    function deleteTask(taskId) {
+      if (!taskId) {
+        return;
+      }
+
+      const initialLength = Array.isArray(data.tasks) ? data.tasks.length : 0;
+      data.tasks = Array.isArray(data.tasks)
+        ? data.tasks.filter((task) => task && task.id !== taskId)
+        : [];
+
+      if (data.tasks.length === initialLength) {
+        return;
+      }
+
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderTasks();
+    }
+
+    function addCommentToTask(taskId, rawContent) {
+      if (!taskId || typeof rawContent !== 'string') {
+        return;
+      }
+
+      const content = rawContent.trim();
+      if (!content) {
+        return;
+      }
+
+      if (!Array.isArray(data.tasks)) {
+        return;
+      }
+
+      const task = data.tasks.find((item) => item && item.id === taskId);
+      if (!task) {
+        return;
+      }
+
+      if (!Array.isArray(task.comments)) {
+        task.comments = [];
+      }
+
+      const comment = normalizeTaskComment({
+        id: generateId('comment'),
+        author: currentUser,
+        content,
+        createdAt: new Date().toISOString(),
+      });
+
+      if (!comment) {
+        return;
+      }
+
+      task.comments.push(comment);
+      task.comments = task.comments
+        .map((item) => normalizeTaskComment(item))
+        .filter((item) => item && item.content);
+
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderTasks();
+
+      window.requestAnimationFrame(() => {
+        const textarea = document.getElementById(`task-comment-${taskId}`);
+        if (textarea instanceof HTMLTextAreaElement) {
+          textarea.value = '';
+          textarea.focus();
+        }
+      });
+    }
+
+    function formatTeamMemberLabel(member) {
+      if (!member || typeof member !== 'object') {
+        return '';
+      }
+
+      if (member.email) {
+        return `${member.username} (${member.email})`;
+      }
+
+      return member.username;
+    }
+
+    function formatMemberName(username) {
+      if (typeof username !== 'string' || username.trim() === '') {
+        return 'Utilisateur';
+      }
+      const normalized = username.trim();
+      const member = teamMembersById.get(normalized);
+      if (member) {
+        return formatTeamMemberLabel(member);
+      }
+      return normalized;
     }
 
     function renderMetrics() {
@@ -3464,6 +4077,218 @@
       renderKeywords();
     }
 
+    function normalizeTaskColor(rawColor) {
+      if (typeof rawColor !== 'string') {
+        return DEFAULT_TASK_COLOR;
+      }
+
+      const value = rawColor.trim();
+      const hexPattern = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+      if (!hexPattern.test(value)) {
+        return DEFAULT_TASK_COLOR;
+      }
+
+      if (value.length === 4) {
+        const [, r, g, b] = value;
+        return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+      }
+
+      return value.length === 7 ? value.toLowerCase() : DEFAULT_TASK_COLOR;
+    }
+
+    function normalizeTask(rawTask) {
+      const baseTask = rawTask && typeof rawTask === 'object' ? rawTask : {};
+
+      let id = '';
+      if (typeof baseTask.id === 'string' && baseTask.id.trim() !== '') {
+        id = baseTask.id.trim();
+      } else if (typeof baseTask.identifier === 'string' && baseTask.identifier.trim() !== '') {
+        id = baseTask.identifier.trim();
+      } else {
+        id = generateId('task');
+      }
+
+      let title = '';
+      if (typeof baseTask.title === 'string') {
+        title = baseTask.title.trim();
+      } else if (typeof baseTask.name === 'string') {
+        title = baseTask.name.trim();
+      }
+      if (!title) {
+        title = 'Tâche sans titre';
+      }
+
+      let dueDate = '';
+      if (typeof baseTask.dueDate === 'string' && isValidDateKey(baseTask.dueDate.trim())) {
+        dueDate = baseTask.dueDate.trim();
+      } else if (
+        typeof baseTask.deadline === 'string' &&
+        isValidDateKey(baseTask.deadline.trim())
+      ) {
+        dueDate = baseTask.deadline.trim();
+      }
+
+      let description = '';
+      if (typeof baseTask.description === 'string') {
+        description = baseTask.description.trim();
+      } else if (typeof baseTask.details === 'string') {
+        description = baseTask.details.trim();
+      }
+
+      let createdAt = '';
+      if (
+        typeof baseTask.createdAt === 'string' &&
+        !Number.isNaN(new Date(baseTask.createdAt).getTime())
+      ) {
+        createdAt = baseTask.createdAt;
+      } else if (
+        typeof baseTask.created === 'string' &&
+        !Number.isNaN(new Date(baseTask.created).getTime())
+      ) {
+        createdAt = baseTask.created;
+      } else {
+        createdAt = new Date().toISOString();
+      }
+
+      let createdBy = '';
+      if (typeof baseTask.createdBy === 'string') {
+        createdBy = baseTask.createdBy.trim();
+      } else if (typeof baseTask.owner === 'string') {
+        createdBy = baseTask.owner.trim();
+      }
+
+      const assignedMembers = Array.isArray(baseTask.assignedMembers)
+        ? Array.from(
+            new Set(
+              baseTask.assignedMembers
+                .map((member) => (typeof member === 'string' ? member.trim() : ''))
+                .filter(Boolean),
+            ),
+          )
+        : [];
+
+      const comments = Array.isArray(baseTask.comments)
+        ? baseTask.comments
+            .map((comment) => normalizeTaskComment(comment))
+            .filter((comment) => comment && comment.content)
+        : [];
+
+      return {
+        id,
+        title,
+        dueDate,
+        color: normalizeTaskColor(baseTask.color),
+        description,
+        assignedMembers,
+        createdAt,
+        createdBy,
+        comments,
+      };
+    }
+
+    function normalizeTaskComment(rawComment) {
+      const baseComment = rawComment && typeof rawComment === 'object' ? rawComment : {};
+
+      let content = '';
+      if (typeof baseComment.content === 'string') {
+        content = baseComment.content.trim();
+      } else if (typeof baseComment.message === 'string') {
+        content = baseComment.message.trim();
+      }
+
+      if (!content) {
+        return null;
+      }
+
+      let author = '';
+      if (typeof baseComment.author === 'string') {
+        author = baseComment.author.trim();
+      } else if (typeof baseComment.user === 'string') {
+        author = baseComment.user.trim();
+      }
+
+      let createdAt = '';
+      if (
+        typeof baseComment.createdAt === 'string' &&
+        !Number.isNaN(new Date(baseComment.createdAt).getTime())
+      ) {
+        createdAt = baseComment.createdAt;
+      } else if (
+        typeof baseComment.date === 'string' &&
+        !Number.isNaN(new Date(baseComment.date).getTime())
+      ) {
+        createdAt = baseComment.date;
+      } else {
+        createdAt = new Date().toISOString();
+      }
+
+      let id = '';
+      if (typeof baseComment.id === 'string' && baseComment.id.trim() !== '') {
+        id = baseComment.id.trim();
+      } else {
+        id = generateId('comment');
+      }
+
+      return {
+        id,
+        author,
+        content,
+        createdAt,
+      };
+    }
+
+    function compareTasks(a, b) {
+      if (!a || !b) {
+        return 0;
+      }
+
+      const dateA =
+        typeof a.dueDate === 'string' && isValidDateKey(a.dueDate) ? a.dueDate : '';
+      const dateB =
+        typeof b.dueDate === 'string' && isValidDateKey(b.dueDate) ? b.dueDate : '';
+
+      if (dateA && dateB && dateA !== dateB) {
+        return dateA.localeCompare(dateB);
+      }
+
+      if (dateA && !dateB) {
+        return -1;
+      }
+
+      if (!dateA && dateB) {
+        return 1;
+      }
+
+      const createdAtA = typeof a.createdAt === 'string' ? a.createdAt : '';
+      const createdAtB = typeof b.createdAt === 'string' ? b.createdAt : '';
+
+      if (createdAtA && createdAtB && createdAtA !== createdAtB) {
+        return createdAtA.localeCompare(createdAtB);
+      }
+
+      const titleA = typeof a.title === 'string' ? a.title : '';
+      const titleB = typeof b.title === 'string' ? b.title : '';
+      return titleA.localeCompare(titleB, 'fr', { sensitivity: 'base' });
+    }
+
+    function hexToRgba(color, alpha = 0.16) {
+      if (typeof color !== 'string') {
+        return `rgba(37, 99, 235, ${alpha})`;
+      }
+
+      const normalized = color.trim().toLowerCase();
+      const match = /^#([0-9a-f]{6})$/.exec(normalized);
+      if (!match) {
+        return `rgba(37, 99, 235, ${alpha})`;
+      }
+
+      const hex = match[1];
+      const r = Number.parseInt(hex.slice(0, 2), 16);
+      const g = Number.parseInt(hex.slice(2, 4), 16);
+      const b = Number.parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
     function upgradeDataStructure(rawData) {
       const base = rawData && typeof rawData === 'object' ? rawData : {};
 
@@ -3527,6 +4352,15 @@
           .filter((item) => item && typeof item === 'object')
           .map((item) => normalizeCalendarEvent(item))
           .sort(compareCalendarEvents);
+      }
+
+      if (!Array.isArray(base.tasks)) {
+        base.tasks = [];
+      } else {
+        base.tasks = base.tasks
+          .filter((item) => item && typeof item === 'object')
+          .map((item) => normalizeTask(item))
+          .sort(compareTasks);
       }
 
       const categoriesById = buildCategoryMap(base);
@@ -3718,6 +4552,7 @@
           keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
           contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [],
           events: Array.isArray(parsed.events) ? parsed.events : [],
+          tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
           lastUpdated: parsed.lastUpdated || null,
         };
       }
@@ -3748,6 +4583,7 @@
       keywords: [],
       contacts: [],
       events: [],
+      tasks: [],
       lastUpdated: null,
     };
   }
