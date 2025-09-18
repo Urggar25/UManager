@@ -312,7 +312,20 @@
     const pages = Array.from(document.querySelectorAll('.page'));
     const navButtons = Array.from(document.querySelectorAll('.nav-button'));
     const metricValues = Array.from(document.querySelectorAll('[data-metric]'));
-    const metricForms = Array.from(document.querySelectorAll('.metric-form'));
+    const metricShares = Array.from(document.querySelectorAll('[data-metric-share]'));
+    const coverageChartEl = document.getElementById('contact-coverage-chart');
+    const coverageCountEls = {
+      both: document.querySelector('[data-coverage-count="both"]'),
+      phone: document.querySelector('[data-coverage-count="phone"]'),
+      email: document.querySelector('[data-coverage-count="email"]'),
+      none: document.querySelector('[data-coverage-count="none"]'),
+    };
+    const coveragePercentEls = {
+      both: document.querySelector('[data-coverage-percent="both"]'),
+      phone: document.querySelector('[data-coverage-percent="phone"]'),
+      email: document.querySelector('[data-coverage-percent="email"]'),
+      none: document.querySelector('[data-coverage-percent="none"]'),
+    };
     const totalDatasetsEl = document.getElementById('total-datasets');
     const categoriesCountEl = document.getElementById('categories-count');
     const keywordsCountEl = document.getElementById('keywords-count');
@@ -340,7 +353,8 @@
     const contactEmptyState = document.getElementById('contact-empty-state');
     const contactSearchInput = document.getElementById('contact-search-input');
     const contactAdvancedSearchForm = document.getElementById('contact-advanced-search');
-    const searchCategorySelect = document.getElementById('search-category');
+    const searchCategoryFieldsContainer = document.getElementById('search-category-fields');
+    const searchCategoriesEmpty = document.getElementById('search-categories-empty');
     const searchKeywordsSelect = document.getElementById('search-keywords');
     const contactSearchCountEl = document.getElementById('contact-search-count');
     const contactTemplate = document.getElementById('contact-item-template');
@@ -355,9 +369,17 @@
       date: 'Date',
       list: 'Liste',
     };
+    const EMAIL_KEYWORDS = ['mail', 'email', 'courriel', 'mel'];
+    const PHONE_KEYWORDS = ['tel', 'telephone', 'mobile', 'portable', 'phone', 'gsm'];
 
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
+
+    const numberFormatter = new Intl.NumberFormat('fr-FR');
+    const percentFormatter = new Intl.NumberFormat('fr-FR', {
+      style: 'percent',
+      maximumFractionDigits: 1,
+    });
 
     let contactSearchTerm = '';
     let advancedFilters = createEmptyAdvancedFilters();
@@ -386,33 +408,6 @@
         if (target) {
           showPage(target);
         }
-      });
-    });
-
-    metricForms.forEach((form) => {
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        const key = form.dataset.form;
-        if (!key) {
-          return;
-        }
-        const input = form.querySelector('[data-input]');
-        if (!(input instanceof HTMLInputElement)) {
-          return;
-        }
-        const value = Number.parseInt(input.value, 10);
-        if (!Number.isFinite(value) || value < 0) {
-          input.setCustomValidity('Veuillez renseigner un nombre positif.');
-          input.reportValidity();
-          return;
-        }
-
-        input.setCustomValidity('');
-        data.metrics[key] = value;
-        data.lastUpdated = new Date().toISOString();
-        saveDataForUser(currentUser, data);
-        renderMetrics();
-        input.value = '';
       });
     });
 
@@ -520,27 +515,6 @@
       contactForm.addEventListener('submit', (event) => {
         event.preventDefault();
         const formData = new FormData(contactForm);
-        const firstName = (formData.get('contact-first-name') || '').toString().trim();
-        const usageName = (formData.get('contact-usage-name') || '').toString().trim();
-        const birthName = (formData.get('contact-birth-name') || '').toString().trim();
-        const gender = (formData.get('contact-gender') || '').toString();
-        const ageRange = (formData.get('contact-age-range') || '').toString().trim();
-        const email = (formData.get('contact-email') || '').toString().trim();
-        const mobile = (formData.get('contact-mobile') || '').toString().trim();
-        const landline = (formData.get('contact-landline') || '').toString().trim();
-        const street = (formData.get('contact-street') || '').toString().trim();
-        const city = (formData.get('contact-city') || '').toString().trim();
-        const postalCode = (formData.get('contact-postal-code') || '').toString().trim();
-        const country = (formData.get('contact-country') || '').toString().trim();
-        const zone = (formData.get('contact-zone') || '').toString().trim();
-        const campaignStatus = (formData.get('contact-campaign-status') || '').toString();
-        const engagementLevel = (formData.get('contact-engagement-level') || '').toString();
-        const archiveTheme = (formData.get('contact-archive-theme') || '').toString();
-        const mandate = (formData.get('contact-mandate') || '').toString().trim();
-        const profession = (formData.get('contact-profession') || '').toString().trim();
-        const lastMembership = (formData.get('contact-last-membership') || '').toString().trim();
-        const customField = (formData.get('contact-custom-field') || '').toString().trim();
-        const organization = (formData.get('contact-organization') || '').toString().trim();
         const notes = (formData.get('contact-notes') || '').toString().trim();
         const keywordIds = formData.getAll('contact-keywords').map((value) => value.toString());
 
@@ -596,97 +570,42 @@
           return;
         }
 
-        const firstNameInput = contactForm.querySelector('#contact-first-name');
-        if (!firstName) {
-          if (firstNameInput instanceof HTMLInputElement) {
-            firstNameInput.focus();
-          }
-          return;
-        }
-
-        const usageNameInput = contactForm.querySelector('#contact-usage-name');
-        if (!usageName) {
-          if (usageNameInput instanceof HTMLInputElement) {
-            usageNameInput.focus();
-          }
-          return;
-        }
-
-        const emailInput = contactForm.querySelector('#contact-email');
-        if (emailInput instanceof HTMLInputElement) {
-          emailInput.setCustomValidity('');
-          if (email && !isValidEmail(email)) {
-            emailInput.setCustomValidity('Veuillez renseigner une adresse e-mail valide.');
-            emailInput.reportValidity();
-            return;
-          }
-        }
-
-        const fullName = `${firstName} ${usageName}`.trim();
         const editingId = contactForm.dataset.editingId || '';
         const editingIndex = editingId
           ? data.contacts.findIndex((contact) => contact.id === editingId)
           : -1;
 
+        const categoriesById = buildCategoryMap();
+        const derivedName = buildDisplayNameFromCategories(categoryValues, categoriesById);
+        const nowIso = new Date().toISOString();
+
         if (editingId && editingIndex !== -1) {
           const contactToUpdate = data.contacts[editingIndex];
-          contactToUpdate.firstName = firstName;
-          contactToUpdate.usageName = usageName;
-          contactToUpdate.birthName = birthName;
-          contactToUpdate.fullName = fullName || usageName || firstName;
-          contactToUpdate.gender = gender;
-          contactToUpdate.ageRange = ageRange;
-          contactToUpdate.email = email;
-          contactToUpdate.mobile = mobile;
-          contactToUpdate.landline = landline;
-          contactToUpdate.phone = mobile || landline;
-          contactToUpdate.street = street;
-          contactToUpdate.city = city;
-          contactToUpdate.postalCode = postalCode;
-          contactToUpdate.country = country;
-          contactToUpdate.zone = zone;
-          contactToUpdate.campaignStatus = campaignStatus;
-          contactToUpdate.engagementLevel = engagementLevel;
-          contactToUpdate.archiveTheme = archiveTheme;
-          contactToUpdate.mandate = mandate;
-          contactToUpdate.profession = profession;
-          contactToUpdate.lastMembership = lastMembership;
-          contactToUpdate.customField = customField;
-          contactToUpdate.organization = organization;
-          contactToUpdate.notes = notes;
+          const previousName = getContactDisplayName(contactToUpdate, categoriesById);
           contactToUpdate.categoryValues = { ...categoryValues };
           contactToUpdate.keywords = keywordIds;
-          contactToUpdate.updatedAt = new Date().toISOString();
+          contactToUpdate.notes = notes;
+          if (derivedName) {
+            contactToUpdate.fullName = derivedName;
+            contactToUpdate.displayName = derivedName;
+          } else if (previousName) {
+            contactToUpdate.fullName = previousName;
+            contactToUpdate.displayName = previousName;
+          } else {
+            contactToUpdate.fullName = 'Contact sans nom';
+            contactToUpdate.displayName = 'Contact sans nom';
+          }
+          contactToUpdate.updatedAt = nowIso;
         } else {
+          const displayName = derivedName || 'Contact sans nom';
           data.contacts.push({
             id: generateId('contact'),
-            firstName,
-            usageName,
-            birthName,
-            fullName: fullName || usageName || firstName,
-            gender,
-            ageRange,
-            email,
-            mobile,
-            landline,
-            phone: mobile || landline,
-            street,
-            city,
-            postalCode,
-            country,
-            zone,
-            campaignStatus,
-            engagementLevel,
-            archiveTheme,
-            mandate,
-            profession,
-            lastMembership,
-            customField,
-            organization,
-            notes,
             categoryValues: { ...categoryValues },
             keywords: keywordIds,
-            createdAt: new Date().toISOString(),
+            notes,
+            fullName: displayName,
+            displayName,
+            createdAt: nowIso,
             updatedAt: null,
           });
         }
@@ -718,30 +637,56 @@
       contactAdvancedSearchForm.addEventListener('submit', (event) => {
         event.preventDefault();
         const formData = new FormData(contactAdvancedSearchForm);
+        const categoryFilters = {};
+
+        if (searchCategoryFieldsContainer) {
+          const filterInputs = searchCategoryFieldsContainer.querySelectorAll(
+            '[data-search-category-input]',
+          );
+          filterInputs.forEach((element) => {
+            if (
+              !(
+                element instanceof HTMLInputElement ||
+                element instanceof HTMLSelectElement ||
+                element instanceof HTMLTextAreaElement
+              )
+            ) {
+              return;
+            }
+
+            const categoryId = element.dataset.categoryId || '';
+            if (!categoryId) {
+              return;
+            }
+
+            const type = element.dataset.categoryType || 'text';
+            const rawValue = element.value != null ? element.value.toString() : '';
+            const trimmedValue = type === 'text' ? rawValue.trim() : rawValue;
+            if (!trimmedValue) {
+              return;
+            }
+
+            if (type === 'text') {
+              categoryFilters[categoryId] = {
+                type: 'text',
+                rawValue: trimmedValue,
+                normalizedValue: trimmedValue.toLowerCase(),
+              };
+            } else {
+              categoryFilters[categoryId] = {
+                type,
+                rawValue: trimmedValue,
+                normalizedValue: trimmedValue,
+              };
+            }
+          });
+        }
+
+        const keywordFilters = formData.getAll('search-keywords').map((value) => value.toString());
+
         advancedFilters = {
-          firstName: (formData.get('search-first-name') || '').toString().trim(),
-          usageName: (formData.get('search-usage-name') || '').toString().trim(),
-          birthName: (formData.get('search-birth-name') || '').toString().trim(),
-          category: (formData.get('search-category') || '').toString(),
-          gender: (formData.get('search-gender') || '').toString(),
-          age: (formData.get('search-age') || '').toString().trim(),
-          email: (formData.get('search-email') || '').toString().trim(),
-          mobile: (formData.get('search-mobile') || '').toString().trim(),
-          street: (formData.get('search-street') || '').toString().trim(),
-          city: (formData.get('search-city') || '').toString().trim(),
-          postalCode: (formData.get('search-postal-code') || '').toString().trim(),
-          country: (formData.get('search-country') || '').toString().trim(),
-          zone: (formData.get('search-zone') || '').toString().trim(),
-          campaignStatus: (formData.get('search-campaign-status') || '').toString(),
-          engagement: (formData.get('search-engagement') || '').toString(),
-          archive: (formData.get('search-archive') || '').toString(),
-          mandate: (formData.get('search-mandate') || '').toString().trim(),
-          profession: (formData.get('search-profession') || '').toString().trim(),
-          landline: (formData.get('search-landline') || '').toString().trim(),
-          lastMembership: (formData.get('search-last-membership') || '').toString().trim(),
-          custom: (formData.get('search-custom') || '').toString().trim(),
-          organization: (formData.get('search-organization') || '').toString().trim(),
-          keywords: formData.getAll('search-keywords').map((value) => value.toString()),
+          categories: categoryFilters,
+          keywords: keywordFilters,
         };
         renderContacts();
       });
@@ -749,6 +694,7 @@
       contactAdvancedSearchForm.addEventListener('reset', () => {
         window.requestAnimationFrame(() => {
           advancedFilters = createEmptyAdvancedFilters();
+          renderSearchCategoryFields();
           renderContacts();
         });
       });
@@ -770,6 +716,10 @@
 
     function renderMetrics() {
       const metrics = data && typeof data === 'object' && data.metrics ? data.metrics : {};
+      const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+      const totalContacts = contacts.length;
+      const categoriesById = buildCategoryMap();
+      const coverage = computeContactCoverage(contacts, categoriesById);
 
       metricValues.forEach((metricValue) => {
         const key = metricValue.dataset.metric;
@@ -777,13 +727,34 @@
           return;
         }
         const value = Number(metrics[key]) || 0;
-        metricValue.textContent = new Intl.NumberFormat('fr-FR').format(value);
+        metricValue.textContent = numberFormatter.format(value);
       });
+
+      metricShares.forEach((element) => {
+        const key = element.dataset.metricShare;
+        if (!key) {
+          return;
+        }
+
+        let ratio = 0;
+        if (totalContacts > 0) {
+          if (key === 'phone') {
+            ratio = (coverage.both + coverage.phoneOnly) / totalContacts;
+          } else if (key === 'email') {
+            ratio = (coverage.both + coverage.emailOnly) / totalContacts;
+          }
+        }
+
+        const formattedShare = totalContacts > 0 ? percentFormatter.format(ratio) : '0 %';
+        element.textContent = `${formattedShare} des contacts`;
+      });
+
+      updateCoverageVisualization(coverage, totalContacts);
 
       if (totalDatasetsEl) {
         const total =
           Number(metrics.peopleCount) + Number(metrics.phoneCount) + Number(metrics.emailCount);
-        totalDatasetsEl.textContent = new Intl.NumberFormat('fr-FR').format(total || 0);
+        totalDatasetsEl.textContent = numberFormatter.format(total || 0);
       }
 
       if (categoriesCountEl) {
@@ -803,8 +774,7 @@
       }
 
       if (contactsCountEl) {
-        const totalContacts = Array.isArray(data.contacts) ? data.contacts.length : 0;
-        contactsCountEl.textContent = totalContacts.toString();
+        contactsCountEl.textContent = numberFormatter.format(totalContacts);
       }
 
       if (lastUpdatedEl) {
@@ -820,10 +790,288 @@
       }
     }
 
+    function updateCoverageVisualization(coverage, totalContacts) {
+      if (coverageChartEl) {
+        if (!totalContacts) {
+          coverageChartEl.style.background = 'var(--coverage-none)';
+          coverageChartEl.setAttribute('aria-label', 'Aucune donnée de contact disponible.');
+        } else {
+          const segments = [
+            { key: 'both', value: coverage.both, color: 'var(--coverage-both)' },
+            { key: 'phone', value: coverage.phoneOnly, color: 'var(--coverage-phone)' },
+            { key: 'email', value: coverage.emailOnly, color: 'var(--coverage-email)' },
+            { key: 'none', value: coverage.none, color: 'var(--coverage-none)' },
+          ];
+
+          let currentAngle = 0;
+          const gradientParts = [];
+
+          segments.forEach((segment) => {
+            if (!segment.value) {
+              return;
+            }
+            const sweep = (segment.value / totalContacts) * 360;
+            const start = currentAngle;
+            const end = currentAngle + sweep;
+            gradientParts.push(`${segment.color} ${start}deg ${end}deg`);
+            currentAngle = end;
+          });
+
+          if (gradientParts.length === 0) {
+            coverageChartEl.style.background = 'var(--coverage-none)';
+          } else {
+            coverageChartEl.style.background = `conic-gradient(${gradientParts.join(', ')})`;
+          }
+
+          const summaryParts = [
+            formatCoveragePhrase('avec téléphone et e-mail', coverage.both),
+            formatCoveragePhrase('avec uniquement téléphone', coverage.phoneOnly),
+            formatCoveragePhrase('avec uniquement e-mail', coverage.emailOnly),
+            formatCoveragePhrase('sans coordonnées', coverage.none),
+          ].filter(Boolean);
+
+          if (summaryParts.length > 0) {
+            coverageChartEl.setAttribute(
+              'aria-label',
+              `Répartition des contacts : ${summaryParts.join(', ')}.`,
+            );
+          } else {
+            coverageChartEl.setAttribute('aria-label', 'Répartition des contacts.');
+          }
+        }
+      }
+
+      Object.entries(coverageCountEls).forEach(([key, element]) => {
+        if (!element) {
+          return;
+        }
+        const value = Number(coverage[key]) || 0;
+        element.textContent = formatContactCount(value);
+      });
+
+      Object.entries(coveragePercentEls).forEach(([key, element]) => {
+        if (!element) {
+          return;
+        }
+        const value = Number(coverage[key]) || 0;
+        element.textContent = formatPercentValue(value, totalContacts);
+      });
+    }
+
+    function formatCoveragePhrase(label, value) {
+      if (!value) {
+        return '';
+      }
+      return `${formatContactCount(value)} ${label}`;
+    }
+
+    function formatContactCount(value) {
+      const absolute = Number(value) || 0;
+      const label = absolute === 1 ? 'contact' : 'contacts';
+      return `${numberFormatter.format(absolute)} ${label}`;
+    }
+
+    function formatPercentValue(value, total) {
+      if (!total) {
+        return '0 %';
+      }
+      const ratio = value / total;
+      return percentFormatter.format(ratio);
+    }
+
+    function buildCategoryMap(target = data) {
+      const source = target && typeof target === 'object' ? target : data;
+      return new Map(
+        Array.isArray(source.categories)
+          ? source.categories.map((category) => [category.id, category])
+          : [],
+      );
+    }
+
+    function buildDisplayNameFromCategories(categoryValues, categoriesById) {
+      if (!categoryValues || typeof categoryValues !== 'object') {
+        return '';
+      }
+
+      const categories = Array.isArray(data.categories) ? data.categories : [];
+      for (const category of categories) {
+        if (!category || !category.id) {
+          continue;
+        }
+
+        const baseType = CATEGORY_TYPES.has(category.type) ? category.type : 'text';
+        const rawValue = categoryValues[category.id];
+        const valueString =
+          rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+        if (!valueString) {
+          continue;
+        }
+
+        if (baseType === 'number' || baseType === 'date') {
+          continue;
+        }
+
+        return valueString;
+      }
+
+      const fallbackValue = Object.values(categoryValues).find((rawValue) => {
+        const valueString =
+          rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+        return Boolean(valueString);
+      });
+
+      return fallbackValue ? fallbackValue.toString().trim() : '';
+    }
+
+    function getContactDisplayName(contact, categoriesById = buildCategoryMap()) {
+      if (!contact || typeof contact !== 'object') {
+        return 'Contact sans nom';
+      }
+
+      const directName = (contact.displayName || contact.fullName || '').toString().trim();
+      if (directName) {
+        return directName;
+      }
+
+      const categoryValues =
+        contact.categoryValues && typeof contact.categoryValues === 'object'
+          ? contact.categoryValues
+          : {};
+      const derivedName = buildDisplayNameFromCategories(categoryValues, categoriesById);
+      if (derivedName) {
+        return derivedName;
+      }
+
+      const legacyName = `${contact.firstName || ''} ${contact.usageName || ''}`.trim();
+      if (legacyName) {
+        return legacyName;
+      }
+
+      return 'Contact sans nom';
+    }
+
+    function normalizeLabel(value) {
+      if (!value) {
+        return '';
+      }
+      return value
+        .toString()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+    }
+
+    function isEmailValue(value) {
+      if (!value) {
+        return false;
+      }
+      const normalized = value.toString().trim();
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+    }
+
+    function isPhoneValue(value) {
+      if (!value) {
+        return false;
+      }
+      const digits = value.toString().replace(/\D+/g, '');
+      return digits.length >= 6;
+    }
+
+    function computeContactChannels(contact, categoriesById = buildCategoryMap()) {
+      const emailSet = new Set();
+      const phoneSet = new Set();
+
+      const addEmail = (raw) => {
+        const normalized = raw != null ? raw.toString().trim() : '';
+        if (!normalized || !isEmailValue(normalized)) {
+          return;
+        }
+        emailSet.add(normalized);
+      };
+
+      const addPhone = (raw) => {
+        const normalized = raw != null ? raw.toString().trim() : '';
+        if (!normalized || !isPhoneValue(normalized)) {
+          return;
+        }
+        phoneSet.add(normalized);
+      };
+
+      if (contact && typeof contact === 'object') {
+        addEmail(contact.email);
+        addPhone(contact.mobile);
+        addPhone(contact.landline);
+        addPhone(contact.phone);
+      }
+
+      const categoryValues =
+        contact && typeof contact === 'object' && contact.categoryValues && typeof contact.categoryValues === 'object'
+          ? contact.categoryValues
+          : {};
+
+      Object.entries(categoryValues).forEach(([categoryId, rawValue]) => {
+        const category = categoriesById.get(categoryId);
+        if (!category) {
+          return;
+        }
+
+        const value = rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+        if (!value) {
+          return;
+        }
+
+        const normalizedName = normalizeLabel(category.name || '');
+        const nameSuggestsPhone = PHONE_KEYWORDS.some((keyword) => normalizedName.includes(keyword));
+        const looksLikeEmail = isEmailValue(value);
+        const looksLikePhone = isPhoneValue(value);
+
+        if (looksLikeEmail) {
+          addEmail(value);
+          return;
+        }
+
+        if (looksLikePhone && nameSuggestsPhone) {
+          addPhone(value);
+        }
+      });
+
+      return {
+        emails: Array.from(emailSet),
+        phones: Array.from(phoneSet),
+      };
+    }
+
+    function computeContactCoverage(contacts, categoriesById = buildCategoryMap()) {
+      const coverage = {
+        both: 0,
+        phoneOnly: 0,
+        emailOnly: 0,
+        none: 0,
+      };
+
+      contacts.forEach((contact) => {
+        const channels = computeContactChannels(contact, categoriesById);
+        const hasPhone = channels.phones.length > 0;
+        const hasEmail = channels.emails.length > 0;
+
+        if (hasPhone && hasEmail) {
+          coverage.both += 1;
+        } else if (hasPhone) {
+          coverage.phoneOnly += 1;
+        } else if (hasEmail) {
+          coverage.emailOnly += 1;
+        } else {
+          coverage.none += 1;
+        }
+      });
+
+      return coverage;
+    }
+
     function renderCategories() {
       if (!categoryList || !categoryEmptyState) {
         renderContactCategoryFields();
-        renderSearchCategoryOptions();
+        renderSearchCategoryFields();
         renderContacts();
         return;
       }
@@ -837,7 +1085,7 @@
       if (categories.length === 0) {
         categoryEmptyState.hidden = false;
         renderContactCategoryFields();
-        renderSearchCategoryOptions();
+        renderSearchCategoryFields();
         renderContacts();
         return;
       }
@@ -900,7 +1148,7 @@
 
       categoryList.appendChild(fragment);
       renderContactCategoryFields();
-      renderSearchCategoryOptions();
+      renderSearchCategoryFields();
       renderContacts();
     }
 
@@ -1189,10 +1437,14 @@
       }
     }
 
-    function renderSearchCategoryOptions() {
-      if (!searchCategorySelect) {
-        if (advancedFilters.category) {
-          advancedFilters = { ...advancedFilters, category: '' };
+    function renderSearchCategoryFields() {
+      if (!searchCategoryFieldsContainer) {
+        if (
+          advancedFilters.categories &&
+          typeof advancedFilters.categories === 'object' &&
+          Object.keys(advancedFilters.categories).length > 0
+        ) {
+          advancedFilters = { ...advancedFilters, categories: {} };
         }
         return;
       }
@@ -1201,31 +1453,119 @@
         ? data.categories.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
         : [];
 
-      const previousSelection = advancedFilters.category || '';
-      const allowedValues = new Set(['', ...categories.map((category) => category.id || '')]);
+      searchCategoryFieldsContainer.innerHTML = '';
 
-      searchCategorySelect.innerHTML = '';
+      if (categories.length === 0) {
+        if (searchCategoriesEmpty) {
+          searchCategoriesEmpty.hidden = false;
+        }
+        return;
+      }
 
-      const defaultOption = document.createElement('option');
-      defaultOption.value = '';
-      defaultOption.textContent = 'Toutes les catégories';
-      searchCategorySelect.appendChild(defaultOption);
+      if (searchCategoriesEmpty) {
+        searchCategoriesEmpty.hidden = true;
+      }
 
-      categories.forEach((category) => {
-        const option = document.createElement('option');
-        option.value = category.id || '';
-        option.textContent = category.name;
-        searchCategorySelect.appendChild(option);
-      });
+      if (advancedFilters.categories && typeof advancedFilters.categories === 'object') {
+        const allowedIds = new Set(categories.map((category) => category.id || ''));
+        const filteredCategories = {};
+        let hasChanges = false;
+        Object.entries(advancedFilters.categories).forEach(([categoryId, filter]) => {
+          if (allowedIds.has(categoryId)) {
+            filteredCategories[categoryId] = filter;
+          } else {
+            hasChanges = true;
+          }
+        });
 
-      if (allowedValues.has(previousSelection)) {
-        searchCategorySelect.value = previousSelection;
-      } else {
-        searchCategorySelect.value = '';
-        if (previousSelection) {
-          advancedFilters = { ...advancedFilters, category: '' };
+        if (hasChanges) {
+          advancedFilters = { ...advancedFilters, categories: filteredCategories };
         }
       }
+
+      const fragment = document.createDocumentFragment();
+
+      categories.forEach((category) => {
+        const fieldWrapper = document.createElement('div');
+        fieldWrapper.className = 'form-row';
+
+        const fieldId = `search-category-${category.id}`;
+        const label = document.createElement('label');
+        label.setAttribute('for', fieldId);
+        label.textContent = category.name;
+
+        let input;
+        const description = (category.description || '').toString().trim();
+        const baseType = CATEGORY_TYPES.has(category.type) ? category.type : 'text';
+
+        if (baseType === 'number') {
+          const numberInput = document.createElement('input');
+          numberInput.type = 'number';
+          numberInput.inputMode = 'decimal';
+          numberInput.id = fieldId;
+          numberInput.name = `search-category-${category.id}`;
+          if (description) {
+            numberInput.placeholder = description;
+          }
+          input = numberInput;
+        } else if (baseType === 'date') {
+          const dateInput = document.createElement('input');
+          dateInput.type = 'date';
+          dateInput.id = fieldId;
+          dateInput.name = `search-category-${category.id}`;
+          input = dateInput;
+        } else if (baseType === 'list') {
+          const select = document.createElement('select');
+          select.id = fieldId;
+          select.name = `search-category-${category.id}`;
+
+          const defaultOption = document.createElement('option');
+          defaultOption.value = '';
+          defaultOption.textContent = 'Toutes les valeurs';
+          select.appendChild(defaultOption);
+
+          const options = Array.isArray(category.options) ? category.options : [];
+          options.forEach((optionValue) => {
+            const option = document.createElement('option');
+            option.value = optionValue;
+            option.textContent = optionValue;
+            select.appendChild(option);
+          });
+          input = select;
+        } else {
+          const textInput = document.createElement('input');
+          textInput.type = 'text';
+          textInput.id = fieldId;
+          textInput.name = `search-category-${category.id}`;
+          textInput.maxLength = 200;
+          if (description) {
+            textInput.placeholder = description;
+          }
+          input = textInput;
+        }
+
+        input.dataset.categoryId = category.id || '';
+        input.dataset.categoryType = baseType;
+        input.setAttribute('data-search-category-input', 'true');
+
+        const storedFilter =
+          advancedFilters.categories && category.id && advancedFilters.categories[category.id]
+            ? advancedFilters.categories[category.id]
+            : null;
+        if (storedFilter && typeof storedFilter === 'object') {
+          const rawValue = storedFilter.rawValue != null ? storedFilter.rawValue.toString() : '';
+          if (baseType === 'list') {
+            input.value = rawValue;
+          } else if (rawValue) {
+            input.value = rawValue;
+          }
+        }
+
+        fieldWrapper.append(label, input);
+        fragment.appendChild(fieldWrapper);
+      });
+
+      searchCategoryFieldsContainer.appendChild(fragment);
     }
 
     function renderSearchKeywordOptions() {
@@ -1277,60 +1617,25 @@
       contactList.innerHTML = '';
 
       const normalizedTerm = contactSearchTerm.trim().toLowerCase();
-      const categoriesById = new Map(
-        Array.isArray(data.categories)
-          ? data.categories.map((category) => [category.id, category])
-          : [],
-      );
+      const categoriesById = buildCategoryMap();
       const keywordsById = new Map(
         Array.isArray(data.keywords)
           ? data.keywords.map((keyword) => [keyword.id, keyword])
           : [],
       );
 
-      const normalizedTextFilters = {
-        firstName: (advancedFilters.firstName || '').toLowerCase(),
-        usageName: (advancedFilters.usageName || '').toLowerCase(),
-        birthName: (advancedFilters.birthName || '').toLowerCase(),
-        age: (advancedFilters.age || '').toLowerCase(),
-        email: (advancedFilters.email || '').toLowerCase(),
-        mobile: (advancedFilters.mobile || '').toLowerCase(),
-        street: (advancedFilters.street || '').toLowerCase(),
-        city: (advancedFilters.city || '').toLowerCase(),
-        postalCode: (advancedFilters.postalCode || '').toLowerCase(),
-        country: (advancedFilters.country || '').toLowerCase(),
-        zone: (advancedFilters.zone || '').toLowerCase(),
-        mandate: (advancedFilters.mandate || '').toLowerCase(),
-        profession: (advancedFilters.profession || '').toLowerCase(),
-        landline: (advancedFilters.landline || '').toLowerCase(),
-        custom: (advancedFilters.custom || '').toLowerCase(),
-        organization: (advancedFilters.organization || '').toLowerCase(),
-      };
-
-      const exactFilters = {
-        gender: (advancedFilters.gender || '').toString(),
-        campaignStatus: (advancedFilters.campaignStatus || '').toString(),
-        engagement: (advancedFilters.engagement || '').toString(),
-        archive: (advancedFilters.archive || '').toString(),
-        lastMembership: (advancedFilters.lastMembership || '').toString(),
-        category: (advancedFilters.category || '').toString(),
-      };
+      const categoryFilterEntries =
+        advancedFilters &&
+        advancedFilters.categories &&
+        typeof advancedFilters.categories === 'object'
+          ? Object.entries(advancedFilters.categories)
+          : [];
 
       const keywordFilters = Array.isArray(advancedFilters.keywords)
-        ? advancedFilters.keywords
+        ? advancedFilters.keywords.filter((value) => Boolean(value))
         : [];
 
-      const hasAdvancedFilters =
-        Boolean(
-          exactFilters.gender ||
-            exactFilters.campaignStatus ||
-            exactFilters.engagement ||
-            exactFilters.archive ||
-            exactFilters.lastMembership ||
-            exactFilters.category,
-        ) ||
-        keywordFilters.length > 0 ||
-        Object.values(normalizedTextFilters).some((value) => Boolean(value));
+      const hasAdvancedFilters = categoryFilterEntries.length > 0 || keywordFilters.length > 0;
 
       const filteredContacts = contacts
         .filter((contact) => {
@@ -1339,14 +1644,23 @@
               ? contact.categoryValues
               : {};
           const keywords = Array.isArray(contact.keywords) ? contact.keywords : [];
+          for (const [categoryId, filter] of categoryFilterEntries) {
+            if (!filter || typeof filter !== 'object') {
+              continue;
+            }
+            const rawValue = categoryValues[categoryId];
+            const valueString =
+              rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+            if (!valueString) {
+              return false;
+            }
 
-          if (exactFilters.category) {
-            const rawCategoryValue = categoryValues[exactFilters.category];
-            const normalizedCategoryValue =
-              rawCategoryValue === undefined || rawCategoryValue === null
-                ? ''
-                : rawCategoryValue.toString().trim();
-            if (!normalizedCategoryValue) {
+            if (filter.type === 'text') {
+              const normalizedFilter = (filter.normalizedValue || '').toString();
+              if (!valueString.toLowerCase().includes(normalizedFilter)) {
+                return false;
+              }
+            } else if (valueString !== filter.rawValue) {
               return false;
             }
           }
@@ -1359,109 +1673,12 @@
             }
           }
 
-          const matchesExact = (value, filterValue) => {
-            if (!filterValue) {
-              return true;
-            }
-            return (value || '') === filterValue;
-          };
-
-          if (!matchesExact((contact.gender || '').toString(), exactFilters.gender)) {
-            return false;
-          }
-
-          if (
-            !matchesExact((contact.campaignStatus || '').toString(), exactFilters.campaignStatus)
-          ) {
-            return false;
-          }
-
-          if (!matchesExact((contact.engagementLevel || '').toString(), exactFilters.engagement)) {
-            return false;
-          }
-
-          if (!matchesExact((contact.archiveTheme || '').toString(), exactFilters.archive)) {
-            return false;
-          }
-
-          if (!matchesExact((contact.lastMembership || '').toString(), exactFilters.lastMembership)) {
-            return false;
-          }
-
-          const matchesText = (value, filterValue) => {
-            if (!filterValue) {
-              return true;
-            }
-            return value.toString().toLowerCase().includes(filterValue);
-          };
-
-          if (!matchesText(contact.firstName || contact.fullName || '', normalizedTextFilters.firstName)) {
-            return false;
-          }
-
-          if (!matchesText(contact.usageName || contact.fullName || '', normalizedTextFilters.usageName)) {
-            return false;
-          }
-
-          if (!matchesText(contact.birthName || '', normalizedTextFilters.birthName)) {
-            return false;
-          }
-
-          if (!matchesText(contact.ageRange || '', normalizedTextFilters.age)) {
-            return false;
-          }
-
-          if (!matchesText(contact.email || '', normalizedTextFilters.email)) {
-            return false;
-          }
-
-          if (!matchesText(contact.mobile || '', normalizedTextFilters.mobile)) {
-            return false;
-          }
-
-          if (!matchesText(contact.street || '', normalizedTextFilters.street)) {
-            return false;
-          }
-
-          if (!matchesText(contact.city || '', normalizedTextFilters.city)) {
-            return false;
-          }
-
-          if (!matchesText(contact.postalCode || '', normalizedTextFilters.postalCode)) {
-            return false;
-          }
-
-          if (!matchesText(contact.country || '', normalizedTextFilters.country)) {
-            return false;
-          }
-
-          if (!matchesText(contact.zone || '', normalizedTextFilters.zone)) {
-            return false;
-          }
-
-          if (!matchesText(contact.mandate || '', normalizedTextFilters.mandate)) {
-            return false;
-          }
-
-          if (!matchesText(contact.profession || '', normalizedTextFilters.profession)) {
-            return false;
-          }
-
-          if (!matchesText(contact.landline || '', normalizedTextFilters.landline)) {
-            return false;
-          }
-
-          if (!matchesText(contact.customField || '', normalizedTextFilters.custom)) {
-            return false;
-          }
-
-          if (!matchesText(contact.organization || '', normalizedTextFilters.organization)) {
-            return false;
-          }
-
           if (!normalizedTerm) {
             return true;
           }
+
+          const displayName = getContactDisplayName(contact, categoriesById);
+          const channels = computeContactChannels(contact, categoriesById);
 
           const categoryEntries = Object.entries(categoryValues)
             .map(([categoryId, rawValue]) => {
@@ -1469,14 +1686,12 @@
               if (!category) {
                 return null;
               }
-              const valueString = rawValue === undefined || rawValue === null ? '' : rawValue.toString();
-              return {
-                id: categoryId,
-                name: category.name,
-                value: valueString,
-              };
+              const value =
+                rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+              return value ? { name: category.name, value } : null;
             })
             .filter((entry) => Boolean(entry));
+
           const keywordNames = keywords
             .map((keywordId) => {
               const keyword = keywordsById.get(keywordId);
@@ -1484,41 +1699,29 @@
             })
             .filter(Boolean);
 
-          const categoryNames = categoryEntries
-            .map((entry) => entry && entry.name)
-            .filter((value) => Boolean(value));
-          const categoryValueTexts = categoryEntries
-            .map((entry) => {
-              if (!entry) {
-                return '';
-              }
-              return entry.value != null ? entry.value.toString().trim() : '';
-            })
-            .filter((value) => Boolean(value));
-
           const haystackParts = [
+            displayName,
             contact.fullName || '',
             contact.firstName || '',
             contact.usageName || '',
             contact.birthName || '',
-            contact.email || '',
-            contact.mobile || '',
-            contact.landline || '',
             contact.notes || '',
             contact.organization || '',
             contact.city || '',
             contact.customField || '',
-            categoryNames.join(' '),
-            categoryValueTexts.join(' '),
             keywordNames.join(' '),
+            categoryEntries.map((entry) => entry && entry.name).join(' '),
+            categoryEntries.map((entry) => (entry ? entry.value : '')).join(' '),
+            channels.emails.join(' '),
+            channels.phones.join(' '),
           ];
 
           const haystack = haystackParts.join(' ').toLowerCase();
           return haystack.includes(normalizedTerm);
         })
         .sort((a, b) => {
-          const nameA = (a.usageName || a.fullName || '').toString();
-          const nameB = (b.usageName || b.fullName || '').toString();
+          const nameA = getContactDisplayName(a, categoriesById).toString();
+          const nameB = getContactDisplayName(b, categoriesById).toString();
           return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
         });
 
@@ -1563,7 +1766,7 @@
 
         const nameEl = listItem.querySelector('.contact-name');
         if (nameEl) {
-          const displayName = (contact.fullName || `${contact.firstName || ''} ${contact.usageName || ''}`).trim();
+          const displayName = getContactDisplayName(contact, categoriesById) || 'Contact sans nom';
           nameEl.textContent = displayName;
         }
 
@@ -1579,24 +1782,13 @@
 
         const coordinatesEl = listItem.querySelector('.contact-coordinates');
         if (coordinatesEl) {
-          const coordinates = [];
-          const mobileValue = (contact.mobile || '').toString().trim();
-          const landlineValue = (contact.landline || '').toString().trim();
-          const emailValue = (contact.email || '').toString().trim();
-          if (mobileValue) {
-            coordinates.push(mobileValue);
-          }
-          if (landlineValue) {
-            coordinates.push(landlineValue);
-          }
-          if (emailValue) {
-            coordinates.push(emailValue);
-          }
+          const channels = computeContactChannels(contact, categoriesById);
+          const coordinates = [...channels.phones, ...channels.emails];
           if (coordinates.length > 0) {
             coordinatesEl.textContent = coordinates.join(' · ');
             coordinatesEl.classList.remove('contact-coordinates--empty');
           } else {
-            coordinatesEl.textContent = 'Aucun moyen de contact renseigné.';
+            coordinatesEl.textContent = 'Aucune coordonnée renseignée.';
             coordinatesEl.classList.add('contact-coordinates--empty');
           }
         }
@@ -1711,13 +1903,28 @@
           .forEach((input) => {
             if (input instanceof HTMLInputElement) {
               input.checked = false;
-            }
-          });
+          }
+        });
       }
 
-      const firstNameInput = contactForm.querySelector('#contact-first-name');
-      if (firstNameInput instanceof HTMLInputElement) {
-        firstNameInput.focus();
+      const firstCategoryInput = contactCategoryFieldsContainer
+        ? contactCategoryFieldsContainer.querySelector('[data-category-input]')
+        : null;
+      if (
+        firstCategoryInput &&
+        'focus' in firstCategoryInput &&
+        typeof firstCategoryInput.focus === 'function'
+      ) {
+        firstCategoryInput.focus();
+      } else {
+        const notesField = contactForm.querySelector('#contact-notes');
+        if (
+          notesField &&
+          'focus' in notesField &&
+          typeof notesField.focus === 'function'
+        ) {
+          notesField.focus();
+        }
       }
     }
 
@@ -1766,27 +1973,6 @@
         }
       };
 
-      assignValue('#contact-first-name', contact.firstName || '');
-      assignValue('#contact-usage-name', contact.usageName || '');
-      assignValue('#contact-birth-name', contact.birthName || '');
-      assignValue('#contact-gender', contact.gender || '');
-      assignValue('#contact-age-range', contact.ageRange || '');
-      assignValue('#contact-email', contact.email || '');
-      assignValue('#contact-mobile', contact.mobile || '');
-      assignValue('#contact-landline', contact.landline || '');
-      assignValue('#contact-street', contact.street || '');
-      assignValue('#contact-city', contact.city || '');
-      assignValue('#contact-postal-code', contact.postalCode || '');
-      assignValue('#contact-country', contact.country || '');
-      assignValue('#contact-zone', contact.zone || '');
-      assignValue('#contact-campaign-status', contact.campaignStatus || '');
-      assignValue('#contact-engagement-level', contact.engagementLevel || '');
-      assignValue('#contact-archive-theme', contact.archiveTheme || '');
-      assignValue('#contact-mandate', contact.mandate || '');
-      assignValue('#contact-profession', contact.profession || '');
-      assignValue('#contact-last-membership', contact.lastMembership || '');
-      assignValue('#contact-custom-field', contact.customField || '');
-      assignValue('#contact-organization', contact.organization || '');
       assignValue('#contact-notes', contact.notes || '');
 
       renderContactCategoryFields();
@@ -1802,10 +1988,24 @@
           });
       }
 
-      const firstNameInput = contactForm.querySelector('#contact-first-name');
-      if (firstNameInput instanceof HTMLInputElement) {
-        firstNameInput.focus();
-        firstNameInput.setSelectionRange(firstNameInput.value.length, firstNameInput.value.length);
+      const firstCategoryInput = contactCategoryFieldsContainer
+        ? contactCategoryFieldsContainer.querySelector('[data-category-input]')
+        : null;
+      if (
+        firstCategoryInput &&
+        'focus' in firstCategoryInput &&
+        typeof firstCategoryInput.focus === 'function'
+      ) {
+        firstCategoryInput.focus();
+      } else {
+        const notesField = contactForm.querySelector('#contact-notes');
+        if (
+          notesField &&
+          'focus' in notesField &&
+          typeof notesField.focus === 'function'
+        ) {
+          notesField.focus();
+        }
       }
     }
 
@@ -2030,27 +2230,14 @@
       }
 
       const contacts = Array.isArray(target.contacts) ? target.contacts : [];
+      const categoriesById = buildCategoryMap(target);
       let emailCount = 0;
       let phoneCount = 0;
 
       contacts.forEach((contact) => {
-        if (!contact || typeof contact !== 'object') {
-          return;
-        }
-
-        const emailValue = contact.email ? contact.email.toString().trim() : '';
-        if (emailValue) {
-          emailCount += 1;
-        }
-
-        const mobileValue = contact.mobile ? contact.mobile.toString().trim() : '';
-        const landlineValue = contact.landline ? contact.landline.toString().trim() : '';
-        if (mobileValue) {
-          phoneCount += 1;
-        }
-        if (landlineValue) {
-          phoneCount += 1;
-        }
+        const channels = computeContactChannels(contact, categoriesById);
+        emailCount += channels.emails.length;
+        phoneCount += channels.phones.length;
       });
 
       target.metrics.peopleCount = contacts.length;
@@ -2119,6 +2306,8 @@
 
         contact.categoryValues = cleanedValues;
       });
+
+      updateMetricsFromContacts(target);
     }
 
     function startKeywordEdition(keywordId) {
@@ -2268,6 +2457,8 @@
         base.contacts = [];
       }
 
+      const categoriesById = buildCategoryMap(base);
+
       base.contacts.forEach((contact) => {
         if (!contact || typeof contact !== 'object') {
           return;
@@ -2330,6 +2521,14 @@
             contact.fullName = constructedName;
           }
         }
+
+        if (!contact.displayName) {
+          const derivedName = buildDisplayNameFromCategories(contact.categoryValues, categoriesById);
+          const fallbackName = (contact.fullName || `${contact.firstName || ''} ${contact.usageName || ''}`)
+            .toString()
+            .trim();
+          contact.displayName = derivedName || fallbackName || 'Contact sans nom';
+        }
       });
 
       cleanupContactCategoryValues(base);
@@ -2344,28 +2543,7 @@
 
     function createEmptyAdvancedFilters() {
       return {
-        firstName: '',
-        usageName: '',
-        birthName: '',
-        category: '',
-        gender: '',
-        age: '',
-        email: '',
-        mobile: '',
-        street: '',
-        city: '',
-        postalCode: '',
-        country: '',
-        zone: '',
-        campaignStatus: '',
-        engagement: '',
-        archive: '',
-        mandate: '',
-        profession: '',
-        landline: '',
-        lastMembership: '',
-        custom: '',
-        organization: '',
+        categories: {},
         keywords: [],
       };
     }
