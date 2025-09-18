@@ -79,7 +79,89 @@
               <span class="dashboard-toolbar-icon" aria-hidden="true">🗂️</span>
               <span>Gérer les catégories</span>
             </button>
+            <button
+              id="dashboard-tasklist-button"
+              class="dashboard-toolbar-button"
+              type="button"
+              aria-expanded="false"
+              aria-controls="dashboard-task-panel"
+            >
+              <span class="dashboard-toolbar-icon" aria-hidden="true">✅</span>
+              <span>Liste des tâches</span>
+            </button>
           </div>
+          <section
+            id="dashboard-task-panel"
+            class="task-panel"
+            aria-labelledby="task-panel-title"
+            hidden
+          >
+            <header class="task-panel-header">
+              <div>
+                <h2 id="task-panel-title">Liste des tâches</h2>
+                <p id="task-panel-description" class="task-panel-subtitle">
+                  Centralisez vos actions et attribuez-les aux membres de l'équipe.
+                </p>
+              </div>
+              <span id="task-count-badge" class="task-count-badge" aria-live="polite">0 tâche</span>
+            </header>
+            <form id="task-form" class="task-form" autocomplete="off">
+              <div class="task-form-grid">
+                <div class="form-row">
+                  <label for="task-title">Titre de la tâche *</label>
+                  <input
+                    id="task-title"
+                    name="task-title"
+                    type="text"
+                    required
+                    maxlength="140"
+                    placeholder="Ex. Relancer les partenaires, préparer un dossier"
+                  />
+                </div>
+                <div class="form-row">
+                  <label for="task-due-date">Date limite</label>
+                  <input id="task-due-date" name="task-due-date" type="date" />
+                </div>
+                <div class="form-row">
+                  <label for="task-color">Couleur</label>
+                  <input id="task-color" name="task-color" type="color" value="#2563eb" />
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="task-members">Attribuer à</label>
+                <select
+                  id="task-members"
+                  name="task-members"
+                  class="task-members-select"
+                  multiple
+                  aria-describedby="task-members-hint"
+                ></select>
+                <p id="task-members-hint" class="form-hint">
+                  Maintenez la touche Ctrl (ou Cmd sur Mac) pour sélectionner plusieurs membres.
+                </p>
+              </div>
+              <div class="form-row">
+                <label for="task-description">Description</label>
+                <textarea
+                  id="task-description"
+                  name="task-description"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="Précisez les objectifs ou les étapes à suivre (optionnel)."
+                ></textarea>
+              </div>
+              <div class="task-form-actions">
+                <button type="submit" class="primary-button">Ajouter la tâche</button>
+                <button type="reset" class="secondary-button">Réinitialiser</button>
+              </div>
+            </form>
+            <div class="task-list-wrapper">
+              <ul id="task-list" class="task-list" aria-live="polite"></ul>
+              <p id="task-empty-state" class="task-empty-state">
+                Aucune tâche planifiée pour le moment. Ajoutez votre première action ci-dessus.
+              </p>
+            </div>
+          </section>
           <header class="page-header">
             <div>
               <h1 id="dashboard-title">Tableau de bord</h1>
