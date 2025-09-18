@@ -359,6 +359,12 @@
     const searchCategoriesEmpty = document.getElementById('search-categories-empty');
     const searchKeywordsSelect = document.getElementById('search-keywords');
     const contactSearchCountEl = document.getElementById('contact-search-count');
+    const contactPagination = document.getElementById('contact-pagination');
+    const contactPaginationSummary = document.getElementById('contact-pagination-summary');
+    const contactPaginationPageLabel = document.getElementById('contact-pagination-page');
+    const contactPaginationPrevButton = document.getElementById('contact-pagination-prev');
+    const contactPaginationNextButton = document.getElementById('contact-pagination-next');
+    const contactResultsPerPageSelect = document.getElementById('contact-results-per-page');
     const contactTemplate = document.getElementById('contact-item-template');
     const contactSubmitButton = document.getElementById('contact-submit-button');
     const contactCancelEditButton = document.getElementById('contact-cancel-edit');
@@ -497,9 +503,13 @@
       maximumFractionDigits: 1,
     });
 
+    const CONTACT_RESULTS_PER_PAGE_DEFAULT = 10;
+
     let contactSearchTerm = '';
     let advancedFilters = createEmptyAdvancedFilters();
     let contactEditReturnPage = 'contacts-search';
+    let contactCurrentPage = 1;
+    let contactResultsPerPage = CONTACT_RESULTS_PER_PAGE_DEFAULT;
     let categoryDragAndDropInitialized = false;
     let calendarViewMode = 'month';
     let calendarReferenceDate = startOfMonth(new Date());
@@ -961,6 +971,37 @@
       contactSearchTerm = contactSearchInput.value || '';
       contactSearchInput.addEventListener('input', () => {
         contactSearchTerm = contactSearchInput.value;
+        contactCurrentPage = 1;
+        renderContacts();
+      });
+    }
+
+    if (contactResultsPerPageSelect instanceof HTMLSelectElement) {
+      contactResultsPerPageSelect.value = contactResultsPerPage.toString();
+      contactResultsPerPageSelect.addEventListener('change', () => {
+        const parsed = Number.parseInt(contactResultsPerPageSelect.value, 10);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          contactResultsPerPage = parsed;
+        } else {
+          contactResultsPerPage = CONTACT_RESULTS_PER_PAGE_DEFAULT;
+        }
+        contactCurrentPage = 1;
+        renderContacts();
+      });
+    }
+
+    if (contactPaginationPrevButton instanceof HTMLButtonElement) {
+      contactPaginationPrevButton.addEventListener('click', () => {
+        if (contactCurrentPage > 1) {
+          contactCurrentPage -= 1;
+          renderContacts();
+        }
+      });
+    }
+
+    if (contactPaginationNextButton instanceof HTMLButtonElement) {
+      contactPaginationNextButton.addEventListener('click', () => {
+        contactCurrentPage += 1;
         renderContacts();
       });
     }
@@ -1020,6 +1061,7 @@
           categories: categoryFilters,
           keywords: keywordFilters,
         };
+        contactCurrentPage = 1;
         renderContacts();
       });
 
@@ -1027,6 +1069,7 @@
         window.requestAnimationFrame(() => {
           advancedFilters = createEmptyAdvancedFilters();
           renderSearchCategoryFields();
+          contactCurrentPage = 1;
           renderContacts();
         });
       });
@@ -3804,11 +3847,17 @@
           return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
         });
 
+      const totalResults = filteredContacts.length;
+
       if (contactSearchCountEl) {
-        contactSearchCountEl.textContent = filteredContacts.length.toString();
+        contactSearchCountEl.textContent = totalResults.toString();
       }
 
-      if (filteredContacts.length === 0) {
+      if (contactPagination) {
+        contactPagination.hidden = totalResults === 0;
+      }
+
+      if (totalResults === 0) {
         contactEmptyState.hidden = false;
         if (contacts.length === 0) {
           contactEmptyState.textContent = 'Ajoutez vos premiers contacts pour les retrouver ici.';
@@ -3817,10 +3866,78 @@
         } else {
           contactEmptyState.textContent = 'Aucun contact à afficher pour le moment.';
         }
+        if (contactPaginationSummary) {
+          contactPaginationSummary.textContent = 'Affichage 0 sur 0 contacts';
+        }
+        if (contactPaginationPageLabel) {
+          contactPaginationPageLabel.textContent = 'Page 1 / 1';
+        }
+        if (contactPaginationPrevButton instanceof HTMLButtonElement) {
+          contactPaginationPrevButton.disabled = true;
+        }
+        if (contactPaginationNextButton instanceof HTMLButtonElement) {
+          contactPaginationNextButton.disabled = true;
+        }
+        contactCurrentPage = 1;
         return;
       }
 
       contactEmptyState.hidden = true;
+
+      const normalizedPerPage = Number.isFinite(contactResultsPerPage)
+        ? Math.max(1, Math.floor(contactResultsPerPage))
+        : CONTACT_RESULTS_PER_PAGE_DEFAULT;
+      if (normalizedPerPage !== contactResultsPerPage) {
+        contactResultsPerPage = normalizedPerPage;
+      }
+
+      const totalPages = Math.max(1, Math.ceil(totalResults / contactResultsPerPage));
+      if (contactCurrentPage > totalPages) {
+        contactCurrentPage = totalPages;
+      } else if (contactCurrentPage < 1) {
+        contactCurrentPage = 1;
+      }
+
+      let startIndex = (contactCurrentPage - 1) * contactResultsPerPage;
+      let endIndex = Math.min(startIndex + contactResultsPerPage, totalResults);
+      let pageContacts = filteredContacts.slice(startIndex, endIndex);
+
+      if (pageContacts.length === 0) {
+        contactCurrentPage = 1;
+        startIndex = 0;
+        endIndex = Math.min(contactResultsPerPage, totalResults);
+        pageContacts = filteredContacts.slice(startIndex, endIndex);
+      }
+
+      const startNumber = startIndex + 1;
+      const endNumber = startIndex + pageContacts.length;
+
+      if (contactPaginationSummary) {
+        const summaryStart = numberFormatter.format(startNumber);
+        const summaryEnd = numberFormatter.format(endNumber);
+        const totalLabel = numberFormatter.format(totalResults);
+        const suffix = totalResults === 1 ? 'contact' : 'contacts';
+        contactPaginationSummary.textContent = `Affichage ${summaryStart} – ${summaryEnd} sur ${totalLabel} ${suffix}`;
+      }
+
+      if (contactPaginationPageLabel) {
+        contactPaginationPageLabel.textContent = `Page ${contactCurrentPage} / ${totalPages}`;
+      }
+
+      if (contactPaginationPrevButton instanceof HTMLButtonElement) {
+        contactPaginationPrevButton.disabled = contactCurrentPage <= 1;
+      }
+
+      if (contactPaginationNextButton instanceof HTMLButtonElement) {
+        contactPaginationNextButton.disabled = contactCurrentPage >= totalPages;
+      }
+
+      if (
+        contactResultsPerPageSelect instanceof HTMLSelectElement &&
+        contactResultsPerPageSelect.value !== contactResultsPerPage.toString()
+      ) {
+        contactResultsPerPageSelect.value = contactResultsPerPage.toString();
+      }
 
       const fragment = document.createDocumentFragment();
       const dateTimeFormatter = new Intl.DateTimeFormat('fr-FR', {
@@ -3828,7 +3945,7 @@
         timeStyle: 'short',
       });
 
-      filteredContacts.forEach((contact) => {
+      pageContacts.forEach((contact) => {
         const templateItem = contactTemplate && contactTemplate.content
           ? contactTemplate.content.firstElementChild
           : null;
@@ -4416,6 +4533,9 @@
           .toLowerCase();
 
       const categoriesById = buildCategoryMap();
+      if (!Array.isArray(data.contacts)) {
+        data.contacts = [];
+      }
       const normalizedMapping = Object.entries(mappingSource)
         .map(([categoryId, rawIndex]) => {
           const columnIndex = Number(rawIndex);
