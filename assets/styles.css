@@ -29,7 +29,8 @@ body {
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Noto Sans', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont,
+    sans-serif;
   color: var(--color-text);
   background: var(--color-background);
   -webkit-font-smoothing: antialiased;

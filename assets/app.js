@@ -415,6 +415,7 @@
     };
     const EMAIL_KEYWORDS = ['mail', 'email', 'courriel', 'mel'];
     const PHONE_KEYWORDS = ['tel', 'telephone', 'mobile', 'portable', 'phone', 'gsm'];
+    const NAME_KEYWORDS = ['nom', 'prenom', 'name', 'usage', 'family'];
     const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
     const isoTimePattern = /^\d{2}:\d{2}$/;
     const DEFAULT_TASK_COLOR = '#2563eb';
@@ -2923,6 +2924,19 @@
         .toLowerCase();
     }
 
+    function normalizeComparableValue(value) {
+      if (value === undefined || value === null) {
+        return '';
+      }
+      return value
+        .toString()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+    }
+
     function isEmailValue(value) {
       if (!value) {
         return false;
@@ -4569,16 +4583,33 @@
         })
         .filter((entry) => Boolean(entry));
 
+      const enrichedMapping = normalizedMapping.map((mapping) => {
+        const normalizedLabel = normalizeLabel(mapping.name || '');
+        const isStrongIdentifier =
+          EMAIL_KEYWORDS.some((keyword) => normalizedLabel.includes(keyword)) ||
+          PHONE_KEYWORDS.some((keyword) => normalizedLabel.includes(keyword));
+        const isNameField = NAME_KEYWORDS.some((keyword) => normalizedLabel.includes(keyword));
+        return {
+          ...mapping,
+          normalizedLabel,
+          isStrongIdentifier,
+          isNameField,
+        };
+      });
+
       const startIndex = skipHeader ? 1 : 0;
       const totalRows = startIndex < safeRows.length ? safeRows.length - startIndex : 0;
       const errors = [];
       const errorRows = new Set();
       let importedCount = 0;
+      let mergedCount = 0;
       let skippedEmptyCount = 0;
+      let updatedContactsCount = 0;
 
-      if (normalizedMapping.length === 0 || safeRows.length === 0 || totalRows === 0) {
+      if (enrichedMapping.length === 0 || safeRows.length === 0 || totalRows === 0) {
         return {
           importedCount,
+          mergedCount,
           skippedEmptyCount: totalRows,
           totalRows,
           errorCount: 0,
@@ -4587,12 +4618,103 @@
         };
       }
 
+      const existingContactsDetails = data.contacts.map((contact) => {
+        const normalizedValues = new Map();
+        if (contact && typeof contact === 'object' && contact.categoryValues) {
+          Object.entries(contact.categoryValues).forEach(([categoryId, rawValue]) => {
+            const normalized = normalizeComparableValue(rawValue);
+            if (normalized) {
+              normalizedValues.set(categoryId, normalized);
+            }
+          });
+        }
+        const normalizedDisplayName = normalizeComparableValue(
+          getContactDisplayName(contact, categoriesById),
+        );
+        return { contact, normalizedValues, normalizedDisplayName };
+      });
+
+      const findMatchingContact = (normalizedValues, normalizedDerivedName) => {
+        if (!(normalizedValues instanceof Map) || normalizedValues.size === 0) {
+          return null;
+        }
+
+        let bestMatch = null;
+        let bestScore = 0;
+
+        existingContactsDetails.forEach((entry) => {
+          if (!entry || !entry.contact) {
+            return;
+          }
+
+          const existingValues = entry.normalizedValues;
+          let strongMatches = 0;
+          let regularMatches = 0;
+          let nameFieldMatches = 0;
+          let hasStrongConflict = false;
+
+          enrichedMapping.forEach((mapping) => {
+            const newValue = normalizedValues.get(mapping.categoryId);
+            if (!newValue) {
+              return;
+            }
+            const existingValue = existingValues.get(mapping.categoryId);
+            if (!existingValue) {
+              return;
+            }
+            if (existingValue === newValue) {
+              if (mapping.isStrongIdentifier) {
+                strongMatches += 1;
+              } else {
+                regularMatches += 1;
+                if (mapping.isNameField) {
+                  nameFieldMatches += 1;
+                }
+              }
+            } else if (mapping.isStrongIdentifier) {
+              hasStrongConflict = true;
+            }
+          });
+
+          const totalMatches = strongMatches + regularMatches;
+          let nameMatch = false;
+          if (
+            nameFieldMatches > 0 &&
+            normalizedDerivedName &&
+            entry.normalizedDisplayName &&
+            entry.normalizedDisplayName === normalizedDerivedName
+          ) {
+            nameMatch = true;
+          }
+
+          if (hasStrongConflict) {
+            return;
+          }
+
+          if (
+            strongMatches === 0 &&
+            totalMatches < 2 &&
+            !(nameMatch && totalMatches >= 1)
+          ) {
+            return;
+          }
+
+          const score = strongMatches * 10 + regularMatches + (nameMatch ? 1 : 0);
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = entry;
+          }
+        });
+
+        return bestMatch;
+      };
+
       for (let rowIndex = startIndex; rowIndex < safeRows.length; rowIndex += 1) {
         const row = Array.isArray(safeRows[rowIndex]) ? safeRows[rowIndex] : [];
         const categoryValues = {};
         let hasValue = false;
 
-        normalizedMapping.forEach((mapping) => {
+        enrichedMapping.forEach((mapping) => {
           const cellValue = row[mapping.columnIndex];
           const valueString =
             cellValue === undefined || cellValue === null ? '' : cellValue.toString().trim();
@@ -4646,30 +4768,123 @@
           continue;
         }
 
+        const normalizedRowValues = new Map();
+        enrichedMapping.forEach((mapping) => {
+          const rawValue = categoryValues[mapping.categoryId];
+          if (rawValue === undefined || rawValue === null) {
+            return;
+          }
+          const normalizedValue = normalizeComparableValue(rawValue);
+          if (normalizedValue) {
+            normalizedRowValues.set(mapping.categoryId, normalizedValue);
+          }
+        });
+
         const derivedName = buildDisplayNameFromCategories(categoryValues, categoriesById);
         const displayName = derivedName || 'Contact sans nom';
-        data.contacts.push({
+        const normalizedDerivedName = normalizeComparableValue(derivedName);
+        const matchingEntry = findMatchingContact(normalizedRowValues, normalizedDerivedName);
+
+        if (matchingEntry) {
+          const contactToUpdate = matchingEntry.contact;
+          if (contactToUpdate && typeof contactToUpdate === 'object') {
+            if (!contactToUpdate.categoryValues || typeof contactToUpdate.categoryValues !== 'object') {
+              contactToUpdate.categoryValues = {};
+            }
+            let contactModified = false;
+
+            enrichedMapping.forEach((mapping) => {
+              const newValue = categoryValues[mapping.categoryId];
+              if (newValue === undefined || newValue === null || newValue === '') {
+                return;
+              }
+
+              const existingValue = contactToUpdate.categoryValues[mapping.categoryId];
+              if (
+                existingValue === undefined ||
+                existingValue === null ||
+                existingValue === ''
+              ) {
+                contactToUpdate.categoryValues[mapping.categoryId] = newValue;
+                matchingEntry.normalizedValues.set(
+                  mapping.categoryId,
+                  normalizeComparableValue(newValue),
+                );
+                contactModified = true;
+                return;
+              }
+
+              const existingNormalized = normalizeComparableValue(existingValue);
+              const newNormalized = normalizeComparableValue(newValue);
+              if (existingNormalized === newNormalized) {
+                return;
+              }
+
+              if (!mapping.isStrongIdentifier) {
+                contactToUpdate.categoryValues[mapping.categoryId] = newValue;
+                matchingEntry.normalizedValues.set(mapping.categoryId, newNormalized);
+                contactModified = true;
+              }
+            });
+
+            if (contactModified) {
+              const updatedDerivedName = buildDisplayNameFromCategories(
+                contactToUpdate.categoryValues,
+                categoriesById,
+              );
+              if (updatedDerivedName) {
+                contactToUpdate.fullName = updatedDerivedName;
+                contactToUpdate.displayName = updatedDerivedName;
+              }
+              contactToUpdate.updatedAt = new Date().toISOString();
+              matchingEntry.normalizedDisplayName = normalizeComparableValue(
+                getContactDisplayName(contactToUpdate, categoriesById),
+              );
+              updatedContactsCount += 1;
+            }
+          }
+
+        }
+
+        if (matchingEntry) {
+          mergedCount += 1;
+          continue;
+        }
+
+        const nowIso = new Date().toISOString();
+        const newContact = {
           id: generateId('contact'),
           categoryValues,
           keywords: [],
           notes: '',
           fullName: displayName,
           displayName,
-          createdAt: new Date().toISOString(),
+          createdAt: nowIso,
           updatedAt: null,
-        });
+        };
+        data.contacts.push(newContact);
         importedCount += 1;
+        existingContactsDetails.push({
+          contact: newContact,
+          normalizedValues: normalizedRowValues,
+          normalizedDisplayName: normalizeComparableValue(displayName),
+        });
       }
 
-      if (importedCount > 0) {
+      const hasDataChanges = importedCount > 0 || updatedContactsCount > 0;
+      if (hasDataChanges) {
         data.lastUpdated = new Date().toISOString();
         updateMetricsFromContacts();
         saveDataForUser(currentUser, data);
         renderMetrics();
         renderContacts();
+      }
+
+      if (importedCount > 0 || mergedCount > 0) {
         notifyDataChanged('contacts', {
           reason: 'import',
           importedCount,
+          mergedCount,
           skippedEmptyCount,
           totalRows,
           errorCount: errorRows.size,
@@ -4679,6 +4894,7 @@
 
       return {
         importedCount,
+        mergedCount,
         skippedEmptyCount,
         totalRows,
         errorCount: errorRows.size,
