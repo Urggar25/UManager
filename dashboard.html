@@ -474,6 +474,43 @@
           <p id="contact-empty-state" class="empty-state" hidden>
             Ajoutez vos premiers contacts pour les retrouver ici.
           </p>
+          <nav
+            id="contact-pagination"
+            class="contact-pagination"
+            aria-label="Pagination des contacts"
+            hidden
+          >
+            <div class="contact-pagination-info">
+              <span id="contact-pagination-summary">Affichage 0 sur 0 contacts</span>
+              <span id="contact-pagination-page">Page 1 / 1</span>
+            </div>
+            <div class="contact-pagination-controls">
+              <button
+                id="contact-pagination-prev"
+                type="button"
+                class="contact-pagination-button"
+                aria-label="Page précédente"
+              >
+                Précédent
+              </button>
+              <button
+                id="contact-pagination-next"
+                type="button"
+                class="contact-pagination-button"
+                aria-label="Page suivante"
+              >
+                Suivant
+              </button>
+            </div>
+            <label class="contact-pagination-size" for="contact-results-per-page">
+              <span>Résultats par page</span>
+              <select id="contact-results-per-page" name="contact-results-per-page">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+              </select>
+            </label>
+          </nav>
         </section>
 		<section id="tasks" class="page" aria-labelledby="tasks-title">
           <header class="page-header">
