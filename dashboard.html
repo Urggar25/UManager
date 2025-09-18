@@ -403,6 +403,14 @@
                 <input type="checkbox" id="contact-import-has-header" checked />
                 Ignorer la première ligne (en-têtes)
               </label>
+              <label class="import-header-toggle" for="contact-import-auto-merge">
+                <input type="checkbox" id="contact-import-auto-merge" />
+                Activer la fusion automatique des doublons détectés
+              </label>
+              <p class="form-hint import-auto-merge-hint">
+                En cas de doublon, la dernière version des données importées sera appliquée aux
+                contacts existants lorsque cette option est activée.
+              </p>
               <p class="form-hint">
                 Sélectionnez pour chaque catégorie la colonne du fichier correspondante.
               </p>
@@ -469,6 +477,37 @@
                 <button type="reset" class="secondary-button">Réinitialiser</button>
               </div>
             </form>
+          </div>
+          <div class="contact-bulk-actions">
+            <p
+              id="contact-selected-count"
+              class="contact-bulk-counter"
+              aria-live="polite"
+            >
+              Aucun contact sélectionné
+            </p>
+            <div class="contact-bulk-controls">
+              <button type="button" class="secondary-button" id="contact-select-all" disabled>
+                Sélectionner tous les résultats
+              </button>
+              <button
+                type="button"
+                class="secondary-button contact-bulk-delete"
+                id="contact-delete-selected"
+                disabled
+              >
+                Supprimer la sélection
+              </button>
+              <div class="contact-bulk-keyword">
+                <label for="contact-bulk-keyword" class="sr-only">Mot clé à ajouter</label>
+                <select id="contact-bulk-keyword" disabled>
+                  <option value="">Choisir un mot clé</option>
+                </select>
+                <button type="button" class="secondary-button" id="contact-add-keyword" disabled>
+                  Ajouter le mot clé
+                </button>
+              </div>
+            </div>
           </div>
           <ul id="contact-list" class="contact-list" aria-live="polite"></ul>
           <p id="contact-empty-state" class="empty-state" hidden>
@@ -769,8 +808,14 @@
     <template id="contact-item-template">
       <li class="contact-item">
         <div class="contact-header">
-          <h3 class="contact-name"></h3>
-          <span class="contact-created"></span>
+          <div class="contact-header-text">
+            <h3 class="contact-name"></h3>
+            <span class="contact-created"></span>
+          </div>
+          <label class="contact-select">
+            <input type="checkbox" class="contact-select-checkbox" />
+            <span class="sr-only">Sélectionner ce contact</span>
+          </label>
         </div>
         <div class="contact-details">
           <p class="contact-coordinates"></p>

@@ -359,6 +359,11 @@
     const searchCategoriesEmpty = document.getElementById('search-categories-empty');
     const searchKeywordsSelect = document.getElementById('search-keywords');
     const contactSearchCountEl = document.getElementById('contact-search-count');
+    const contactSelectAllButton = document.getElementById('contact-select-all');
+    const contactDeleteSelectedButton = document.getElementById('contact-delete-selected');
+    const contactBulkKeywordSelect = document.getElementById('contact-bulk-keyword');
+    const contactBulkKeywordButton = document.getElementById('contact-add-keyword');
+    const contactSelectedCountEl = document.getElementById('contact-selected-count');
     const contactPagination = document.getElementById('contact-pagination');
     const contactPaginationSummary = document.getElementById('contact-pagination-summary');
     const contactPaginationPageLabel = document.getElementById('contact-pagination-page');
@@ -511,6 +516,8 @@
     let contactEditReturnPage = 'contacts-search';
     let contactCurrentPage = 1;
     let contactResultsPerPage = CONTACT_RESULTS_PER_PAGE_DEFAULT;
+    let selectedContactIds = new Set();
+    let lastContactSearchResultIds = [];
     let categoryDragAndDropInitialized = false;
     let calendarViewMode = 'month';
     let calendarReferenceDate = startOfMonth(new Date());
@@ -1075,9 +1082,56 @@
         });
       });
     }
-	
-	if (document.getElementById('team')) {
-	  // Rendu initial
+
+    if (contactSelectAllButton instanceof HTMLButtonElement) {
+      contactSelectAllButton.addEventListener('click', () => {
+        selectedContactIds = new Set(lastContactSearchResultIds);
+        updateSelectedContactsUI();
+        refreshContactSelectionCheckboxes();
+      });
+    }
+
+    if (contactDeleteSelectedButton instanceof HTMLButtonElement) {
+      contactDeleteSelectedButton.addEventListener('click', () => {
+        if (selectedContactIds.size === 0) {
+          return;
+        }
+        const count = selectedContactIds.size;
+        const confirmationMessage =
+          count === 1
+            ? 'Supprimer le contact sélectionné ?'
+            : `Supprimer les ${numberFormatter.format(count)} contacts sélectionnés ?`;
+        if (!window.confirm(confirmationMessage)) {
+          return;
+        }
+        removeContactsByIds(Array.from(selectedContactIds));
+      });
+    }
+
+    if (contactBulkKeywordSelect instanceof HTMLSelectElement) {
+      contactBulkKeywordSelect.addEventListener('change', () => {
+        updateSelectedContactsUI();
+      });
+    }
+
+    if (contactBulkKeywordButton instanceof HTMLButtonElement) {
+      contactBulkKeywordButton.addEventListener('click', () => {
+        if (
+          selectedContactIds.size === 0 ||
+          !(contactBulkKeywordSelect instanceof HTMLSelectElement)
+        ) {
+          return;
+        }
+        const keywordId = contactBulkKeywordSelect.value;
+        if (!keywordId) {
+          return;
+        }
+        addKeywordToContacts(Array.from(selectedContactIds), keywordId);
+      });
+    }
+
+        if (document.getElementById('team')) {
+          // Rendu initial
 	  renderTeamPage();
 
 	  // Submit "Ajouter un membre"
@@ -1129,7 +1183,8 @@
         const skipHeader = Boolean(payload && payload.skipHeader);
         const fileName =
           payload && typeof payload.fileName === 'string' ? payload.fileName : '';
-        return importContactsFromRows(rows, { mapping, skipHeader, fileName });
+        const autoMerge = Boolean(payload && payload.autoMerge);
+        return importContactsFromRows(rows, { mapping, skipHeader, fileName, autoMerge });
       },
     };
 
@@ -3295,6 +3350,7 @@
       if (!keywordList || !keywordEmptyState) {
         renderContactKeywordOptions();
         renderSearchKeywordOptions();
+        renderBulkKeywordOptions();
         renderContacts();
         return;
       }
@@ -3309,6 +3365,7 @@
         keywordEmptyState.hidden = false;
         renderContactKeywordOptions();
         renderSearchKeywordOptions();
+        renderBulkKeywordOptions();
         renderContacts();
         return;
       }
@@ -3360,6 +3417,7 @@
       keywordList.appendChild(fragment);
       renderContactKeywordOptions();
       renderSearchKeywordOptions();
+      renderBulkKeywordOptions();
       renderContacts();
     }
 
@@ -3739,6 +3797,90 @@
       }
     }
 
+    function renderBulkKeywordOptions() {
+      if (!(contactBulkKeywordSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const keywords = Array.isArray(data.keywords)
+        ? data.keywords
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
+        : [];
+
+      const previousValue = contactBulkKeywordSelect.value || '';
+      contactBulkKeywordSelect.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = keywords.length === 0
+        ? 'Aucun mot clé disponible'
+        : 'Choisir un mot clé';
+      contactBulkKeywordSelect.appendChild(placeholder);
+
+      let restored = false;
+      keywords.forEach((keyword) => {
+        const option = document.createElement('option');
+        option.value = keyword.id || '';
+        option.textContent = keyword.name;
+        if (keyword.id && keyword.id === previousValue) {
+          option.selected = true;
+          restored = true;
+        }
+        contactBulkKeywordSelect.appendChild(option);
+      });
+
+      if (!restored) {
+        contactBulkKeywordSelect.value = '';
+      }
+
+      contactBulkKeywordSelect.disabled = keywords.length === 0;
+      updateSelectedContactsUI();
+    }
+
+    function updateSelectedContactsUI() {
+      const selectedCount = selectedContactIds.size;
+      if (contactSelectedCountEl) {
+        if (selectedCount === 0) {
+          contactSelectedCountEl.textContent = 'Aucun contact sélectionné';
+        } else {
+          const suffix = selectedCount > 1 ? 's' : '';
+          contactSelectedCountEl.textContent = `${numberFormatter.format(
+            selectedCount,
+          )} contact${suffix} sélectionné${suffix}`;
+        }
+      }
+
+      if (contactDeleteSelectedButton instanceof HTMLButtonElement) {
+        contactDeleteSelectedButton.disabled = selectedCount === 0;
+      }
+
+      const keywordSelectEnabled =
+        contactBulkKeywordSelect instanceof HTMLSelectElement && !contactBulkKeywordSelect.disabled;
+      if (contactBulkKeywordButton instanceof HTMLButtonElement) {
+        const hasKeywordSelection =
+          keywordSelectEnabled && contactBulkKeywordSelect && contactBulkKeywordSelect.value;
+        contactBulkKeywordButton.disabled = selectedCount === 0 || !hasKeywordSelection;
+      }
+
+      if (contactSelectAllButton instanceof HTMLButtonElement) {
+        contactSelectAllButton.disabled = lastContactSearchResultIds.length === 0;
+      }
+    }
+
+    function refreshContactSelectionCheckboxes() {
+      if (!contactList) {
+        return;
+      }
+      contactList.querySelectorAll('.contact-select-checkbox').forEach((element) => {
+        if (!(element instanceof HTMLInputElement)) {
+          return;
+        }
+        const contactId = element.dataset.contactId || '';
+        element.checked = contactId ? selectedContactIds.has(contactId) : false;
+      });
+    }
+
     function renderContacts() {
       const contacts = Array.isArray(data.contacts) ? data.contacts.slice() : [];
 
@@ -3751,6 +3893,22 @@
       }
 
       contactList.innerHTML = '';
+
+      const validContactIds = new Set(
+        contacts
+          .map((contact) => (contact && contact.id ? contact.id : ''))
+          .filter((id) => Boolean(id)),
+      );
+      let selectionChanged = false;
+      selectedContactIds.forEach((id) => {
+        if (!validContactIds.has(id)) {
+          selectedContactIds.delete(id);
+          selectionChanged = true;
+        }
+      });
+      if (selectionChanged) {
+        updateSelectedContactsUI();
+      }
 
       const normalizedTerm = contactSearchTerm.trim().toLowerCase();
       const categoriesById = buildCategoryMap();
@@ -3861,11 +4019,17 @@
           return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
         });
 
+      lastContactSearchResultIds = filteredContacts
+        .map((contact) => (contact && contact.id ? contact.id : ''))
+        .filter((id) => Boolean(id));
+
       const totalResults = filteredContacts.length;
 
       if (contactSearchCountEl) {
         contactSearchCountEl.textContent = totalResults.toString();
       }
+
+      updateSelectedContactsUI();
 
       if (contactPagination) {
         contactPagination.hidden = totalResults === 0;
@@ -3972,6 +4136,30 @@
           listItem.dataset.id = contact.id;
         } else {
           delete listItem.dataset.id;
+        }
+
+        const selectCheckbox = listItem.querySelector('.contact-select-checkbox');
+        if (selectCheckbox instanceof HTMLInputElement) {
+          if (contact.id) {
+            selectCheckbox.disabled = false;
+            selectCheckbox.dataset.contactId = contact.id;
+            selectCheckbox.checked = selectedContactIds.has(contact.id);
+            selectCheckbox.addEventListener('change', () => {
+              if (!contact.id) {
+                return;
+              }
+              if (selectCheckbox.checked) {
+                selectedContactIds.add(contact.id);
+              } else {
+                selectedContactIds.delete(contact.id);
+              }
+              updateSelectedContactsUI();
+            });
+          } else {
+            selectCheckbox.checked = false;
+            selectCheckbox.disabled = true;
+            selectCheckbox.removeAttribute('data-contact-id');
+          }
         }
 
         const nameEl = listItem.querySelector('.contact-name');
@@ -4117,6 +4305,7 @@
       });
 
       contactList.appendChild(fragment);
+      updateSelectedContactsUI();
     }
 
     function resetContactForm(shouldFocus = true) {
@@ -4265,32 +4454,102 @@
       }
     }
 
-    function deleteContact(contactId) {
-      if (!contactId || !Array.isArray(data.contacts)) {
-        return;
+    function removeContactsByIds(contactIds = [], options = {}) {
+      if (!Array.isArray(data.contacts) || data.contacts.length === 0) {
+        return 0;
       }
 
-      const contactIndex = data.contacts.findIndex((contact) => contact && contact.id === contactId);
-      if (contactIndex === -1) {
-        return;
+      const normalizedIds = Array.isArray(contactIds)
+        ? contactIds.filter((value) => typeof value === 'string' && value)
+        : [];
+      if (normalizedIds.length === 0) {
+        return 0;
       }
 
-      const isEditingCurrentContact =
-        contactForm && contactForm.dataset.editingId === contactId;
+      const idSet = new Set(normalizedIds);
+      const initialLength = data.contacts.length;
+      const isEditingRemoved =
+        contactForm && contactForm.dataset.editingId && idSet.has(contactForm.dataset.editingId);
 
-      data.contacts.splice(contactIndex, 1);
+      data.contacts = data.contacts.filter((contact) => !contact || !idSet.has(contact.id));
+      const removedCount = initialLength - data.contacts.length;
+      if (removedCount === 0) {
+        return 0;
+      }
+
       data.lastUpdated = new Date().toISOString();
       updateMetricsFromContacts();
       saveDataForUser(currentUser, data);
 
-      if (isEditingCurrentContact) {
+      if (isEditingRemoved) {
         const targetPage = contactEditReturnPage || 'contacts-search';
         resetContactForm(false);
         showPage(targetPage);
       }
 
+      selectedContactIds = new Set([...selectedContactIds].filter((id) => !idSet.has(id)));
+      const reasonFromOptions =
+        options && typeof options.reason === 'string' && options.reason.trim()
+          ? options.reason.trim()
+          : null;
+      const reason = reasonFromOptions || (idSet.size > 1 ? 'bulk-delete' : 'delete');
+      notifyDataChanged('contacts', { reason, removedCount });
       renderMetrics();
       renderContacts();
+      return removedCount;
+    }
+
+    function addKeywordToContacts(contactIds = [], keywordId) {
+      if (!keywordId) {
+        return 0;
+      }
+
+      const normalizedIds = Array.isArray(contactIds)
+        ? contactIds.filter((value) => typeof value === 'string' && value)
+        : [];
+      if (normalizedIds.length === 0) {
+        return 0;
+      }
+
+      const idSet = new Set(normalizedIds);
+      const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+      let updatedCount = 0;
+
+      contacts.forEach((contact) => {
+        if (!contact || !contact.id || !idSet.has(contact.id)) {
+          return;
+        }
+        if (!Array.isArray(contact.keywords)) {
+          contact.keywords = [];
+        }
+        if (!contact.keywords.includes(keywordId)) {
+          contact.keywords.push(keywordId);
+          updatedCount += 1;
+        }
+      });
+
+      if (updatedCount === 0) {
+        return 0;
+      }
+
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      notifyDataChanged('contacts', {
+        reason: 'bulk-add-keyword',
+        keywordId,
+        affectedCount: updatedCount,
+      });
+      renderMetrics();
+      renderContacts();
+      return updatedCount;
+    }
+
+    function deleteContact(contactId) {
+      if (!contactId || !Array.isArray(data.contacts)) {
+        return;
+      }
+
+      removeContactsByIds([contactId], { reason: 'delete' });
     }
 
     function startCategoryEdition(categoryId) {
@@ -4537,6 +4796,7 @@
       const skipHeader = Boolean(options && options.skipHeader);
       const fileName =
         options && typeof options.fileName === 'string' ? options.fileName : '';
+      const autoMergeEnabled = Boolean(options && options.autoMerge);
 
       const normalizeListValue = (raw) =>
         raw
@@ -4605,6 +4865,7 @@
       let mergedCount = 0;
       let skippedEmptyCount = 0;
       let updatedContactsCount = 0;
+      let duplicatesDetected = 0;
 
       if (enrichedMapping.length === 0 || safeRows.length === 0 || totalRows === 0) {
         return {
@@ -4615,6 +4876,8 @@
           errorCount: 0,
           errors,
           fileName,
+          duplicatesDetected,
+          autoMergeApplied: autoMergeEnabled,
         };
       }
 
@@ -4786,6 +5049,11 @@
         const matchingEntry = findMatchingContact(normalizedRowValues, normalizedDerivedName);
 
         if (matchingEntry) {
+          duplicatesDetected += 1;
+          if (!autoMergeEnabled) {
+            continue;
+          }
+
           const contactToUpdate = matchingEntry.contact;
           if (contactToUpdate && typeof contactToUpdate === 'object') {
             if (!contactToUpdate.categoryValues || typeof contactToUpdate.categoryValues !== 'object') {
@@ -4888,6 +5156,7 @@
           skippedEmptyCount,
           totalRows,
           errorCount: errorRows.size,
+          duplicatesDetected,
           fileName,
         });
       }
@@ -4900,6 +5169,8 @@
         errorCount: errorRows.size,
         errors,
         fileName,
+        duplicatesDetected,
+        autoMergeApplied: autoMergeEnabled,
       };
     }
 
