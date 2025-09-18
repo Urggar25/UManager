@@ -360,6 +360,11 @@
     const contactTemplate = document.getElementById('contact-item-template');
     const contactSubmitButton = document.getElementById('contact-submit-button');
     const contactCancelEditButton = document.getElementById('contact-cancel-edit');
+    const contactBackToSearchButton = document.getElementById('contact-back-to-search');
+    const contactsAddTitle = document.getElementById('contacts-add-title');
+    const contactsAddSubtitle = document.querySelector('#contacts-add .page-subtitle');
+    const contactsAddTitleDefault = contactsAddTitle ? contactsAddTitle.textContent : '';
+    const contactsAddSubtitleDefault = contactsAddSubtitle ? contactsAddSubtitle.textContent : '';
 
     const CATEGORY_TYPE_ORDER = ['text', 'number', 'date', 'list'];
     const CATEGORY_TYPES = new Set(CATEGORY_TYPE_ORDER);
@@ -383,6 +388,10 @@
 
     let contactSearchTerm = '';
     let advancedFilters = createEmptyAdvancedFilters();
+    let contactEditReturnPage = 'contacts-search';
+    let categoryDragAndDropInitialized = false;
+
+    normalizeCategoryOrders();
 
     if (currentUsernameEl) {
       currentUsernameEl.textContent = currentUser;
@@ -393,6 +402,11 @@
         clearActiveUser();
         navigateToLogin();
       });
+    }
+
+    if (categoryList && !categoryDragAndDropInitialized) {
+      initializeCategoryDragAndDrop();
+      categoryDragAndDropInitialized = true;
     }
 
     updateCategoryOptionsVisibility();
@@ -454,7 +468,10 @@
           description,
           type: typeValue,
           options,
+          order: getNextCategoryOrderValue(),
         });
+
+        normalizeCategoryOrders();
 
         data.lastUpdated = new Date().toISOString();
         saveDataForUser(currentUser, data);
@@ -622,6 +639,15 @@
     if (contactCancelEditButton) {
       contactCancelEditButton.addEventListener('click', () => {
         resetContactForm();
+      });
+    }
+
+    if (contactBackToSearchButton) {
+      contactBackToSearchButton.addEventListener('click', () => {
+        const targetPage = contactEditReturnPage || 'contacts-search';
+        resetContactForm(false);
+        showPage(targetPage);
+        renderContacts();
       });
     }
 
@@ -879,6 +905,58 @@
       return percentFormatter.format(ratio);
     }
 
+    function getCategoryOrderValue(category) {
+      if (!category || typeof category.order !== 'number' || Number.isNaN(category.order)) {
+        return Number.MAX_SAFE_INTEGER;
+      }
+      return category.order;
+    }
+
+    function sortCategoriesForDisplay(source = data.categories) {
+      const list = Array.isArray(source)
+        ? source.filter((item) => item && typeof item === 'object')
+        : [];
+      list.sort((a, b) => {
+        const orderA = getCategoryOrderValue(a);
+        const orderB = getCategoryOrderValue(b);
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        const nameA = (a && a.name ? a.name : '').toString();
+        const nameB = (b && b.name ? b.name : '').toString();
+        return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+      });
+      return list;
+    }
+
+    function getNextCategoryOrderValue() {
+      if (!Array.isArray(data.categories) || data.categories.length === 0) {
+        return 0;
+      }
+      return (
+        data.categories.reduce((max, category) => {
+          const value = getCategoryOrderValue(category);
+          if (!Number.isFinite(value) || value === Number.MAX_SAFE_INTEGER) {
+            return max;
+          }
+          return value > max ? value : max;
+        }, -1) + 1
+      );
+    }
+
+    function normalizeCategoryOrders() {
+      if (!Array.isArray(data.categories)) {
+        data.categories = [];
+        return;
+      }
+
+      const sorted = sortCategoriesForDisplay(data.categories);
+      sorted.forEach((category, index) => {
+        category.order = index;
+      });
+      data.categories = sorted;
+    }
+
     function buildCategoryMap(target = data) {
       const source = target && typeof target === 'object' ? target : data;
       return new Map(
@@ -893,25 +971,29 @@
         return '';
       }
 
-      const categories = Array.isArray(data.categories) ? data.categories : [];
-      for (const category of categories) {
-        if (!category || !category.id) {
-          continue;
+      const categoriesSource = Array.isArray(data.categories) && data.categories.length > 0
+        ? data.categories
+        : Array.from(categoriesById instanceof Map ? categoriesById.values() : []);
+      const orderedCategories = sortCategoriesForDisplay(categoriesSource);
+      const collectedValues = [];
+
+      orderedCategories.forEach((category) => {
+        if (!category || !category.id || collectedValues.length >= 2) {
+          return;
         }
 
-        const baseType = CATEGORY_TYPES.has(category.type) ? category.type : 'text';
         const rawValue = categoryValues[category.id];
         const valueString =
           rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
         if (!valueString) {
-          continue;
+          return;
         }
 
-        if (baseType === 'number' || baseType === 'date') {
-          continue;
-        }
+        collectedValues.push(valueString);
+      });
 
-        return valueString;
+      if (collectedValues.length > 0) {
+        return collectedValues.join(' ');
       }
 
       const fallbackValue = Object.values(categoryValues).find((rawValue) => {
@@ -928,11 +1010,6 @@
         return 'Contact sans nom';
       }
 
-      const directName = (contact.displayName || contact.fullName || '').toString().trim();
-      if (directName) {
-        return directName;
-      }
-
       const categoryValues =
         contact.categoryValues && typeof contact.categoryValues === 'object'
           ? contact.categoryValues
@@ -940,6 +1017,11 @@
       const derivedName = buildDisplayNameFromCategories(categoryValues, categoriesById);
       if (derivedName) {
         return derivedName;
+      }
+
+      const directName = (contact.displayName || contact.fullName || '').toString().trim();
+      if (directName) {
+        return directName;
       }
 
       const legacyName = `${contact.firstName || ''} ${contact.usageName || ''}`.trim();
@@ -1078,9 +1160,7 @@
 
       categoryList.innerHTML = '';
 
-      const categories = Array.isArray(data.categories)
-        ? data.categories.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
-        : [];
+      const categories = sortCategoriesForDisplay();
 
       if (categories.length === 0) {
         categoryEmptyState.hidden = false;
@@ -1104,12 +1184,32 @@
         if (category.id) {
           listItem.dataset.id = category.id;
         }
+        if (typeof category.order === 'number' && !Number.isNaN(category.order)) {
+          listItem.dataset.order = category.order.toString();
+        } else {
+          delete listItem.dataset.order;
+        }
 
+        const dragHandle = listItem.querySelector('[data-drag-handle]');
         const titleEl = listItem.querySelector('.category-title');
         const descriptionEl = listItem.querySelector('.category-description');
         const metaEl = listItem.querySelector('.category-meta');
         const editButton = listItem.querySelector('[data-action="edit"]');
         const deleteButton = listItem.querySelector('[data-action="delete"]');
+
+        if (dragHandle instanceof HTMLElement) {
+          const categoryName = (category.name || '').toString();
+          const dragLabel = categoryName
+            ? `Réorganiser la catégorie ${categoryName}`
+            : 'Réorganiser la catégorie';
+          const dragTitle = categoryName
+            ? `Déplacer la catégorie ${categoryName}`
+            : 'Déplacer la catégorie';
+          dragHandle.setAttribute('aria-label', dragLabel);
+          dragHandle.setAttribute('title', dragTitle);
+          dragHandle.setAttribute('draggable', 'true');
+          dragHandle.draggable = true;
+        }
 
         if (titleEl) {
           titleEl.textContent = category.name;
@@ -1150,6 +1250,151 @@
       renderContactCategoryFields();
       renderSearchCategoryFields();
       renderContacts();
+    }
+
+    function initializeCategoryDragAndDrop() {
+      if (!categoryList) {
+        return;
+      }
+
+      let draggingItem = null;
+      let previousOrder = [];
+
+      categoryList.addEventListener('dragstart', (event) => {
+        const handle =
+          event.target instanceof HTMLElement ? event.target.closest('[data-drag-handle]') : null;
+        if (!handle) {
+          event.preventDefault();
+          return;
+        }
+
+        const listItem = handle.closest('.category-item');
+        if (!listItem) {
+          event.preventDefault();
+          return;
+        }
+
+        if (listItem.classList.contains('editing')) {
+          event.preventDefault();
+          return;
+        }
+
+        draggingItem = listItem;
+        previousOrder = Array.from(categoryList.querySelectorAll('.category-item')).map(
+          (item) => item.dataset.id || '',
+        );
+        listItem.classList.add('dragging');
+
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = 'move';
+          try {
+            event.dataTransfer.setData('text/plain', listItem.dataset.id || '');
+            event.dataTransfer.setDragImage(listItem, 16, 16);
+          } catch (error) {
+            // setDragImage peut échouer selon le navigateur, on ignore alors l'erreur.
+          }
+        }
+      });
+
+      categoryList.addEventListener('dragover', (event) => {
+        if (!draggingItem) {
+          return;
+        }
+        event.preventDefault();
+        const afterElement = getDragAfterElement(categoryList, event.clientY);
+        if (!afterElement) {
+          categoryList.appendChild(draggingItem);
+        } else if (afterElement !== draggingItem) {
+          categoryList.insertBefore(draggingItem, afterElement);
+        }
+      });
+
+      categoryList.addEventListener('drop', (event) => {
+        if (draggingItem) {
+          event.preventDefault();
+        }
+      });
+
+      categoryList.addEventListener('dragend', () => {
+        if (!draggingItem) {
+          return;
+        }
+        draggingItem.classList.remove('dragging');
+        draggingItem = null;
+        persistCategoryOrderFromDom(previousOrder);
+        previousOrder = [];
+      });
+    }
+
+    function persistCategoryOrderFromDom(previousOrder = []) {
+      if (!categoryList) {
+        return;
+      }
+
+      const orderedIds = Array.from(categoryList.querySelectorAll('.category-item'))
+        .map((item) => item.dataset.id || '')
+        .filter((id) => Boolean(id));
+
+      if (orderedIds.length === 0) {
+        renderCategories();
+        return;
+      }
+
+      const sanitizedPrevious = Array.isArray(previousOrder)
+        ? previousOrder.filter((id) => Boolean(id))
+        : [];
+      const hasChanged =
+        orderedIds.length !== sanitizedPrevious.length ||
+        orderedIds.some((id, index) => id !== sanitizedPrevious[index]);
+
+      if (!hasChanged) {
+        renderCategories();
+        return;
+      }
+
+      const categoriesById = new Map(
+        Array.isArray(data.categories)
+          ? data.categories.map((category) => [category.id, category])
+          : [],
+      );
+      const reordered = [];
+
+      orderedIds.forEach((categoryId) => {
+        const category = categoriesById.get(categoryId);
+        if (category) {
+          reordered.push(category);
+          categoriesById.delete(categoryId);
+        }
+      });
+
+      categoriesById.forEach((category) => {
+        reordered.push(category);
+      });
+
+      reordered.forEach((category, index) => {
+        category.order = index;
+      });
+
+      data.categories = reordered;
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderMetrics();
+      renderCategories();
+    }
+
+    function getDragAfterElement(container, clientY) {
+      const items = Array.from(container.querySelectorAll('.category-item:not(.dragging)'));
+      let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+
+      items.forEach((child) => {
+        const box = child.getBoundingClientRect();
+        const offset = clientY - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          closest = { offset, element: child };
+        }
+      });
+
+      return closest.element;
     }
 
     function renderKeywords() {
@@ -1225,9 +1470,7 @@
     }
 
     function renderContactCategoryFields() {
-      const categories = Array.isArray(data.categories)
-        ? data.categories.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
-        : [];
+      const categories = sortCategoriesForDisplay();
 
       if (!contactCategoryFieldsContainer) {
         if (contactCategoriesEmpty) {
@@ -1449,9 +1692,7 @@
         return;
       }
 
-      const categories = Array.isArray(data.categories)
-        ? data.categories.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
-        : [];
+      const categories = sortCategoriesForDisplay();
 
       searchCategoryFieldsContainer.innerHTML = '';
 
@@ -1820,13 +2061,22 @@
                 return null;
               }
               const valueString = rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
-              return { name: category.name, value: valueString };
+              return {
+                name: category.name,
+                value: valueString,
+                order: getCategoryOrderValue(category),
+              };
             })
             .filter((entry) => entry && entry.value);
 
           if (associatedCategories.length > 0) {
             associatedCategories
-              .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
+              .sort((a, b) => {
+                if (a.order !== b.order) {
+                  return a.order - b.order;
+                }
+                return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+              })
               .forEach((entry) => {
                 if (!entry) {
                   return;
@@ -1882,13 +2132,25 @@
           }
         }
 
+        const deleteContactButton = listItem.querySelector('[data-action="delete-contact"]');
+        if (deleteContactButton instanceof HTMLButtonElement) {
+          if (contact.id) {
+            deleteContactButton.disabled = false;
+            deleteContactButton.addEventListener('click', () => {
+              deleteContact(contact.id);
+            });
+          } else {
+            deleteContactButton.disabled = true;
+          }
+        }
+
         fragment.appendChild(listItem);
       });
 
       contactList.appendChild(fragment);
     }
 
-    function resetContactForm() {
+    function resetContactForm(shouldFocus = true) {
       if (!contactForm) {
         return;
       }
@@ -1903,27 +2165,29 @@
           .forEach((input) => {
             if (input instanceof HTMLInputElement) {
               input.checked = false;
-          }
-        });
+            }
+          });
       }
 
-      const firstCategoryInput = contactCategoryFieldsContainer
-        ? contactCategoryFieldsContainer.querySelector('[data-category-input]')
-        : null;
-      if (
-        firstCategoryInput &&
-        'focus' in firstCategoryInput &&
-        typeof firstCategoryInput.focus === 'function'
-      ) {
-        firstCategoryInput.focus();
-      } else {
-        const notesField = contactForm.querySelector('#contact-notes');
+      if (shouldFocus) {
+        const firstCategoryInput = contactCategoryFieldsContainer
+          ? contactCategoryFieldsContainer.querySelector('[data-category-input]')
+          : null;
         if (
-          notesField &&
-          'focus' in notesField &&
-          typeof notesField.focus === 'function'
+          firstCategoryInput &&
+          'focus' in firstCategoryInput &&
+          typeof firstCategoryInput.focus === 'function'
         ) {
-          notesField.focus();
+          firstCategoryInput.focus();
+        } else {
+          const notesField = contactForm.querySelector('#contact-notes');
+          if (
+            notesField &&
+            'focus' in notesField &&
+            typeof notesField.focus === 'function'
+          ) {
+            notesField.focus();
+          }
         }
       }
     }
@@ -1940,6 +2204,16 @@
       if (contactCancelEditButton) {
         contactCancelEditButton.hidden = true;
       }
+      if (contactBackToSearchButton) {
+        contactBackToSearchButton.hidden = true;
+      }
+      if (contactsAddTitle) {
+        contactsAddTitle.textContent = contactsAddTitleDefault;
+      }
+      if (contactsAddSubtitle) {
+        contactsAddSubtitle.textContent = contactsAddSubtitleDefault;
+      }
+      contactEditReturnPage = 'contacts-search';
     }
 
     function startContactEdition(contactId) {
@@ -1952,6 +2226,9 @@
         return;
       }
 
+      const activePage = pages.find((page) => page.classList.contains('active'));
+      contactEditReturnPage = activePage ? activePage.id : 'contacts-search';
+
       showPage('contacts-add');
       contactForm.reset();
       contactForm.dataset.editingId = contactId;
@@ -1960,6 +2237,16 @@
       }
       if (contactCancelEditButton) {
         contactCancelEditButton.hidden = false;
+      }
+      if (contactBackToSearchButton) {
+        contactBackToSearchButton.hidden = false;
+      }
+      if (contactsAddTitle) {
+        contactsAddTitle.textContent = 'Modifier un contact';
+      }
+      if (contactsAddSubtitle) {
+        contactsAddSubtitle.textContent =
+          'Mettez à jour les informations existantes et enregistrez vos changements.';
       }
 
       const assignValue = (selector, value) => {
@@ -2007,6 +2294,34 @@
           notesField.focus();
         }
       }
+    }
+
+    function deleteContact(contactId) {
+      if (!contactId || !Array.isArray(data.contacts)) {
+        return;
+      }
+
+      const contactIndex = data.contacts.findIndex((contact) => contact && contact.id === contactId);
+      if (contactIndex === -1) {
+        return;
+      }
+
+      const isEditingCurrentContact =
+        contactForm && contactForm.dataset.editingId === contactId;
+
+      data.contacts.splice(contactIndex, 1);
+      data.lastUpdated = new Date().toISOString();
+      updateMetricsFromContacts();
+      saveDataForUser(currentUser, data);
+
+      if (isEditingCurrentContact) {
+        const targetPage = contactEditReturnPage || 'contacts-search';
+        resetContactForm(false);
+        showPage(targetPage);
+      }
+
+      renderMetrics();
+      renderContacts();
     }
 
     function startCategoryEdition(categoryId) {
@@ -2171,6 +2486,7 @@
 
     function deleteCategory(categoryId) {
       data.categories = data.categories.filter((item) => item.id !== categoryId);
+      normalizeCategoryOrders();
       if (Array.isArray(data.contacts)) {
         data.contacts.forEach((contact) => {
           if (contact && contact.categoryValues && typeof contact.categoryValues === 'object') {
@@ -2446,8 +2762,21 @@
           } else {
             normalized.options = [];
           }
+          const rawOrder = normalized.order;
+          let parsedOrder = Number.NaN;
+          if (typeof rawOrder === 'number') {
+            parsedOrder = rawOrder;
+          } else if (typeof rawOrder === 'string' && rawOrder.trim() !== '') {
+            parsedOrder = Number(rawOrder);
+          }
+          normalized.order = Number.isFinite(parsedOrder) ? parsedOrder : Number.MAX_SAFE_INTEGER;
           return normalized;
         });
+
+      base.categories = sortCategoriesForDisplay(base.categories);
+      base.categories.forEach((category, index) => {
+        category.order = index;
+      });
 
       if (!Array.isArray(base.keywords)) {
         base.keywords = [];
@@ -2522,13 +2851,11 @@
           }
         }
 
-        if (!contact.displayName) {
-          const derivedName = buildDisplayNameFromCategories(contact.categoryValues, categoriesById);
-          const fallbackName = (contact.fullName || `${contact.firstName || ''} ${contact.usageName || ''}`)
-            .toString()
-            .trim();
-          contact.displayName = derivedName || fallbackName || 'Contact sans nom';
-        }
+        const derivedName = buildDisplayNameFromCategories(contact.categoryValues, categoriesById);
+        const fallbackName = (contact.fullName || `${contact.firstName || ''} ${contact.usageName || ''}`)
+          .toString()
+          .trim();
+        contact.displayName = derivedName || fallbackName || 'Contact sans nom';
       });
 
       cleanupContactCategoryValues(base);
@@ -2853,7 +3180,12 @@
     editButton.className = 'contact-action-button';
     editButton.dataset.action = 'edit-contact';
     editButton.textContent = 'Modifier';
-    actionsContainer.appendChild(editButton);
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'contact-action-button contact-action-button--danger';
+    deleteButton.dataset.action = 'delete-contact';
+    deleteButton.textContent = 'Supprimer';
+    actionsContainer.append(editButton, deleteButton);
 
     listItem.append(header, details, categoriesContainer, keywordsContainer, actionsContainer);
     return listItem;
@@ -2862,6 +3194,15 @@
   function createCategoryListItemFallback() {
     const listItem = document.createElement('li');
     listItem.className = 'category-item';
+
+    const dragHandle = document.createElement('button');
+    dragHandle.type = 'button';
+    dragHandle.className = 'category-drag-handle';
+    dragHandle.dataset.dragHandle = 'true';
+    dragHandle.setAttribute('aria-label', 'Réorganiser la catégorie');
+    dragHandle.setAttribute('title', 'Déplacer la catégorie');
+    dragHandle.draggable = true;
+    dragHandle.textContent = '⋮⋮';
 
     const categoryMain = document.createElement('div');
     categoryMain.className = 'category-main';
@@ -2887,7 +3228,7 @@
     deleteButton.textContent = 'Supprimer';
     actions.append(editButton, deleteButton);
 
-    listItem.append(categoryMain, actions);
+    listItem.append(dragHandle, categoryMain, actions);
     return listItem;
   }
 
