@@ -516,10 +516,13 @@
         const result = await Promise.resolve(api.importContacts(payload));
         const importedCountRaw =
           result && result.importedCount != null ? Number(result.importedCount) : 0;
+        const mergedCountRaw =
+          result && result.mergedCount != null ? Number(result.mergedCount) : 0;
         const skippedRaw =
           result && result.skippedEmptyCount != null ? Number(result.skippedEmptyCount) : 0;
         const errorRaw = result && result.errorCount != null ? Number(result.errorCount) : 0;
         const importedCount = Number.isFinite(importedCountRaw) ? importedCountRaw : 0;
+        const mergedCount = Number.isFinite(mergedCountRaw) ? mergedCountRaw : 0;
         const skippedEmptyCount = Number.isFinite(skippedRaw) ? skippedRaw : 0;
         const errorCount = Number.isFinite(errorRaw) ? errorRaw : 0;
         const summaryParts = [];
@@ -527,6 +530,13 @@
           summaryParts.push(
             `${numberFormatter.format(importedCount)} contact${importedCount > 1 ? 's' : ''} importé${
               importedCount > 1 ? 's' : ''
+            }`,
+          );
+        }
+        if (mergedCount > 0) {
+          summaryParts.push(
+            `${numberFormatter.format(mergedCount)} contact${mergedCount > 1 ? 's' : ''} fusionné${
+              mergedCount > 1 ? 's' : ''
             }`,
           );
         }
@@ -543,11 +553,12 @@
           );
         }
         if (summaryParts.length === 0) {
-          summaryParts.push('Aucun nouveau contact importé.');
+          summaryParts.push('Aucun contact ajouté ou fusionné.');
         }
 
         let feedbackType = 'success';
-        if (importedCount === 0) {
+        const totalIntegrated = importedCount + mergedCount;
+        if (totalIntegrated === 0) {
           feedbackType = errorCount > 0 ? 'error' : 'warning';
         } else if (errorCount > 0 || skippedEmptyCount > 0) {
           feedbackType = 'warning';
