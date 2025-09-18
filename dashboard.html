@@ -37,6 +37,9 @@
           <button class="nav-button" data-target="tasks" type="button">
             Tâches
           </button>
+		  <button class="nav-button" data-target="team" id="nav-team" type="button">
+		    Équipe
+		  </button>
         </nav>
         <div class="sidebar-footer">
           <div class="sidebar-user" aria-live="polite">
@@ -490,6 +493,60 @@
             </div>
           </section>
         </section>
+		
+		<section id="team" class="page" aria-labelledby="team-title">
+		  <header class="page-header">
+			<div>
+			  <h1 id="team-title">Équipe</h1>
+			  <p class="page-subtitle">
+				Gérez qui peut accéder au panel et se voir attribuer des tâches.
+			  </p>
+			</div>
+		  </header>
+
+		  <!-- Infos fondateur -->
+		  <section class="summary" aria-labelledby="team-owner-title">
+			<h2 id="team-owner-title">Fondateur du panel</h2>
+			<div class="summary-grid">
+			  <div class="summary-item">
+				<span class="summary-label">Propriétaire</span>
+				<span class="summary-value" id="team-owner-name">—</span>
+			  </div>
+			  <div class="summary-item">
+				<span class="summary-label">Membres actuels</span>
+				<span class="summary-value" id="team-count">0</span>
+			  </div>
+			</div>
+			<p class="summary-note">
+			  Seul le fondateur peut accéder à cette page et modifier la composition de l’équipe.
+			</p>
+		  </section>
+
+		  <!-- Ajouter un membre -->
+		  <section class="category-form" aria-labelledby="team-add-title">
+			<h2 id="team-add-title">Ajouter un membre</h2>
+			<form id="team-add-form" class="form-grid" autocomplete="off">
+			  <div class="form-row">
+				<label for="team-user-select">Utilisateur</label>
+				<select id="team-user-select" name="username" required></select>
+			  </div>
+			  <div class="form-actions">
+				<button type="submit" class="primary-button">Ajouter à l'équipe</button>
+			  </div>
+			</form>
+			<p class="form-hint">
+			  La liste propose uniquement les utilisateurs existants qui ne sont pas déjà membres.
+			</p>
+		  </section>
+
+		  <!-- Liste des membres -->
+		  <section class="category-list-wrapper" aria-labelledby="team-list-title">
+			<h2 id="team-list-title">Membres de l'équipe</h2>
+			<ul id="team-list" class="category-list" aria-live="polite"></ul>
+			<p id="team-empty" class="empty-state" hidden>Aucun membre pour l’instant.</p>
+		  </section>
+		</section>
+		
         <div
           id="calendar-overlay"
           class="calendar-overlay"

@@ -451,6 +451,45 @@
 
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
+	
+	if (typeof data.panelOwner !== 'string' || !data.panelOwner.trim()) {
+	  data.panelOwner = currentUser;
+	  saveDataForUser(currentUser, data);
+	}
+
+	if (!Array.isArray(data.teamMembers) || data.teamMembers.length === 0) {
+	  data.teamMembers = [data.panelOwner];
+	  saveDataForUser(currentUser, data);
+	} else if (!data.teamMembers.includes(data.panelOwner)) {
+	  data.teamMembers.unshift(data.panelOwner);
+	  data.teamMembers = Array.from(new Set(data.teamMembers));
+	  saveDataForUser(currentUser, data);
+	}
+	
+	const navTeamBtn = document.getElementById('nav-team');
+	const isOwner = currentUser === data.panelOwner;
+
+	if (navTeamBtn instanceof HTMLElement) {
+	  if (!isOwner) {
+		navTeamBtn.remove(); // on supprime l’entrée du menu
+	  }
+	}
+
+	const originalShowPage = showPage;
+	showPage = function(pageId) {
+	  if (pageId === 'team' && !isOwner) {
+		originalShowPage('dashboard');
+		return;
+	  }
+	  originalShowPage(pageId);
+	};
+
+
+	
+	if (!Array.isArray(data.teamMembers) || data.teamMembers.length === 0) {
+	  data.teamMembers = [currentUser];
+	  saveDataForUser(currentUser, data);
+	}
 
     const numberFormatter = new Intl.NumberFormat('fr-FR');
     const percentFormatter = new Intl.NumberFormat('fr-FR', {
@@ -467,8 +506,8 @@
     let calendarSelectedDate = startOfDay(new Date());
     let calendarLastFocusedElement = null;
     let calendarHasBeenOpened = false;
-    const teamMembers = loadTeamMembers();
-    const teamMembersById = new Map(teamMembers.map((member) => [member.username, member]));
+    let teamMembers = loadTeamMembers();
+    let teamMembersById = new Map(teamMembers.map((member) => [member.username, member]));
 
     normalizeCategoryOrders();
     populateTaskMemberOptions();
@@ -992,6 +1031,44 @@
         });
       });
     }
+	
+	if (document.getElementById('team')) {
+	  // Rendu initial
+	  renderTeamPage();
+
+	  // Submit "Ajouter un membre"
+	  const addForm = document.getElementById('team-add-form');
+	  if (addForm instanceof HTMLFormElement) {
+		addForm.addEventListener('submit', (e) => {
+		  e.preventDefault();
+		  const formData = new FormData(addForm);
+		  const username = (formData.get('username') || '').toString().trim();
+		  if (username) {
+			addTeamMember(username);
+			addForm.reset();
+			// recycle le rendu pour que le select se mette à jour
+			renderTeamPage();
+		  }
+		});
+	  }
+
+	  // Click "Retirer" (robuste avec .closest)
+	  const list = document.getElementById('team-list');
+	  if (list) {
+	    list.addEventListener('click', (e) => {
+	  	  const target = e.target;
+	  	  if (!(target instanceof Element)) return;
+
+		  // On remonte jusqu'au bouton qui porte bien data-action="team-remove"
+		  const btn = target.closest('button[data-action="team-remove"]');
+		  if (!btn) return;
+
+		  const username = btn.getAttribute('data-username') || '';
+		  if (username) removeTeamMember(username);
+	    });
+	  }
+
+	}
 
     showPage('dashboard');
     renderMetrics();
@@ -1646,19 +1723,22 @@
     }
 
     function loadTeamMembers() {
-      const store = loadUserStore();
-      if (!store || typeof store !== 'object' || !store.users) {
-        return [];
-      }
+	  const allowedUsernames = Array.isArray(data.teamMembers) && data.teamMembers.length > 0
+		? data.teamMembers.map((u) => (typeof u === 'string' ? u.trim() : '')).filter(Boolean)
+		: [currentUser];
 
-      return Object.entries(store.users)
-        .map(([username, details]) => {
-          const entry = details && typeof details === 'object' ? details : {};
-          const email = typeof entry.email === 'string' ? entry.email : '';
-          return { username, email };
-        })
-        .sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
-    }
+	  const store = loadUserStore();
+	  const usersObj = store && store.users && typeof store.users === 'object' ? store.users : {};
+
+	  const members = allowedUsernames.map((username) => {
+		const details = usersObj[username] && typeof usersObj[username] === 'object' ? usersObj[username] : {};
+		const email = typeof details.email === 'string' ? details.email : '';
+		return { username, email };
+	  });
+
+	  return members.sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
+	}
+
 
     function populateTaskMemberOptions() {
       if (!(taskMemberSelect instanceof HTMLSelectElement)) {
@@ -1689,6 +1769,54 @@
 
       taskMemberSelect.appendChild(fragment);
     }
+	
+	function loadAllUsersFromStore() {
+	  const store = loadUserStore();
+	  const usersObj = store && store.users && typeof store.users === 'object' ? store.users : {};
+	  // Retourne [{ username, email? }, ...]
+	  return Object.keys(usersObj).map((u) => {
+		const v = usersObj[u] || {};
+		return { username: u, email: typeof v.email === 'string' ? v.email : '' };
+	  }).sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
+	}
+
+	function getAvailableUsersForTeam() {
+	  const all = loadAllUsersFromStore();
+	  const team = new Set(Array.isArray(data.teamMembers) ? data.teamMembers : []);
+	  return all.filter(({ username }) => !team.has(username));
+	}
+
+	function rebuildTeamCaches() {
+	  // Recalcule la liste et la map depuis la source de vérité (data.teamMembers + store)
+	  teamMembers = loadTeamMembers();
+	  teamMembersById = new Map(teamMembers.map((m) => [m.username, m]));
+
+	  // Répercuter partout
+	  populateTaskMemberOptions(); // met à jour le <select> des tâches
+	  sanitizeTasksAgainstTeam();  // purge les assignations hors équipe si besoin
+	  updateTaskPanelDescription();
+	}
+
+
+	function sanitizeTasksAgainstTeam() {
+	  if (!Array.isArray(data.tasks)) return;
+	  let changed = false;
+	  data.tasks.forEach((t) => {
+		if (!t || !Array.isArray(t.assignedMembers)) return;
+		const filtered = t.assignedMembers.filter((u) => teamMembersById.has(u));
+		if (filtered.length !== t.assignedMembers.length) {
+		  t.assignedMembers = filtered;
+		  changed = true;
+		}
+	  });
+	  if (changed) {
+		data.tasks = data.tasks.map((it) => normalizeTask(it)).sort(compareTasks);
+		data.lastUpdated = new Date().toISOString();
+		saveDataForUser(currentUser, data);
+		renderTasks();
+	  }
+	}
+
 
     function updateTaskPanelDescription() {
       if (!taskPanelDescription) {
@@ -1806,6 +1934,8 @@
           }
         });
       }
+	  
+	  const allowedMembers = members.filter((u) => teamMembersById.has(u));
 
       const newTask = normalizeTask({
         id: generateId('task'),
@@ -1813,7 +1943,7 @@
         dueDate,
         color: colorValue,
         description: descriptionValue,
-        assignedMembers: members,
+        assignedMembers: allowedMembers,
         createdAt: new Date().toISOString(),
         createdBy: currentUser,
         comments: [],
@@ -2058,6 +2188,123 @@
 
       taskList.appendChild(fragment);
     }
+	
+	function renderTeamPage() {
+	  // Remplir infos haut de page
+	  const ownerEl = document.getElementById('team-owner-name');
+	  if (ownerEl) ownerEl.textContent = data.panelOwner || '—';
+
+	  const listEl = document.getElementById('team-list');
+	  const emptyEl = document.getElementById('team-empty');
+	  const countEl = document.getElementById('team-count');
+
+	  if (!(listEl instanceof HTMLElement)) return;
+
+	  // Contenu liste
+	  const members = Array.isArray(data.teamMembers) ? data.teamMembers.slice() : [];
+	  listEl.innerHTML = '';
+
+	  if (!members.length) {
+		if (emptyEl) emptyEl.hidden = false;
+		if (countEl) countEl.textContent = '0';
+	  } else {
+		if (emptyEl) emptyEl.hidden = true;
+		if (countEl) countEl.textContent = String(members.length);
+
+		members.forEach((username) => {
+		  const li = document.createElement('li');
+		  li.className = 'category-item';
+
+		  const main = document.createElement('div');
+		  main.className = 'category-main';
+
+		  const title = document.createElement('h3');
+		  title.className = 'category-title';
+		  title.textContent = username;
+
+		  const desc = document.createElement('p');
+		  desc.className = 'category-description';
+		  desc.textContent = (username === data.panelOwner)
+			? 'Fondateur du panel'
+			: 'Membre';
+
+		  main.appendChild(title);
+		  main.appendChild(desc);
+
+		  const actions = document.createElement('div');
+		  actions.className = 'category-actions';
+
+		  // Bouton retirer (sauf fondateur)
+		  if (username !== data.panelOwner) {
+			const removeBtn = document.createElement('button');
+			removeBtn.type = 'button';
+			removeBtn.className = 'category-button category-button--danger';
+			removeBtn.textContent = 'Retirer';
+			removeBtn.setAttribute('data-action', 'team-remove');
+			removeBtn.setAttribute('data-username', username);
+			actions.appendChild(removeBtn);
+		  }
+
+
+		  li.appendChild(main);
+		  li.appendChild(actions);
+		  listEl.appendChild(li);
+		});
+	  }
+
+	  // Remplir le select "Ajouter un membre"
+	  const select = document.getElementById('team-user-select');
+	  if (select instanceof HTMLSelectElement) {
+		const candidates = getAvailableUsersForTeam();
+		select.innerHTML = '';
+		if (candidates.length === 0) {
+		  const opt = document.createElement('option');
+		  opt.value = '';
+		  opt.disabled = true;
+		  opt.selected = true;
+		  opt.textContent = 'Aucun utilisateur disponible';
+		  select.appendChild(opt);
+		  select.disabled = true;
+		} else {
+		  candidates.forEach(({ username, email }) => {
+			const opt = document.createElement('option');
+			opt.value = username;
+			opt.textContent = email ? `${username} (${email})` : username;
+			select.appendChild(opt);
+		  });
+		  select.disabled = false;
+		}
+	  }
+	}
+	
+	function addTeamMember(username) {
+	  if (!username) return;
+	  if (!Array.isArray(data.teamMembers)) data.teamMembers = [];
+	  if (!data.teamMembers.includes(username)) {
+		data.teamMembers.push(username);
+		data.teamMembers = Array.from(new Set(data.teamMembers));
+		data.lastUpdated = new Date().toISOString();
+		saveDataForUser(currentUser, data);
+		rebuildTeamCaches();
+		renderTeamPage();
+	  }
+	}
+
+	function removeTeamMember(username) {
+	  if (!username) return;
+	  if (username === data.panelOwner) return; // Sécurité
+	  if (!Array.isArray(data.teamMembers)) return;
+
+	  const before = data.teamMembers.length;
+	  data.teamMembers = data.teamMembers.filter((u) => u !== username);
+
+	  if (data.teamMembers.length !== before) {
+		data.lastUpdated = new Date().toISOString();
+		saveDataForUser(currentUser, data);
+		rebuildTeamCaches();
+		renderTeamPage();
+	  }
+	}
 
     function updateTaskCountDisplay(count) {
       let badgeLabel = '';
@@ -4505,6 +4752,23 @@
 
     function upgradeDataStructure(rawData) {
       const base = rawData && typeof rawData === 'object' ? rawData : {};
+	  // -- PRÉSERVER / NORMALISER LE FONDATEUR ET L'ÉQUIPE -------------------------
+	  base.panelOwner = (typeof base.panelOwner === 'string' && base.panelOwner.trim())
+	    ? base.panelOwner.trim()
+	    : (base.panelOwner || ''); // ne crée pas ici, juste préserve si présent
+
+	  if (Array.isArray(base.teamMembers)) {
+		base.teamMembers = Array.from(new Set(
+		  base.teamMembers
+		    .filter(u => typeof u === 'string')
+		    .map(u => u.trim())
+		    .filter(Boolean)
+		));
+	  } else {
+		base.teamMembers = [];
+	  }
+		// ---------------------------------------------------------------------------
+
 
       if (!base.metrics || typeof base.metrics !== 'object') {
         base.metrics = { ...defaultData.metrics };
@@ -4751,31 +5015,43 @@
   }
 
   function loadDataForUser(username) {
-    if (!username) {
-      return cloneDefaultData();
-    }
+	  if (!username) {
+		return cloneDefaultData();
+	  }
 
-    const storageKey = `${DATA_KEY_PREFIX}${username}`;
-    try {
-      const stored = window.localStorage.getItem(storageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return {
-          metrics: { ...defaultData.metrics, ...(parsed.metrics || {}) },
-          categories: Array.isArray(parsed.categories) ? parsed.categories : undefined,
-          keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-          contacts: Array.isArray(parsed.contacts) ? parsed.contacts : [],
-          events: Array.isArray(parsed.events) ? parsed.events : [],
-          tasks: Array.isArray(parsed.tasks) ? parsed.tasks : [],
-          lastUpdated: parsed.lastUpdated || null,
-        };
-      }
-    } catch (error) {
-      console.warn('Impossible de charger les données locales :', error);
-    }
+	  const storageKey = `${DATA_KEY_PREFIX}${username}`;
+	  try {
+		const stored = window.localStorage.getItem(storageKey);
+		if (stored) {
+		  const parsed = JSON.parse(stored) || {};
+		  // On préserve TOUT ce qui est présent, puis on normalise les blocs connus
+		  const base = typeof parsed === 'object' ? parsed : {};
 
-    return cloneDefaultData();
-  }
+		  return {
+			// préserve tous les champs déjà sauvés (dont panelOwner, teamMembers, etc.)
+			...base,
+
+			// normalisations sans perdre de données
+			metrics: { ...defaultData.metrics, ...(base.metrics || {}) },
+			categories: Array.isArray(base.categories) ? base.categories : [],
+			keywords: Array.isArray(base.keywords) ? base.keywords : [],
+			contacts: Array.isArray(base.contacts) ? base.contacts : [],
+			events: Array.isArray(base.events) ? base.events : [],
+			tasks: Array.isArray(base.tasks) ? base.tasks : [],
+			lastUpdated: base.lastUpdated || null,
+
+			// si jamais ces champs n’existaient pas encore
+			panelOwner: typeof base.panelOwner === 'string' ? base.panelOwner : '',
+			teamMembers: Array.isArray(base.teamMembers) ? base.teamMembers : [],
+		  };
+		}
+	  } catch (error) {
+		console.warn('Impossible de charger les données locales :', error);
+	  }
+
+	  return cloneDefaultData();
+	}
+
 
   function saveDataForUser(username, data) {
     if (!username) {
@@ -4791,16 +5067,20 @@
   }
 
   function cloneDefaultData() {
-    return {
-      metrics: { ...defaultData.metrics },
-      categories: [],
-      keywords: [],
-      contacts: [],
-      events: [],
-      tasks: [],
-      lastUpdated: null,
-    };
-  }
+	  return {
+		metrics: { ...defaultData.metrics },
+		categories: [],
+		keywords: [],
+		contacts: [],
+		events: [],
+		tasks: [],
+		lastUpdated: null,
+		// Nouveaux champs persistés
+		panelOwner: '',
+		teamMembers: [],
+	  };
+	}
+
 
   async function hashPassword(password) {
     const message = `umanager::${password}`;
