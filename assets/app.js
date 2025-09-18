@@ -316,14 +316,14 @@
     const coverageChartEl = document.getElementById('contact-coverage-chart');
     const coverageCountEls = {
       both: document.querySelector('[data-coverage-count="both"]'),
-      phone: document.querySelector('[data-coverage-count="phone"]'),
-      email: document.querySelector('[data-coverage-count="email"]'),
+      phoneOnly: document.querySelector('[data-coverage-count="phone"]'),
+      emailOnly: document.querySelector('[data-coverage-count="email"]'),
       none: document.querySelector('[data-coverage-count="none"]'),
     };
     const coveragePercentEls = {
       both: document.querySelector('[data-coverage-percent="both"]'),
-      phone: document.querySelector('[data-coverage-percent="phone"]'),
-      email: document.querySelector('[data-coverage-percent="email"]'),
+      phoneOnly: document.querySelector('[data-coverage-percent="phone"]'),
+      emailOnly: document.querySelector('[data-coverage-percent="email"]'),
       none: document.querySelector('[data-coverage-percent="none"]'),
     };
     const totalDatasetsEl = document.getElementById('total-datasets');
@@ -1488,8 +1488,9 @@
           return;
         }
         const categoryId = element.dataset.categoryId || '';
-        if (categoryId) {
-          previousValues.set(categoryId, element.value);
+        const currentValue = element.value != null ? element.value.toString() : '';
+        if (categoryId && currentValue !== '') {
+          previousValues.set(categoryId, currentValue);
         }
       });
 
