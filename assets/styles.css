@@ -948,6 +948,68 @@ button {
   max-width: 280px;
 }
 
+.contact-bulk-actions {
+  margin: 16px 0 24px;
+  padding: 16px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.contact-bulk-counter {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+}
+
+.contact-bulk-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.contact-bulk-keyword {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.contact-bulk-keyword select {
+  min-width: 200px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.contact-bulk-keyword select:disabled {
+  background: rgba(148, 163, 184, 0.16);
+  color: rgba(71, 85, 105, 0.76);
+}
+
+.contact-bulk-delete {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.contact-bulk-delete:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.18);
+}
+
+.contact-bulk-delete:disabled {
+  color: rgba(220, 38, 38, 0.42);
+  background: rgba(220, 38, 38, 0.1);
+}
+
 .advanced-grid {
   display: grid;
   gap: 16px;
@@ -1065,8 +1127,32 @@ button {
 .contact-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
+}
+
+.contact-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.contact-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.contact-select-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.contact-select-checkbox:disabled {
+  cursor: not-allowed;
+  accent-color: rgba(148, 163, 184, 0.4);
 }
 
 .contact-name {
@@ -1380,6 +1466,10 @@ button {
     align-items: flex-start;
     gap: 6px;
   }
+
+  .contact-select {
+    align-self: flex-start;
+  }
 }
 
 @media (max-width: 600px) {
@@ -1426,6 +1516,31 @@ button {
   .contact-pagination-size {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .contact-bulk-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .contact-bulk-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .contact-bulk-controls .secondary-button {
+    width: 100%;
+  }
+
+  .contact-bulk-keyword {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .contact-bulk-keyword select {
+    width: 100%;
   }
 }
 

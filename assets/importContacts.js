@@ -118,6 +118,7 @@
     const mappingContainer = document.getElementById('contact-import-mapping');
     const mappingEmptyEl = document.getElementById('contact-import-mapping-empty');
     const hasHeaderCheckbox = document.getElementById('contact-import-has-header');
+    const autoMergeCheckbox = document.getElementById('contact-import-auto-merge');
     const feedbackEl = document.getElementById('contact-import-feedback');
     const importButton = document.getElementById('contact-import-submit');
     const resetButton = document.getElementById('contact-import-reset');
@@ -144,6 +145,7 @@
       fileName: '',
       sheetName: '',
       skipHeader: true,
+      autoMerge: false,
     };
 
     function resetFeedback() {
@@ -456,20 +458,34 @@
       updateSummaryCount();
     }
 
+    function handleAutoMergeToggle() {
+      if (!(autoMergeCheckbox instanceof HTMLInputElement)) {
+        return;
+      }
+      state.autoMerge = autoMergeCheckbox.checked;
+    }
+
     function resetState(options = {}) {
       const keepFileInput = Boolean(options.keepFileInput);
+      const keepAutoMerge = Boolean(options.keepAutoMerge);
       state.rows = [];
       state.columns = [];
       state.mapping.clear();
       state.fileName = '';
       state.sheetName = '';
       state.skipHeader = true;
+      if (!keepAutoMerge) {
+        state.autoMerge = false;
+      }
 
       if (!keepFileInput) {
         fileInput.value = '';
       }
       if (hasHeaderCheckbox instanceof HTMLInputElement) {
         hasHeaderCheckbox.checked = true;
+      }
+      if (autoMergeCheckbox instanceof HTMLInputElement) {
+        autoMergeCheckbox.checked = state.autoMerge;
       }
       if (fileSummaryEl) {
         fileSummaryEl.hidden = true;
@@ -512,6 +528,7 @@
           mapping: Object.fromEntries(mappingEntries),
           skipHeader: state.skipHeader,
           fileName: state.fileName,
+          autoMerge: state.autoMerge,
         };
         const result = await Promise.resolve(api.importContacts(payload));
         const importedCountRaw =
@@ -521,10 +538,17 @@
         const skippedRaw =
           result && result.skippedEmptyCount != null ? Number(result.skippedEmptyCount) : 0;
         const errorRaw = result && result.errorCount != null ? Number(result.errorCount) : 0;
+        const duplicatesRaw =
+          result && result.duplicatesDetected != null ? Number(result.duplicatesDetected) : mergedCountRaw;
         const importedCount = Number.isFinite(importedCountRaw) ? importedCountRaw : 0;
         const mergedCount = Number.isFinite(mergedCountRaw) ? mergedCountRaw : 0;
         const skippedEmptyCount = Number.isFinite(skippedRaw) ? skippedRaw : 0;
         const errorCount = Number.isFinite(errorRaw) ? errorRaw : 0;
+        const duplicatesDetected = Number.isFinite(duplicatesRaw) ? duplicatesRaw : 0;
+        const autoMergeApplied =
+          typeof (result && result.autoMergeApplied) === 'boolean'
+            ? Boolean(result.autoMergeApplied)
+            : Boolean(state.autoMerge);
         const summaryParts = [];
         if (importedCount > 0) {
           summaryParts.push(
@@ -533,11 +557,18 @@
             }`,
           );
         }
-        if (mergedCount > 0) {
+        if (autoMergeApplied && mergedCount > 0) {
           summaryParts.push(
             `${numberFormatter.format(mergedCount)} contact${mergedCount > 1 ? 's' : ''} fusionné${
               mergedCount > 1 ? 's' : ''
             }`,
+          );
+        }
+        if (!autoMergeApplied && duplicatesDetected > 0) {
+          summaryParts.push(
+            `${numberFormatter.format(duplicatesDetected)} doublon${
+              duplicatesDetected > 1 ? 's' : ''
+            } détecté${duplicatesDetected > 1 ? 's' : ''} à fusionner manuellement`,
           );
         }
         if (skippedEmptyCount > 0) {
@@ -557,10 +588,13 @@
         }
 
         let feedbackType = 'success';
-        const totalIntegrated = importedCount + mergedCount;
+        const totalIntegrated = importedCount + (autoMergeApplied ? mergedCount : 0);
         if (totalIntegrated === 0) {
           feedbackType = errorCount > 0 ? 'error' : 'warning';
         } else if (errorCount > 0 || skippedEmptyCount > 0) {
+          feedbackType = 'warning';
+        }
+        if (!autoMergeApplied && duplicatesDetected > 0) {
           feedbackType = 'warning';
         }
 
@@ -590,7 +624,7 @@
 
     async function handleFileChange() {
       if (!fileInput.files || fileInput.files.length === 0) {
-        resetState({ keepFileInput: true });
+        resetState({ keepFileInput: true, keepAutoMerge: true });
         showFeedback('Sélectionnez un fichier Excel pour commencer.', 'info');
         return;
       }
@@ -675,6 +709,10 @@
     fileInput.addEventListener('change', handleFileChange);
     if (hasHeaderCheckbox instanceof HTMLInputElement) {
       hasHeaderCheckbox.addEventListener('change', handleHeaderToggle);
+    }
+    if (autoMergeCheckbox instanceof HTMLInputElement) {
+      autoMergeCheckbox.checked = state.autoMerge;
+      autoMergeCheckbox.addEventListener('change', handleAutoMergeToggle);
     }
     importButton.addEventListener('click', handleImportClick);
     if (resetButton instanceof HTMLButtonElement) {
