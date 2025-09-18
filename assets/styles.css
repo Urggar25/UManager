@@ -1715,6 +1715,182 @@ button {
   border-color: rgba(220, 38, 38, 0.42);
 }
 
+/* Import de contacts */
+.import-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.import-file-summary {
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+}
+
+.import-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.import-header-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.import-header-toggle input {
+  transform: scale(1.05);
+}
+
+.import-mapping {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.import-mapping-row {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+.import-mapping-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.import-mapping-label strong {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.import-mapping-meta {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.import-mapping-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.import-mapping-select:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  border-color: rgba(37, 99, 235, 0.5);
+}
+
+.import-feedback {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: 14px 16px;
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.import-feedback--success {
+  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.import-feedback--error {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--color-danger);
+}
+
+.import-feedback--warning {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
+.import-feedback-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+.import-feedback-more {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
+.import-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.import-preview-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.import-preview-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.import-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 520px;
+}
+
+.import-preview-table th,
+.import-preview-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 0.9rem;
+  text-align: left;
+  color: var(--color-text);
+}
+
+.import-preview-table th {
+  background: rgba(37, 99, 235, 0.12);
+  font-weight: 600;
+}
+
+.import-preview-table tr:last-child td {
+  border-bottom: none;
+}
+
 @media (max-width: 1024px) {
   .calendar-side {
     width: 280px;
@@ -1742,6 +1918,14 @@ button {
 @media (max-width: 720px) {
   .calendar-grid {
     gap: 8px;
+  }
+
+  .import-mapping {
+    grid-template-columns: 1fr;
+  }
+
+  .import-preview-table {
+    min-width: 100%;
   }
 }
 
