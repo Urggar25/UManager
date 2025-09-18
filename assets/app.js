@@ -1070,6 +1070,28 @@
 
 	}
 
+    const importApi = {
+      getCategories: () =>
+        sortCategoriesForDisplay().map((category) => ({
+          id: category.id,
+          name: category.name,
+          type: category.type,
+          options: Array.isArray(category.options) ? category.options.slice() : [],
+        })),
+      importContacts: (payload = {}) => {
+        const rows = Array.isArray(payload.rows) ? payload.rows : [];
+        const mapping =
+          payload && typeof payload.mapping === 'object' ? payload.mapping : {};
+        const skipHeader = Boolean(payload && payload.skipHeader);
+        const fileName =
+          payload && typeof payload.fileName === 'string' ? payload.fileName : '';
+        return importContactsFromRows(rows, { mapping, skipHeader, fileName });
+      },
+    };
+
+    window.UManager = window.UManager || {};
+    window.UManager.importApi = importApi;
+
     showPage('dashboard');
     renderMetrics();
     renderCategories();
@@ -1720,6 +1742,11 @@
       pages.forEach((page) => {
         page.classList.toggle('active', page.id === target);
       });
+      document.dispatchEvent(
+        new CustomEvent('umanager:page-changed', {
+          detail: { pageId: target },
+        }),
+      );
     }
 
     function loadTeamMembers() {
@@ -2539,6 +2566,15 @@
         return formatTeamMemberLabel(member);
       }
       return normalized;
+    }
+
+    function notifyDataChanged(section, detail = {}) {
+      if (!section) {
+        return;
+      }
+
+      const eventDetail = { section, ...detail };
+      document.dispatchEvent(new CustomEvent('umanager:data-changed', { detail: eventDetail }));
     }
 
     function renderMetrics() {
@@ -4361,6 +4397,174 @@
       target.metrics.peopleCount = contacts.length;
       target.metrics.emailCount = emailCount;
       target.metrics.phoneCount = phoneCount;
+    }
+
+    function importContactsFromRows(rows, options = {}) {
+      const safeRows = Array.isArray(rows) ? rows : [];
+      const mappingSource =
+        options && typeof options === 'object' && options.mapping ? options.mapping : {};
+      const skipHeader = Boolean(options && options.skipHeader);
+      const fileName =
+        options && typeof options.fileName === 'string' ? options.fileName : '';
+
+      const normalizeListValue = (raw) =>
+        raw
+          .toString()
+          .trim()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .toLowerCase();
+
+      const categoriesById = buildCategoryMap();
+      const normalizedMapping = Object.entries(mappingSource)
+        .map(([categoryId, rawIndex]) => {
+          const columnIndex = Number(rawIndex);
+          if (!Number.isInteger(columnIndex) || columnIndex < 0) {
+            return null;
+          }
+
+          const category = categoriesById.get(categoryId);
+          if (!category) {
+            return null;
+          }
+
+          const baseType = CATEGORY_TYPES.has(category.type) ? category.type : 'text';
+          const listOptions =
+            baseType === 'list' && Array.isArray(category.options)
+              ? category.options
+                  .map((option) => (option != null ? option.toString().trim() : ''))
+                  .filter((option) => Boolean(option))
+              : [];
+
+          return {
+            categoryId,
+            columnIndex,
+            name: category.name || '',
+            type: baseType,
+            listOptions: listOptions.map((value) => ({
+              value,
+              normalized: normalizeListValue(value),
+            })),
+          };
+        })
+        .filter((entry) => Boolean(entry));
+
+      const startIndex = skipHeader ? 1 : 0;
+      const totalRows = startIndex < safeRows.length ? safeRows.length - startIndex : 0;
+      const errors = [];
+      const errorRows = new Set();
+      let importedCount = 0;
+      let skippedEmptyCount = 0;
+
+      if (normalizedMapping.length === 0 || safeRows.length === 0 || totalRows === 0) {
+        return {
+          importedCount,
+          skippedEmptyCount: totalRows,
+          totalRows,
+          errorCount: 0,
+          errors,
+          fileName,
+        };
+      }
+
+      for (let rowIndex = startIndex; rowIndex < safeRows.length; rowIndex += 1) {
+        const row = Array.isArray(safeRows[rowIndex]) ? safeRows[rowIndex] : [];
+        const categoryValues = {};
+        let hasValue = false;
+
+        normalizedMapping.forEach((mapping) => {
+          const cellValue = row[mapping.columnIndex];
+          const valueString =
+            cellValue === undefined || cellValue === null ? '' : cellValue.toString().trim();
+
+          if (!valueString) {
+            return;
+          }
+
+          if (mapping.type === 'number') {
+            const normalizedNumber = valueString.replace(/\s+/g, '').replace(',', '.');
+            const parsed = Number(normalizedNumber);
+            if (!Number.isFinite(parsed)) {
+              errors.push({
+                row: rowIndex + 1,
+                categoryId: mapping.categoryId,
+                message: `La valeur « ${valueString} » n’est pas un nombre valide pour la catégorie « ${mapping.name} ».`,
+              });
+              errorRows.add(rowIndex + 1);
+              return;
+            }
+            categoryValues[mapping.categoryId] = parsed.toString();
+            hasValue = true;
+            return;
+          }
+
+          if (mapping.type === 'list') {
+            const normalizedValue = normalizeListValue(valueString);
+            const matchedOption = mapping.listOptions.find(
+              (option) => option.normalized === normalizedValue,
+            );
+            if (!matchedOption) {
+              errors.push({
+                row: rowIndex + 1,
+                categoryId: mapping.categoryId,
+                message: `La valeur « ${valueString} » ne correspond à aucune option de la catégorie « ${mapping.name} ».`,
+              });
+              errorRows.add(rowIndex + 1);
+              return;
+            }
+            categoryValues[mapping.categoryId] = matchedOption.value;
+            hasValue = true;
+            return;
+          }
+
+          categoryValues[mapping.categoryId] = valueString;
+          hasValue = true;
+        });
+
+        if (!hasValue) {
+          skippedEmptyCount += 1;
+          continue;
+        }
+
+        const derivedName = buildDisplayNameFromCategories(categoryValues, categoriesById);
+        const displayName = derivedName || 'Contact sans nom';
+        data.contacts.push({
+          id: generateId('contact'),
+          categoryValues,
+          keywords: [],
+          notes: '',
+          fullName: displayName,
+          displayName,
+          createdAt: new Date().toISOString(),
+          updatedAt: null,
+        });
+        importedCount += 1;
+      }
+
+      if (importedCount > 0) {
+        data.lastUpdated = new Date().toISOString();
+        updateMetricsFromContacts();
+        saveDataForUser(currentUser, data);
+        renderMetrics();
+        renderContacts();
+        notifyDataChanged('contacts', {
+          reason: 'import',
+          importedCount,
+          skippedEmptyCount,
+          totalRows,
+          errorCount: errorRows.size,
+          fileName,
+        });
+      }
+
+      return {
+        importedCount,
+        skippedEmptyCount,
+        totalRows,
+        errorCount: errorRows.size,
+        errors,
+        fileName,
+      };
     }
 
     function cleanupContactCategoryValues(target = data) {

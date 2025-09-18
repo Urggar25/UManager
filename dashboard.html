@@ -30,6 +30,9 @@
           <button class="nav-button" data-target="contacts-add" type="button">
             Ajouter des contacts
           </button>
+          <button class="nav-button" data-target="contacts-import" type="button">
+            Importer des contacts
+          </button>
           <button class="nav-button" data-target="contacts-search" type="button">
             Recherche de contact
           </button>
@@ -371,6 +374,62 @@
               </button>
             </div>
           </form>
+        </section>
+        <section id="contacts-import" class="page" aria-labelledby="contacts-import-title">
+          <header class="page-header">
+            <div>
+              <h1 id="contacts-import-title">Importer des contacts</h1>
+              <p class="page-subtitle">
+                Téléchargez un fichier Excel puis associez ses colonnes à vos catégories personnalisées.
+              </p>
+            </div>
+            <div class="insight-card">
+              <span class="insight-label">Contacts détectés</span>
+              <span class="insight-value" id="contact-import-summary-count">—</span>
+            </div>
+          </header>
+          <form id="contact-import-form" class="import-form" autocomplete="off">
+            <div class="form-row">
+              <label for="contact-import-file">Fichier Excel à importer</label>
+              <input id="contact-import-file" type="file" accept=".xlsx,.xls,.csv" />
+              <p class="form-hint">
+                Le traitement s’effectue entièrement dans votre navigateur&nbsp;: aucun fichier n’est envoyé sur un
+                serveur externe.
+              </p>
+            </div>
+            <div id="contact-import-file-summary" class="import-file-summary" hidden></div>
+            <div id="contact-import-options" class="import-options" hidden>
+              <label class="import-header-toggle" for="contact-import-has-header">
+                <input type="checkbox" id="contact-import-has-header" checked />
+                Ignorer la première ligne (en-têtes)
+              </label>
+              <p class="form-hint">
+                Sélectionnez pour chaque catégorie la colonne du fichier correspondante.
+              </p>
+              <div id="contact-import-mapping" class="import-mapping" aria-live="polite"></div>
+              <p id="contact-import-mapping-empty" class="empty-state" hidden>
+                Chargez un fichier Excel et assurez-vous d’avoir défini des catégories pour configurer l’import.
+              </p>
+            </div>
+            <div id="contact-import-feedback" class="import-feedback" role="status" aria-live="polite"></div>
+            <div class="form-actions import-actions">
+              <button type="button" class="primary-button" id="contact-import-submit" disabled>
+                Importer les contacts
+              </button>
+              <button type="button" class="secondary-button" id="contact-import-reset" disabled>
+                Réinitialiser
+              </button>
+            </div>
+          </form>
+          <section id="contact-import-preview" class="import-preview" hidden aria-live="polite">
+            <h2 class="import-preview-title">Aperçu des premières lignes</h2>
+            <div class="import-preview-table-wrapper">
+              <table class="import-preview-table">
+                <thead></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
         </section>
         <section id="contacts-search" class="page" aria-labelledby="contacts-search-title">
           <header class="page-header">
@@ -736,5 +795,7 @@
       </li>
     </template>
     <script src="assets/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="assets/importContacts.js"></script>
   </body>
 </html>
