@@ -23,6 +23,24 @@
     lastUpdated: null,
   };
 
+  const REQUIRED_CATEGORY_IDS = {
+    firstName: 'contact-first-name',
+    lastName: 'contact-last-name',
+    birthDate: 'contact-birth-date',
+    identifier: 'contact-identifier',
+  };
+
+  const REQUIRED_CONTACT_CATEGORIES = [
+    { id: REQUIRED_CATEGORY_IDS.firstName, name: 'Prénom', type: 'text' },
+    { id: REQUIRED_CATEGORY_IDS.lastName, name: 'Nom', type: 'text' },
+    { id: REQUIRED_CATEGORY_IDS.birthDate, name: 'Date de naissance', type: 'date' },
+    { id: REQUIRED_CATEGORY_IDS.identifier, name: 'Identifiant', type: 'text' },
+  ];
+
+  const REQUIRED_CATEGORY_ID_SET = new Set(
+    REQUIRED_CONTACT_CATEGORIES.map((category) => category.id),
+  );
+
   document.addEventListener('DOMContentLoaded', () => {
     const isAuthPage = Boolean(
       document.getElementById('login-form') || document.getElementById('register-form'),
@@ -908,6 +926,24 @@
         });
 
         if (hasInvalidCategoryValue) {
+          return;
+        }
+
+        const identifierResult = ensureContactIdentifier(categoryValues);
+        if (!identifierResult) {
+          const birthDateInput = contactForm.querySelector(
+            `[data-category-id="${REQUIRED_CATEGORY_IDS.birthDate}"]`,
+          );
+          if (
+            birthDateInput &&
+            'reportValidity' in birthDateInput &&
+            typeof birthDateInput.reportValidity === 'function'
+          ) {
+            birthDateInput.reportValidity();
+          }
+          if (birthDateInput && 'focus' in birthDateInput && typeof birthDateInput.focus === 'function') {
+            birthDateInput.focus();
+          }
           return;
         }
 
@@ -2893,6 +2929,92 @@
       data.categories = sorted;
     }
 
+    function enforceRequiredContactCategories(target) {
+      if (!target || typeof target !== 'object') {
+        return;
+      }
+
+      if (!Array.isArray(target.categories)) {
+        target.categories = [];
+      }
+
+      const idChanges = [];
+      const normalizeName = (name) => normalizeLabel(name || '');
+
+      REQUIRED_CONTACT_CATEGORIES.forEach((definition) => {
+        let category = target.categories.find((item) => item && item.id === definition.id);
+        if (!category) {
+          const fallbackIndex = target.categories.findIndex(
+            (item) => item && normalizeName(item.name) === normalizeName(definition.name),
+          );
+          if (fallbackIndex !== -1) {
+            category = target.categories[fallbackIndex];
+            const previousId = category.id;
+            if (previousId && previousId !== definition.id) {
+              idChanges.push({ oldId: previousId, newId: definition.id });
+            }
+            category.id = definition.id;
+          } else {
+            category = {
+              id: definition.id,
+              name: definition.name,
+              description: '',
+              type: definition.type,
+              options: [],
+              order: 0,
+            };
+            target.categories.push(category);
+          }
+        }
+        category.name = definition.name;
+        category.type = definition.type;
+        category.options = [];
+      });
+
+      const requiredIds = new Set(REQUIRED_CONTACT_CATEGORIES.map((item) => item.id));
+      const orderedRequired = REQUIRED_CONTACT_CATEGORIES.map((definition) =>
+        target.categories.find((item) => item && item.id === definition.id),
+      ).filter(Boolean);
+      orderedRequired.forEach((category, index) => {
+        category.order = index;
+      });
+
+      const remainingCategories = target.categories.filter(
+        (category) => category && !requiredIds.has(category.id),
+      );
+      const sortedRemaining = sortCategoriesForDisplay(remainingCategories);
+      sortedRemaining.forEach((category, index) => {
+        category.order = REQUIRED_CONTACT_CATEGORIES.length + index;
+      });
+
+      target.categories = [...orderedRequired, ...sortedRemaining];
+
+      if (!Array.isArray(target.contacts) || idChanges.length === 0) {
+        return;
+      }
+
+      target.contacts.forEach((contact) => {
+        if (!contact || typeof contact !== 'object') {
+          return;
+        }
+        if (!contact.categoryValues || typeof contact.categoryValues !== 'object') {
+          contact.categoryValues = {};
+        }
+        idChanges.forEach(({ oldId, newId }) => {
+          if (!oldId || oldId === newId) {
+            return;
+          }
+          if (
+            contact.categoryValues[oldId] !== undefined &&
+            contact.categoryValues[newId] === undefined
+          ) {
+            contact.categoryValues[newId] = contact.categoryValues[oldId];
+          }
+          delete contact.categoryValues[oldId];
+        });
+      });
+    }
+
     function buildCategoryMap(target = data) {
       const source = target && typeof target === 'object' ? target : data;
       return new Map(
@@ -2983,19 +3105,179 @@
       if (value === undefined || value === null) {
         return '';
       }
-      return value
-        .toString()
-        .trim()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/\s+/g, ' ')
-        .toLowerCase();
+    return value
+      .toString()
+      .trim()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .toLowerCase();
+  }
+
+  function toTrimmedString(value) {
+    if (value === undefined || value === null) {
+      return '';
+    }
+    return value.toString().trim();
+  }
+
+  const EXCEL_EPOCH_UTC = Date.UTC(1899, 11, 30);
+
+  function normalizeIdentifierNameSegment(value) {
+    const stringValue = toTrimmedString(value);
+    if (!stringValue) {
+      return '';
+    }
+    return stringValue
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase();
+  }
+
+  function parseDatePartsFromValue(value) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return {
+        day: String(value.getUTCDate()).padStart(2, '0'),
+        month: String(value.getUTCMonth() + 1).padStart(2, '0'),
+        year: String(value.getUTCFullYear()).padStart(4, '0'),
+      };
     }
 
-    function isEmailValue(value) {
-      if (!value) {
-        return false;
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const excelDate = new Date(EXCEL_EPOCH_UTC + Math.floor(value) * 86400000);
+      if (!Number.isNaN(excelDate.getTime())) {
+        return {
+          day: String(excelDate.getUTCDate()).padStart(2, '0'),
+          month: String(excelDate.getUTCMonth() + 1).padStart(2, '0'),
+          year: String(excelDate.getUTCFullYear()).padStart(4, '0'),
+        };
       }
+    }
+
+    const stringValue = toTrimmedString(value);
+    if (!stringValue) {
+      return null;
+    }
+
+    const normalized = stringValue.replace(/[.]/g, '/');
+
+    const identifierMatch = normalized.match(/^(\d{2})_(\d{2})_(\d{4})$/);
+    if (identifierMatch) {
+      return {
+        day: identifierMatch[1],
+        month: identifierMatch[2],
+        year: identifierMatch[3],
+      };
+    }
+
+    const isoMatch = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+    if (isoMatch) {
+      return {
+        year: isoMatch[1],
+        month: isoMatch[2].padStart(2, '0'),
+        day: isoMatch[3].padStart(2, '0'),
+      };
+    }
+
+    const frMatch = normalized.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+    if (frMatch) {
+      const day = frMatch[1].padStart(2, '0');
+      const month = frMatch[2].padStart(2, '0');
+      let yearNumber = Number(frMatch[3]);
+      if (!Number.isFinite(yearNumber)) {
+        return null;
+      }
+      if (frMatch[3].length === 2) {
+        yearNumber += yearNumber >= 50 ? 1900 : 2000;
+      }
+      const year = yearNumber.toString().padStart(4, '0');
+      return { day, month, year };
+    }
+
+    const compactMatch = normalized.match(/^(\d{4})(\d{2})(\d{2})$/);
+    if (compactMatch) {
+      return {
+        year: compactMatch[1],
+        month: compactMatch[2],
+        day: compactMatch[3],
+      };
+    }
+
+    const parsed = new Date(normalized);
+    if (!Number.isNaN(parsed.getTime())) {
+      return {
+        day: String(parsed.getUTCDate()).padStart(2, '0'),
+        month: String(parsed.getUTCMonth() + 1).padStart(2, '0'),
+        year: String(parsed.getUTCFullYear()).padStart(4, '0'),
+      };
+    }
+
+    return null;
+  }
+
+  function buildContactIdentifierData(firstName, lastName, birthDate) {
+    const normalizedFirst = normalizeIdentifierNameSegment(firstName);
+    const normalizedLast = normalizeIdentifierNameSegment(lastName);
+    const dateParts = parseDatePartsFromValue(birthDate);
+    if (!normalizedFirst || !normalizedLast || !dateParts) {
+      return null;
+    }
+    return {
+      identifier: `${normalizedFirst}_${normalizedLast}_${dateParts.day}_${dateParts.month}_${dateParts.year}`,
+      normalizedDate: `${dateParts.year}-${dateParts.month}-${dateParts.day}`,
+    };
+  }
+
+  function ensureContactIdentifier(categoryValues, fallback = {}) {
+    if (!categoryValues || typeof categoryValues !== 'object') {
+      return null;
+    }
+
+    const firstNameValue = toTrimmedString(
+      categoryValues[REQUIRED_CATEGORY_IDS.firstName] ?? fallback.firstName,
+    );
+    const lastNameValue = toTrimmedString(
+      categoryValues[REQUIRED_CATEGORY_IDS.lastName] ?? fallback.lastName,
+    );
+    const rawBirthDate =
+      categoryValues[REQUIRED_CATEGORY_IDS.birthDate] ?? fallback.birthDate ?? '';
+    const birthDateValue =
+      typeof rawBirthDate === 'number' || rawBirthDate instanceof Date
+        ? rawBirthDate
+        : toTrimmedString(rawBirthDate);
+
+    const identifierData = buildContactIdentifierData(
+      firstNameValue,
+      lastNameValue,
+      birthDateValue,
+    );
+
+    if (!identifierData) {
+      return null;
+    }
+
+    categoryValues[REQUIRED_CATEGORY_IDS.firstName] = firstNameValue;
+    categoryValues[REQUIRED_CATEGORY_IDS.lastName] = lastNameValue;
+    categoryValues[REQUIRED_CATEGORY_IDS.birthDate] = identifierData.normalizedDate;
+    categoryValues[REQUIRED_CATEGORY_IDS.identifier] = identifierData.identifier;
+
+    return identifierData;
+  }
+
+  function formatDateForInput(value) {
+    const parts = parseDatePartsFromValue(value);
+    if (!parts) {
+      return '';
+    }
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  function isEmailValue(value) {
+    if (!value) {
+      return false;
+    }
       const normalized = value.toString().trim();
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
     }
@@ -3145,19 +3427,28 @@
         const metaEl = listItem.querySelector('.category-meta');
         const editButton = listItem.querySelector('[data-action="edit"]');
         const deleteButton = listItem.querySelector('[data-action="delete"]');
+        const isProtectedCategory = REQUIRED_CATEGORY_ID_SET.has(category.id);
 
         if (dragHandle instanceof HTMLElement) {
-          const categoryName = (category.name || '').toString();
-          const dragLabel = categoryName
-            ? `Réorganiser la catégorie ${categoryName}`
-            : 'Réorganiser la catégorie';
-          const dragTitle = categoryName
-            ? `Déplacer la catégorie ${categoryName}`
-            : 'Déplacer la catégorie';
-          dragHandle.setAttribute('aria-label', dragLabel);
-          dragHandle.setAttribute('title', dragTitle);
-          dragHandle.setAttribute('draggable', 'true');
-          dragHandle.draggable = true;
+          if (isProtectedCategory) {
+            dragHandle.removeAttribute('aria-label');
+            dragHandle.removeAttribute('title');
+            dragHandle.removeAttribute('draggable');
+            dragHandle.draggable = false;
+            dragHandle.setAttribute('aria-hidden', 'true');
+          } else {
+            const categoryName = (category.name || '').toString();
+            const dragLabel = categoryName
+              ? `Réorganiser la catégorie ${categoryName}`
+              : 'Réorganiser la catégorie';
+            const dragTitle = categoryName
+              ? `Déplacer la catégorie ${categoryName}`
+              : 'Déplacer la catégorie';
+            dragHandle.setAttribute('aria-label', dragLabel);
+            dragHandle.setAttribute('title', dragTitle);
+            dragHandle.setAttribute('draggable', 'true');
+            dragHandle.draggable = true;
+          }
         }
 
         if (titleEl) {
@@ -3181,15 +3472,23 @@
         }
 
         if (editButton) {
-          editButton.addEventListener('click', () => {
-            startCategoryEdition(category.id);
-          });
+          if (isProtectedCategory) {
+            editButton.remove();
+          } else {
+            editButton.addEventListener('click', () => {
+              startCategoryEdition(category.id);
+            });
+          }
         }
 
         if (deleteButton) {
-          deleteButton.addEventListener('click', () => {
-            deleteCategory(category.id);
-          });
+          if (isProtectedCategory) {
+            deleteButton.remove();
+          } else {
+            deleteButton.addEventListener('click', () => {
+              deleteCategory(category.id);
+            });
+          }
         }
 
         fragment.appendChild(listItem);
@@ -3534,6 +3833,25 @@
         input.dataset.categoryType = baseType;
         input.setAttribute('data-category-input', 'true');
 
+        if (category.id === REQUIRED_CATEGORY_IDS.firstName || category.id === REQUIRED_CATEGORY_IDS.lastName) {
+          if (input instanceof HTMLInputElement) {
+            input.required = true;
+          }
+        }
+
+        if (category.id === REQUIRED_CATEGORY_IDS.birthDate) {
+          if (input instanceof HTMLInputElement) {
+            input.required = true;
+          }
+        }
+
+        if (category.id === REQUIRED_CATEGORY_IDS.identifier) {
+          if (input instanceof HTMLInputElement) {
+            input.readOnly = true;
+            input.placeholder = input.placeholder || 'Identifiant généré automatiquement';
+          }
+        }
+
         let initialValue = '';
         if (category.id && previousValues.has(category.id)) {
           initialValue = previousValues.get(category.id) || '';
@@ -3550,7 +3868,11 @@
             input.value = '';
           }
         } else if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
-          input.value = initialValue;
+          const resolvedValue =
+            baseType === 'date' && input instanceof HTMLInputElement
+              ? formatDateForInput(initialValue)
+              : initialValue;
+          input.value = resolvedValue;
         }
 
         fieldWrapper.append(label, input);
@@ -4553,6 +4875,9 @@
     }
 
     function startCategoryEdition(categoryId) {
+      if (REQUIRED_CATEGORY_ID_SET.has(categoryId)) {
+        return;
+      }
       const category = data.categories.find((item) => item.id === categoryId);
       if (!category || !categoryList) {
         return;
@@ -4713,6 +5038,9 @@
     }
 
     function deleteCategory(categoryId) {
+      if (REQUIRED_CATEGORY_ID_SET.has(categoryId)) {
+        return;
+      }
       data.categories = data.categories.filter((item) => item.id !== categoryId);
       normalizeCategoryOrders();
       if (Array.isArray(data.contacts)) {
@@ -4796,7 +5124,6 @@
       const skipHeader = Boolean(options && options.skipHeader);
       const fileName =
         options && typeof options.fileName === 'string' ? options.fileName : '';
-      const autoMergeEnabled = Boolean(options && options.autoMerge);
 
       const normalizeListValue = (raw) =>
         raw
@@ -4843,148 +5170,99 @@
         })
         .filter((entry) => Boolean(entry));
 
-      const enrichedMapping = normalizedMapping.map((mapping) => {
-        const normalizedLabel = normalizeLabel(mapping.name || '');
-        const isStrongIdentifier =
-          EMAIL_KEYWORDS.some((keyword) => normalizedLabel.includes(keyword)) ||
-          PHONE_KEYWORDS.some((keyword) => normalizedLabel.includes(keyword));
-        const isNameField = NAME_KEYWORDS.some((keyword) => normalizedLabel.includes(keyword));
-        return {
-          ...mapping,
-          normalizedLabel,
-          isStrongIdentifier,
-          isNameField,
-        };
-      });
-
       const startIndex = skipHeader ? 1 : 0;
       const totalRows = startIndex < safeRows.length ? safeRows.length - startIndex : 0;
       const errors = [];
       const errorRows = new Set();
       let importedCount = 0;
-      let mergedCount = 0;
       let skippedEmptyCount = 0;
       let updatedContactsCount = 0;
-      let duplicatesDetected = 0;
 
-      if (enrichedMapping.length === 0 || safeRows.length === 0 || totalRows === 0) {
+      if (normalizedMapping.length === 0 || safeRows.length === 0 || totalRows === 0) {
         return {
           importedCount,
-          mergedCount,
+          mergedCount: 0,
           skippedEmptyCount: totalRows,
           totalRows,
           errorCount: 0,
           errors,
           fileName,
-          duplicatesDetected,
-          autoMergeApplied: autoMergeEnabled,
+          duplicatesDetected: 0,
+          autoMergeApplied: false,
+          updatedCount: 0,
         };
       }
 
-      const existingContactsDetails = data.contacts.map((contact) => {
-        const normalizedValues = new Map();
-        if (contact && typeof contact === 'object' && contact.categoryValues) {
-          Object.entries(contact.categoryValues).forEach(([categoryId, rawValue]) => {
-            const normalized = normalizeComparableValue(rawValue);
-            if (normalized) {
-              normalizedValues.set(categoryId, normalized);
-            }
-          });
-        }
-        const normalizedDisplayName = normalizeComparableValue(
-          getContactDisplayName(contact, categoriesById),
-        );
-        return { contact, normalizedValues, normalizedDisplayName };
-      });
+      const requiredImportCategoryIds = [
+        REQUIRED_CATEGORY_IDS.firstName,
+        REQUIRED_CATEGORY_IDS.lastName,
+        REQUIRED_CATEGORY_IDS.birthDate,
+      ];
 
-      const findMatchingContact = (normalizedValues, normalizedDerivedName) => {
-        if (!(normalizedValues instanceof Map) || normalizedValues.size === 0) {
-          return null;
-        }
+      const missingRequiredMappings = requiredImportCategoryIds.filter(
+        (requiredId) => !normalizedMapping.some((mapping) => mapping.categoryId === requiredId),
+      );
 
-        let bestMatch = null;
-        let bestScore = 0;
-
-        existingContactsDetails.forEach((entry) => {
-          if (!entry || !entry.contact) {
-            return;
-          }
-
-          const existingValues = entry.normalizedValues;
-          let strongMatches = 0;
-          let regularMatches = 0;
-          let nameFieldMatches = 0;
-          let hasStrongConflict = false;
-
-          enrichedMapping.forEach((mapping) => {
-            const newValue = normalizedValues.get(mapping.categoryId);
-            if (!newValue) {
-              return;
-            }
-            const existingValue = existingValues.get(mapping.categoryId);
-            if (!existingValue) {
-              return;
-            }
-            if (existingValue === newValue) {
-              if (mapping.isStrongIdentifier) {
-                strongMatches += 1;
-              } else {
-                regularMatches += 1;
-                if (mapping.isNameField) {
-                  nameFieldMatches += 1;
-                }
-              }
-            } else if (mapping.isStrongIdentifier) {
-              hasStrongConflict = true;
-            }
-          });
-
-          const totalMatches = strongMatches + regularMatches;
-          let nameMatch = false;
-          if (
-            nameFieldMatches > 0 &&
-            normalizedDerivedName &&
-            entry.normalizedDisplayName &&
-            entry.normalizedDisplayName === normalizedDerivedName
-          ) {
-            nameMatch = true;
-          }
-
-          if (hasStrongConflict) {
-            return;
-          }
-
-          if (
-            strongMatches === 0 &&
-            totalMatches < 2 &&
-            !(nameMatch && totalMatches >= 1)
-          ) {
-            return;
-          }
-
-          const score = strongMatches * 10 + regularMatches + (nameMatch ? 1 : 0);
-          if (score > bestScore) {
-            bestScore = score;
-            bestMatch = entry;
-          }
+      if (missingRequiredMappings.length > 0) {
+        const missingLabels = missingRequiredMappings.map((categoryId) => {
+          const category = categoriesById.get(categoryId);
+          return category && category.name ? `« ${category.name} »` : 'une catégorie requise';
         });
+        errors.push({
+          row: 0,
+          categoryId: '',
+          message: `Les catégories obligatoires ${missingLabels.join(', ')} doivent être associées à une colonne pour importer des contacts.`,
+        });
+        return {
+          importedCount,
+          mergedCount: 0,
+          skippedEmptyCount: totalRows,
+          totalRows,
+          errorCount: errors.length,
+          errors,
+          fileName,
+          duplicatesDetected: 0,
+          autoMergeApplied: false,
+          updatedCount: 0,
+        };
+      }
 
-        return bestMatch;
-      };
+      const existingContactsByIdentifier = new Map();
+      data.contacts.forEach((contact) => {
+        if (!contact || typeof contact !== 'object') {
+          return;
+        }
+        if (!contact.categoryValues || typeof contact.categoryValues !== 'object') {
+          contact.categoryValues = {};
+        }
+        const existingIdentifier = contact.categoryValues[REQUIRED_CATEGORY_IDS.identifier];
+        if (existingIdentifier) {
+          existingContactsByIdentifier.set(existingIdentifier, contact);
+          return;
+        }
+        const identifierData = ensureContactIdentifier(contact.categoryValues);
+        if (identifierData) {
+          existingContactsByIdentifier.set(identifierData.identifier, contact);
+        }
+      });
 
       for (let rowIndex = startIndex; rowIndex < safeRows.length; rowIndex += 1) {
         const row = Array.isArray(safeRows[rowIndex]) ? safeRows[rowIndex] : [];
         const categoryValues = {};
-        let hasValue = false;
+        const rawValues = new Map();
+        let hasNonEmptyValue = false;
 
-        enrichedMapping.forEach((mapping) => {
+        normalizedMapping.forEach((mapping) => {
           const cellValue = row[mapping.columnIndex];
           const valueString =
             cellValue === undefined || cellValue === null ? '' : cellValue.toString().trim();
+          rawValues.set(mapping.categoryId, valueString);
 
           if (!valueString) {
             return;
           }
+
+          hasNonEmptyValue = true;
 
           if (mapping.type === 'number') {
             const normalizedNumber = valueString.replace(/\s+/g, '').replace(',', '.');
@@ -4999,7 +5277,6 @@
               return;
             }
             categoryValues[mapping.categoryId] = parsed.toString();
-            hasValue = true;
             return;
           }
 
@@ -5018,108 +5295,95 @@
               return;
             }
             categoryValues[mapping.categoryId] = matchedOption.value;
-            hasValue = true;
             return;
           }
 
           categoryValues[mapping.categoryId] = valueString;
-          hasValue = true;
         });
 
-        if (!hasValue) {
+        if (!hasNonEmptyValue) {
           skippedEmptyCount += 1;
           continue;
         }
 
-        const normalizedRowValues = new Map();
-        enrichedMapping.forEach((mapping) => {
-          const rawValue = categoryValues[mapping.categoryId];
-          if (rawValue === undefined || rawValue === null) {
-            return;
-          }
-          const normalizedValue = normalizeComparableValue(rawValue);
-          if (normalizedValue) {
-            normalizedRowValues.set(mapping.categoryId, normalizedValue);
-          }
-        });
+        const firstNameValue =
+          categoryValues[REQUIRED_CATEGORY_IDS.firstName] ??
+          rawValues.get(REQUIRED_CATEGORY_IDS.firstName) ??
+          '';
+        const lastNameValue =
+          categoryValues[REQUIRED_CATEGORY_IDS.lastName] ??
+          rawValues.get(REQUIRED_CATEGORY_IDS.lastName) ??
+          '';
+        const birthDateValue =
+          categoryValues[REQUIRED_CATEGORY_IDS.birthDate] ??
+          rawValues.get(REQUIRED_CATEGORY_IDS.birthDate) ??
+          '';
 
-        const derivedName = buildDisplayNameFromCategories(categoryValues, categoriesById);
-        const displayName = derivedName || 'Contact sans nom';
-        const normalizedDerivedName = normalizeComparableValue(derivedName);
-        const matchingEntry = findMatchingContact(normalizedRowValues, normalizedDerivedName);
-
-        if (matchingEntry) {
-          duplicatesDetected += 1;
-          if (!autoMergeEnabled) {
-            continue;
-          }
-
-          const contactToUpdate = matchingEntry.contact;
-          if (contactToUpdate && typeof contactToUpdate === 'object') {
-            if (!contactToUpdate.categoryValues || typeof contactToUpdate.categoryValues !== 'object') {
-              contactToUpdate.categoryValues = {};
-            }
-            let contactModified = false;
-
-            enrichedMapping.forEach((mapping) => {
-              const newValue = categoryValues[mapping.categoryId];
-              if (newValue === undefined || newValue === null || newValue === '') {
-                return;
-              }
-
-              const existingValue = contactToUpdate.categoryValues[mapping.categoryId];
-              if (
-                existingValue === undefined ||
-                existingValue === null ||
-                existingValue === ''
-              ) {
-                contactToUpdate.categoryValues[mapping.categoryId] = newValue;
-                matchingEntry.normalizedValues.set(
-                  mapping.categoryId,
-                  normalizeComparableValue(newValue),
-                );
-                contactModified = true;
-                return;
-              }
-
-              const existingNormalized = normalizeComparableValue(existingValue);
-              const newNormalized = normalizeComparableValue(newValue);
-              if (existingNormalized === newNormalized) {
-                return;
-              }
-
-              if (!mapping.isStrongIdentifier) {
-                contactToUpdate.categoryValues[mapping.categoryId] = newValue;
-                matchingEntry.normalizedValues.set(mapping.categoryId, newNormalized);
-                contactModified = true;
-              }
-            });
-
-            if (contactModified) {
-              const updatedDerivedName = buildDisplayNameFromCategories(
-                contactToUpdate.categoryValues,
-                categoriesById,
-              );
-              if (updatedDerivedName) {
-                contactToUpdate.fullName = updatedDerivedName;
-                contactToUpdate.displayName = updatedDerivedName;
-              }
-              contactToUpdate.updatedAt = new Date().toISOString();
-              matchingEntry.normalizedDisplayName = normalizeComparableValue(
-                getContactDisplayName(contactToUpdate, categoriesById),
-              );
-              updatedContactsCount += 1;
-            }
-          }
-
+        const identifierData = buildContactIdentifierData(
+          firstNameValue,
+          lastNameValue,
+          birthDateValue,
+        );
+        if (!identifierData) {
+          errors.push({
+            row: rowIndex + 1,
+            categoryId: REQUIRED_CATEGORY_IDS.identifier,
+            message: 'Impossible de calculer l’identifiant : vérifiez le prénom, le nom et la date de naissance.',
+          });
+          errorRows.add(rowIndex + 1);
+          continue;
         }
 
-        if (matchingEntry) {
-          mergedCount += 1;
+        categoryValues[REQUIRED_CATEGORY_IDS.firstName] = toTrimmedString(firstNameValue);
+        categoryValues[REQUIRED_CATEGORY_IDS.lastName] = toTrimmedString(lastNameValue);
+        categoryValues[REQUIRED_CATEGORY_IDS.birthDate] = identifierData.normalizedDate;
+        categoryValues[REQUIRED_CATEGORY_IDS.identifier] = identifierData.identifier;
+
+        const existingContact = existingContactsByIdentifier.get(identifierData.identifier);
+        if (existingContact) {
+          const targetValues =
+            existingContact.categoryValues && typeof existingContact.categoryValues === 'object'
+              ? existingContact.categoryValues
+              : (existingContact.categoryValues = {});
+          let contactModified = false;
+
+          normalizedMapping.forEach((mapping) => {
+            if (REQUIRED_CATEGORY_ID_SET.has(mapping.categoryId)) {
+              return;
+            }
+            const rawValue = rawValues.get(mapping.categoryId) || '';
+            if (!rawValue) {
+              return;
+            }
+            const newValue =
+              categoryValues[mapping.categoryId] !== undefined
+                ? categoryValues[mapping.categoryId]
+                : rawValue;
+            const previousValue = targetValues[mapping.categoryId] ?? '';
+            if (previousValue.toString() !== newValue.toString()) {
+              targetValues[mapping.categoryId] = newValue;
+              contactModified = true;
+            }
+          });
+
+          if (contactModified) {
+            const updatedDerivedName = buildDisplayNameFromCategories(
+              targetValues,
+              categoriesById,
+            );
+            if (updatedDerivedName) {
+              existingContact.fullName = updatedDerivedName;
+              existingContact.displayName = updatedDerivedName;
+            }
+            existingContact.updatedAt = new Date().toISOString();
+            updatedContactsCount += 1;
+          }
           continue;
         }
 
         const nowIso = new Date().toISOString();
+        const displayName =
+          buildDisplayNameFromCategories(categoryValues, categoriesById) || 'Contact sans nom';
         const newContact = {
           id: generateId('contact'),
           categoryValues,
@@ -5131,12 +5395,8 @@
           updatedAt: null,
         };
         data.contacts.push(newContact);
+        existingContactsByIdentifier.set(identifierData.identifier, newContact);
         importedCount += 1;
-        existingContactsDetails.push({
-          contact: newContact,
-          normalizedValues: normalizedRowValues,
-          normalizedDisplayName: normalizeComparableValue(displayName),
-        });
       }
 
       const hasDataChanges = importedCount > 0 || updatedContactsCount > 0;
@@ -5148,29 +5408,29 @@
         renderContacts();
       }
 
-      if (importedCount > 0 || mergedCount > 0) {
+      if (importedCount > 0 || updatedContactsCount > 0) {
         notifyDataChanged('contacts', {
           reason: 'import',
           importedCount,
-          mergedCount,
+          updatedCount: updatedContactsCount,
           skippedEmptyCount,
           totalRows,
           errorCount: errorRows.size,
-          duplicatesDetected,
           fileName,
         });
       }
 
       return {
         importedCount,
-        mergedCount,
+        mergedCount: 0,
         skippedEmptyCount,
         totalRows,
         errorCount: errorRows.size,
         errors,
         fileName,
-        duplicatesDetected,
-        autoMergeApplied: autoMergeEnabled,
+        duplicatesDetected: 0,
+        autoMergeApplied: false,
+        updatedCount: updatedContactsCount,
       };
     }
 
@@ -5621,11 +5881,6 @@
           return normalized;
         });
 
-      base.categories = sortCategoriesForDisplay(base.categories);
-      base.categories.forEach((category, index) => {
-        category.order = index;
-      });
-
       if (!Array.isArray(base.keywords)) {
         base.keywords = [];
       }
@@ -5633,6 +5888,12 @@
       if (!Array.isArray(base.contacts)) {
         base.contacts = [];
       }
+
+      enforceRequiredContactCategories(base);
+      base.categories = sortCategoriesForDisplay(base.categories);
+      base.categories.forEach((category, index) => {
+        category.order = index;
+      });
 
       if (!Array.isArray(base.events)) {
         base.events = [];
@@ -5684,6 +5945,7 @@
           });
         }
 
+        ensureContactIdentifier(normalizedCategoryValues);
         contact.categoryValues = normalizedCategoryValues;
         delete contact.categories;
 
