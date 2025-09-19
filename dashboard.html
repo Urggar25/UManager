@@ -570,6 +570,67 @@
               </div>
             </header>
 
+            <section
+              class="task-category-manager"
+              aria-labelledby="task-category-manager-title"
+            >
+              <header class="task-category-manager-header">
+                <div>
+                  <h2 id="task-category-manager-title">Organiser par catégories</h2>
+                  <p class="task-category-manager-subtitle">
+                    Créez des catégories personnalisées pour classer vos tâches et
+                    naviguez facilement entre elles.
+                  </p>
+                </div>
+              </header>
+              <form id="task-category-form" class="task-category-form" autocomplete="off">
+                <div class="task-category-form-grid">
+                  <div class="form-row">
+                    <label for="task-category-name">Nom de la catégorie *</label>
+                    <input
+                      id="task-category-name"
+                      name="task-category-name"
+                      type="text"
+                      maxlength="40"
+                      required
+                      placeholder="Ex. Urgent, Partenaires, Communication"
+                    />
+                  </div>
+                  <div class="form-row">
+                    <label for="task-category-color">Couleur</label>
+                    <input
+                      id="task-category-color"
+                      name="task-category-color"
+                      type="color"
+                      value="#4f46e5"
+                    />
+                  </div>
+                  <div class="task-category-form-actions">
+                    <button type="submit" class="task-category-submit">Créer la catégorie</button>
+                    <button type="reset" class="task-category-reset" aria-label="Réinitialiser le formulaire des catégories">↺</button>
+                  </div>
+                </div>
+              </form>
+              <div class="task-category-nav-wrapper">
+                <div
+                  id="task-category-nav"
+                  class="task-category-nav"
+                  role="tablist"
+                  aria-label="Filtrer les tâches par catégorie"
+                >
+                  <span
+                    id="task-category-indicator"
+                    class="task-category-indicator"
+                    aria-hidden="true"
+                  ></span>
+                </div>
+              </div>
+              <ul id="task-category-list" class="task-category-list" aria-live="polite"></ul>
+              <p id="task-category-empty" class="task-category-empty">
+                Aucune catégorie de tâche pour le moment. Utilisez le formulaire ci-dessus pour en ajouter.
+              </p>
+            </section>
+
             <form id="task-form" class="task-form" autocomplete="off">
               <div class="task-form-grid">
                 <div class="form-row">
@@ -586,6 +647,12 @@
                 <div class="form-row">
                   <label for="task-due-date">Date limite</label>
                   <input id="task-due-date" name="task-due-date" type="date" />
+                </div>
+                <div class="form-row">
+                  <label for="task-category">Catégorie</label>
+                  <select id="task-category" name="task-category">
+                    <option value="">Sans catégorie</option>
+                  </select>
                 </div>
                 <div class="form-row">
                   <label for="task-color">Couleur</label>
@@ -614,6 +681,46 @@
                   maxlength="500"
                   placeholder="Précisez les objectifs ou les étapes à suivre (optionnel)."
                 ></textarea>
+              </div>
+              <div class="form-row task-attachment-field">
+                <label for="task-attachment">Document associé</label>
+                <input
+                  id="task-attachment"
+                  name="task-attachment"
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.txt,.zip"
+                />
+                <p class="form-hint">
+                  Formats courants acceptés (PDF, Word, tableurs, images). Taille maximale 2&nbsp;Mo.
+                </p>
+                <div id="task-attachment-preview" class="task-attachment-preview" hidden>
+                  <div class="task-attachment-preview-icon" aria-hidden="true">📎</div>
+                  <div class="task-attachment-preview-info">
+                    <span id="task-attachment-preview-name" class="task-attachment-preview-name"></span>
+                    <span id="task-attachment-preview-meta" class="task-attachment-preview-meta"></span>
+                  </div>
+                  <div class="task-attachment-preview-actions">
+                    <a
+                      id="task-attachment-preview-open"
+                      class="task-attachment-preview-action"
+                      href="#"
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      Ouvrir
+                    </a>
+                    <button
+                      id="task-attachment-remove"
+                      type="button"
+                      class="task-attachment-preview-remove"
+                    >
+                      Retirer
+                    </button>
+                  </div>
+                </div>
+                <p id="task-attachment-removed-message" class="task-attachment-removed-message" hidden>
+                  Le document existant sera supprimé lors de l’enregistrement.
+                </p>
               </div>
               <div class="task-form-actions">
                 <button type="submit" class="primary-button">Ajouter la tâche</button>

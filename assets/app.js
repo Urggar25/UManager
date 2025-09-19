@@ -19,6 +19,7 @@
     keywords: [],
     contacts: [],
     events: [],
+    taskCategories: [],
     tasks: [],
     lastUpdated: null,
   };
@@ -427,6 +428,24 @@
     const taskDescriptionInput = document.getElementById('task-description');
     const taskMemberSelect = document.getElementById('task-members');
     const taskCountBadge = document.getElementById('task-count-badge');
+    const taskEmptyStateDefaultText = taskEmptyState
+      ? taskEmptyState.textContent || ''
+      : '';
+    const taskCategoryForm = document.getElementById('task-category-form');
+    const taskCategoryNameInput = document.getElementById('task-category-name');
+    const taskCategoryColorInput = document.getElementById('task-category-color');
+    const taskCategoryNav = document.getElementById('task-category-nav');
+    const taskCategoryIndicator = document.getElementById('task-category-indicator');
+    const taskCategoryList = document.getElementById('task-category-list');
+    const taskCategoryEmpty = document.getElementById('task-category-empty');
+    const taskCategorySelect = document.getElementById('task-category');
+    const taskAttachmentInput = document.getElementById('task-attachment');
+    const taskAttachmentPreview = document.getElementById('task-attachment-preview');
+    const taskAttachmentPreviewName = document.getElementById('task-attachment-preview-name');
+    const taskAttachmentPreviewMeta = document.getElementById('task-attachment-preview-meta');
+    const taskAttachmentPreviewOpen = document.getElementById('task-attachment-preview-open');
+    const taskAttachmentRemoveButton = document.getElementById('task-attachment-remove');
+    const taskAttachmentRemovedMessage = document.getElementById('task-attachment-removed-message');
 
     const CATEGORY_TYPE_ORDER = ['text', 'number', 'date', 'list'];
     const CATEGORY_TYPES = new Set(CATEGORY_TYPE_ORDER);
@@ -442,6 +461,10 @@
     const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
     const isoTimePattern = /^\d{2}:\d{2}$/;
     const DEFAULT_TASK_COLOR = '#2563eb';
+    const DEFAULT_TASK_CATEGORY_COLOR = '#4f46e5';
+    const TASK_CATEGORY_FILTER_ALL = 'all';
+    const TASK_CATEGORY_FILTER_UNCATEGORIZED = 'uncategorized';
+    const MAX_TASK_ATTACHMENT_SIZE = 2 * 1024 * 1024;
     const taskPanelDescriptionDefault = taskPanelDescription
       ? taskPanelDescription.textContent || ''
       : '';
@@ -526,6 +549,10 @@
       style: 'percent',
       maximumFractionDigits: 1,
     });
+    const fileSizeFormatter = new Intl.NumberFormat('fr-FR', {
+      maximumFractionDigits: 1,
+      minimumFractionDigits: 0,
+    });
 
     const CONTACT_RESULTS_PER_PAGE_DEFAULT = 10;
 
@@ -544,10 +571,17 @@
     let calendarHasBeenOpened = false;
     let teamMembers = loadTeamMembers();
     let teamMembersById = new Map(teamMembers.map((member) => [member.username, member]));
+    let taskCategoriesById = new Map();
+    let taskCategoryFilter = TASK_CATEGORY_FILTER_ALL;
+    let editingTaskExistingAttachment = null;
+    let removeAttachmentOnSubmit = false;
+    let taskCategoryIndicatorFrame = 0;
 
     normalizeCategoryOrders();
     populateTaskMemberOptions();
     updateTaskPanelDescription();
+    renderTaskCategories();
+    resetTaskCategoryFormDefaults();
     resetTaskFormDefaults();
     renderTasks();
 
@@ -624,26 +658,99 @@
       });
     }
 
-    if (taskForm) {
-	  taskForm.addEventListener('submit', (event) => {
-		event.preventDefault();
-		if (editingTaskId) {
-		  applyTaskEditsFromForm();   // NOUVEAU : en mode édition
-		} else {
-		  createTaskFromForm();       // Existant : création
-		}
-	  });
+    if (taskCategoryForm) {
+      taskCategoryForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        createTaskCategoryFromForm();
+      });
 
-	  taskForm.addEventListener('reset', () => {
-		window.requestAnimationFrame(() => {
-		  // En reset, on sort du mode édition si on y était
-		  editingTaskId = '';
-		  setTaskFormMode('create');
-		  resetTaskFormDefaults();
-		  if (taskTitleInput instanceof HTMLInputElement) taskTitleInput.focus();
-		});
-	  });
-	}
+      taskCategoryForm.addEventListener('reset', () => {
+        window.requestAnimationFrame(() => {
+          resetTaskCategoryFormDefaults();
+          if (taskCategoryNameInput instanceof HTMLInputElement) {
+            taskCategoryNameInput.focus();
+          }
+        });
+      });
+    }
+
+    if (taskCategoryNav) {
+      taskCategoryNav.addEventListener('click', (event) => {
+        const button =
+          event.target instanceof HTMLElement
+            ? event.target.closest('[data-task-category-filter]')
+            : null;
+        if (button instanceof HTMLButtonElement) {
+          const filterId = button.dataset.taskCategoryFilter || TASK_CATEGORY_FILTER_ALL;
+          setTaskCategoryFilter(filterId);
+        }
+      });
+
+      taskCategoryNav.addEventListener('scroll', () => {
+        scheduleTaskCategoryIndicatorUpdate();
+      });
+    }
+
+    window.addEventListener('resize', () => {
+      scheduleTaskCategoryIndicatorUpdate();
+    });
+
+    if (taskCategoryList) {
+      taskCategoryList.addEventListener('click', (event) => {
+        const button =
+          event.target instanceof HTMLElement
+            ? event.target.closest('[data-task-category-action]')
+            : null;
+        if (!button) {
+          return;
+        }
+
+        if (button.dataset.taskCategoryAction === 'delete') {
+          const categoryId = button.dataset.taskCategoryId || '';
+          if (categoryId) {
+            deleteTaskCategory(categoryId);
+          }
+        }
+      });
+    }
+
+    if (taskAttachmentInput) {
+      taskAttachmentInput.addEventListener('change', () => {
+        handleTaskAttachmentChange();
+      });
+    }
+
+    if (taskAttachmentRemoveButton) {
+      taskAttachmentRemoveButton.addEventListener('click', () => {
+        handleTaskAttachmentRemove();
+      });
+    }
+
+    if (taskForm) {
+      taskForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        try {
+          if (editingTaskId) {
+            await applyTaskEditsFromForm();
+          } else {
+            await createTaskFromForm();
+          }
+        } catch (error) {
+          console.error('Erreur lors de la sauvegarde de la tâche :', error);
+        }
+      });
+
+      taskForm.addEventListener('reset', () => {
+        window.requestAnimationFrame(() => {
+          editingTaskId = '';
+          setTaskFormMode('create');
+          resetTaskFormDefaults();
+          if (taskTitleInput instanceof HTMLInputElement) {
+            taskTitleInput.focus();
+          }
+        });
+      });
+    }
 
 
     if (taskList) {
@@ -2012,6 +2119,725 @@
       if (taskDescriptionInput instanceof HTMLTextAreaElement) {
         taskDescriptionInput.value = '';
       }
+
+      resetTaskAttachmentState();
+
+      if (taskCategorySelect instanceof HTMLSelectElement) {
+        const defaultCategoryId =
+          taskCategoryFilter !== TASK_CATEGORY_FILTER_ALL &&
+          taskCategoryFilter !== TASK_CATEGORY_FILTER_UNCATEGORIZED &&
+          taskCategoriesById.has(taskCategoryFilter)
+            ? taskCategoryFilter
+            : '';
+        setTaskFormCategory(defaultCategoryId);
+      }
+    }
+
+    function setTaskFormCategory(categoryId) {
+      if (!(taskCategorySelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const sanitized =
+        typeof categoryId === 'string' && taskCategoriesById.has(categoryId)
+          ? categoryId
+          : '';
+      taskCategorySelect.value = sanitized;
+    }
+
+    function populateTaskCategorySelect(categories) {
+      if (!(taskCategorySelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const previousValue = taskCategorySelect.value;
+
+      taskCategorySelect.innerHTML = '';
+
+      const defaultOption = document.createElement('option');
+      defaultOption.value = '';
+      defaultOption.textContent = 'Sans catégorie';
+      taskCategorySelect.appendChild(defaultOption);
+
+      categories.forEach((category) => {
+        if (!category || typeof category.id !== 'string' || !category.id) {
+          return;
+        }
+
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        taskCategorySelect.appendChild(option);
+      });
+
+      if (previousValue && taskCategoriesById.has(previousValue)) {
+        taskCategorySelect.value = previousValue;
+      } else {
+        taskCategorySelect.value = '';
+      }
+    }
+
+    function getSortedTaskCategories() {
+      if (!Array.isArray(data.taskCategories)) {
+        data.taskCategories = [];
+      }
+
+      return data.taskCategories
+        .filter((item) => item && typeof item === 'object')
+        .map((item) => normalizeTaskCategory(item))
+        .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+    }
+
+    function renderTaskCategories() {
+      const categories = getSortedTaskCategories();
+      data.taskCategories = categories.slice();
+      taskCategoriesById = new Map(categories.map((category) => [category.id, category]));
+
+      populateTaskCategorySelect(categories);
+      renderTaskCategoryNav(categories);
+      renderTaskCategoryList(categories);
+
+      if (
+        taskCategoryFilter !== TASK_CATEGORY_FILTER_ALL &&
+        taskCategoryFilter !== TASK_CATEGORY_FILTER_UNCATEGORIZED &&
+        !taskCategoriesById.has(taskCategoryFilter)
+      ) {
+        taskCategoryFilter = TASK_CATEGORY_FILTER_ALL;
+      }
+
+      updateTaskCategoryNavState();
+      scheduleTaskCategoryIndicatorUpdate();
+    }
+
+    function renderTaskCategoryNav(categories) {
+      if (!taskCategoryNav) {
+        return;
+      }
+
+      const indicator = taskCategoryIndicator;
+      taskCategoryNav.innerHTML = '';
+
+      const counts = buildTaskCounts(Array.isArray(data.tasks) ? data.tasks : []);
+
+      const navItems = [
+        { id: TASK_CATEGORY_FILTER_ALL, label: 'Toutes', icon: '✨' },
+        {
+          id: TASK_CATEGORY_FILTER_UNCATEGORIZED,
+          label: 'Sans catégorie',
+          icon: '📂',
+        },
+        ...categories.map((category) => ({
+          id: category.id,
+          label: category.name,
+          icon: '⬤',
+          color: category.color,
+        })),
+      ];
+
+      navItems.forEach((item) => {
+        if (!item || !item.id) {
+          return;
+        }
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'task-category-chip';
+        button.dataset.taskCategoryFilter = item.id;
+        button.setAttribute('aria-pressed', 'false');
+
+        const icon = document.createElement('span');
+        icon.className = 'task-category-chip-icon';
+        icon.textContent = item.icon;
+        if (item.color) {
+          icon.style.color = item.color;
+        }
+
+        const label = document.createElement('span');
+        label.className = 'task-category-chip-label';
+        label.textContent = item.label;
+
+        const count = document.createElement('span');
+        count.className = 'task-category-chip-count';
+        count.dataset.taskCategoryCount = item.id;
+        count.textContent = formatTaskCountLabel(counts.get(item.id) || 0);
+
+        button.appendChild(icon);
+        button.appendChild(label);
+        button.appendChild(count);
+
+        taskCategoryNav.appendChild(button);
+      });
+
+      if (indicator) {
+        taskCategoryNav.appendChild(indicator);
+      }
+
+      updateTaskCategoryNavState();
+      updateTaskCategoryCountBadges(counts);
+    }
+
+    function renderTaskCategoryList(categories) {
+      if (!taskCategoryList) {
+        return;
+      }
+
+      taskCategoryList.innerHTML = '';
+
+      if (!Array.isArray(categories) || categories.length === 0) {
+        if (taskCategoryEmpty) {
+          taskCategoryEmpty.hidden = false;
+          taskCategoryEmpty.removeAttribute('hidden');
+        }
+        return;
+      }
+
+      if (taskCategoryEmpty) {
+        taskCategoryEmpty.hidden = true;
+        if (!taskCategoryEmpty.hasAttribute('hidden')) {
+          taskCategoryEmpty.setAttribute('hidden', '');
+        }
+      }
+
+      const counts = buildTaskCounts(Array.isArray(data.tasks) ? data.tasks : []);
+
+      categories.forEach((category) => {
+        if (!category || typeof category.id !== 'string') {
+          return;
+        }
+
+        const item = document.createElement('li');
+        item.className = 'task-category-item';
+        item.style.setProperty('--task-category-color', category.color);
+
+        const content = document.createElement('div');
+        content.className = 'task-category-item-content';
+
+        const dot = document.createElement('span');
+        dot.className = 'task-category-item-dot';
+        dot.setAttribute('aria-hidden', 'true');
+        content.appendChild(dot);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = category.name;
+        content.appendChild(nameSpan);
+
+        const actions = document.createElement('div');
+        actions.className = 'task-category-item-actions';
+
+        const countSpan = document.createElement('span');
+        countSpan.className = 'task-category-item-count';
+        countSpan.dataset.taskCategoryListCount = category.id;
+        countSpan.textContent = formatTaskCountLabel(counts.get(category.id) || 0);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'task-category-item-delete';
+        deleteButton.dataset.taskCategoryAction = 'delete';
+        deleteButton.dataset.taskCategoryId = category.id;
+        deleteButton.textContent = 'Supprimer';
+
+        actions.appendChild(countSpan);
+        actions.appendChild(deleteButton);
+
+        item.appendChild(content);
+        item.appendChild(actions);
+
+        taskCategoryList.appendChild(item);
+      });
+
+      updateTaskCategoryCountBadges(counts);
+    }
+
+    function updateTaskCategoryNavState() {
+      if (!taskCategoryNav) {
+        return;
+      }
+
+      const buttons = Array.from(
+        taskCategoryNav.querySelectorAll('[data-task-category-filter]'),
+      );
+      buttons.forEach((button) => {
+        if (!(button instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        const isActive = button.dataset.taskCategoryFilter === taskCategoryFilter;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+
+      scheduleTaskCategoryIndicatorUpdate();
+    }
+
+    function updateTaskCategoryIndicatorPosition() {
+      if (!taskCategoryNav || !taskCategoryIndicator) {
+        return;
+      }
+
+      const activeButton = taskCategoryNav.querySelector(
+        '[data-task-category-filter].active',
+      );
+
+      if (!(activeButton instanceof HTMLElement)) {
+        taskCategoryIndicator.style.opacity = '0';
+        return;
+      }
+
+      const left = activeButton.offsetLeft - taskCategoryNav.scrollLeft;
+      const width = activeButton.offsetWidth;
+
+      taskCategoryIndicator.style.transform = `translateX(${left}px)`;
+      taskCategoryIndicator.style.width = `${width}px`;
+      taskCategoryIndicator.style.opacity = '1';
+    }
+
+    function scheduleTaskCategoryIndicatorUpdate() {
+      if (!taskCategoryIndicator) {
+        return;
+      }
+
+      if (taskCategoryIndicatorFrame) {
+        window.cancelAnimationFrame(taskCategoryIndicatorFrame);
+      }
+
+      taskCategoryIndicatorFrame = window.requestAnimationFrame(() => {
+        taskCategoryIndicatorFrame = 0;
+        updateTaskCategoryIndicatorPosition();
+      });
+    }
+
+    function setTaskCategoryFilter(rawValue) {
+      let value = typeof rawValue === 'string' ? rawValue : TASK_CATEGORY_FILTER_ALL;
+
+      if (
+        value !== TASK_CATEGORY_FILTER_ALL &&
+        value !== TASK_CATEGORY_FILTER_UNCATEGORIZED &&
+        !taskCategoriesById.has(value)
+      ) {
+        value = TASK_CATEGORY_FILTER_ALL;
+      }
+
+      if (taskCategoryFilter === value) {
+        updateTaskCategoryNavState();
+        renderTasks();
+        return;
+      }
+
+      taskCategoryFilter = value;
+      updateTaskCategoryNavState();
+      renderTasks();
+
+      if (
+        !editingTaskId &&
+        value !== TASK_CATEGORY_FILTER_ALL &&
+        value !== TASK_CATEGORY_FILTER_UNCATEGORIZED
+      ) {
+        setTaskFormCategory(value);
+      }
+    }
+
+    function buildTaskCounts(tasks) {
+      const counts = new Map();
+      const source = Array.isArray(tasks) ? tasks : [];
+
+      counts.set(TASK_CATEGORY_FILTER_ALL, source.length);
+
+      let uncategorized = 0;
+
+      source.forEach((task) => {
+        if (!task || typeof task !== 'object') {
+          return;
+        }
+
+        const categoryId =
+          typeof task.categoryId === 'string' && task.categoryId ? task.categoryId : '';
+        if (!categoryId) {
+          uncategorized += 1;
+          return;
+        }
+
+        const current = counts.get(categoryId) || 0;
+        counts.set(categoryId, current + 1);
+      });
+
+      counts.set(TASK_CATEGORY_FILTER_UNCATEGORIZED, uncategorized);
+
+      return counts;
+    }
+
+    function updateTaskCategoryCountBadges(counts) {
+      if (taskCategoryNav) {
+        const navCountElements = taskCategoryNav.querySelectorAll('[data-task-category-count]');
+        navCountElements.forEach((element) => {
+          const key = element.dataset.taskCategoryCount || '';
+          element.textContent = formatTaskCountLabel(counts.get(key) || 0);
+        });
+      }
+
+      if (taskCategoryList) {
+        const listCountElements = taskCategoryList.querySelectorAll(
+          '[data-task-category-list-count]',
+        );
+        listCountElements.forEach((element) => {
+          const key = element.dataset.taskCategoryListCount || '';
+          element.textContent = formatTaskCountLabel(counts.get(key) || 0);
+        });
+      }
+    }
+
+    function formatTaskCountLabel(count) {
+      const absolute = Number.isFinite(count) ? Math.max(0, Math.trunc(count)) : 0;
+      const label = absolute > 1 ? 'tâches' : 'tâche';
+      return `${numberFormatter.format(absolute)} ${label}`;
+    }
+
+    function resetTaskCategoryFormDefaults() {
+      if (taskCategoryColorInput instanceof HTMLInputElement) {
+        taskCategoryColorInput.value = DEFAULT_TASK_CATEGORY_COLOR;
+      }
+
+      if (taskCategoryNameInput instanceof HTMLInputElement) {
+        taskCategoryNameInput.setCustomValidity('');
+      }
+    }
+
+    function createTaskCategoryFromForm() {
+      if (!taskCategoryForm) {
+        return;
+      }
+
+      const formData = new FormData(taskCategoryForm);
+      const name = (formData.get('task-category-name') || '').toString().trim();
+      const colorValue = normalizeTaskCategoryColor(
+        (formData.get('task-category-color') || DEFAULT_TASK_CATEGORY_COLOR).toString(),
+      );
+
+      if (taskCategoryNameInput instanceof HTMLInputElement) {
+        taskCategoryNameInput.setCustomValidity('');
+      }
+
+      if (!name) {
+        if (taskCategoryNameInput instanceof HTMLInputElement) {
+          taskCategoryNameInput.focus();
+        }
+        return;
+      }
+
+      const normalizedName = name.toLowerCase();
+      const duplicate = Array.from(taskCategoriesById.values()).some(
+        (category) => category.name.toLowerCase() === normalizedName,
+      );
+
+      if (duplicate) {
+        if (taskCategoryNameInput instanceof HTMLInputElement) {
+          taskCategoryNameInput.setCustomValidity('Une catégorie porte déjà ce nom.');
+          taskCategoryNameInput.reportValidity();
+          taskCategoryNameInput.focus();
+        }
+        return;
+      }
+
+      const newCategory = normalizeTaskCategory({
+        id: generateId('task-category'),
+        name,
+        color: colorValue,
+        createdAt: new Date().toISOString(),
+      });
+
+      if (!Array.isArray(data.taskCategories)) {
+        data.taskCategories = [];
+      }
+
+      data.taskCategories.push(newCategory);
+      data.taskCategories = getSortedTaskCategories();
+
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+
+      renderTaskCategories();
+      setTaskCategoryFilter(newCategory.id);
+
+      taskCategoryForm.reset();
+
+      window.requestAnimationFrame(() => {
+        if (taskCategoryNameInput instanceof HTMLInputElement) {
+          taskCategoryNameInput.focus();
+        }
+      });
+    }
+
+    function deleteTaskCategory(categoryId) {
+      if (!categoryId) {
+        return;
+      }
+
+      if (!Array.isArray(data.taskCategories)) {
+        return;
+      }
+
+      const category = data.taskCategories.find(
+        (item) => item && typeof item.id === 'string' && item.id === categoryId,
+      );
+
+      if (!category) {
+        return;
+      }
+
+      const confirmationMessage = `Supprimer la catégorie « ${category.name} » ? Les tâches associées seront déplacées dans « Sans catégorie ».`;
+      if (typeof window !== 'undefined' && !window.confirm(confirmationMessage)) {
+        return;
+      }
+
+      data.taskCategories = data.taskCategories.filter(
+        (item) => item && typeof item.id === 'string' && item.id !== categoryId,
+      );
+
+      if (Array.isArray(data.tasks)) {
+        data.tasks.forEach((task) => {
+          if (task && task.categoryId === categoryId) {
+            task.categoryId = '';
+          }
+        });
+
+        data.tasks = data.tasks.map((task) => normalizeTask(task)).sort(compareTasks);
+      }
+
+      if (taskCategoryFilter === categoryId) {
+        taskCategoryFilter = TASK_CATEGORY_FILTER_ALL;
+      }
+
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+
+      renderTaskCategories();
+      renderTasks();
+    }
+
+    function handleTaskAttachmentChange() {
+      if (!(taskAttachmentInput instanceof HTMLInputElement)) {
+        return;
+      }
+
+      const file =
+        taskAttachmentInput.files && taskAttachmentInput.files.length > 0
+          ? taskAttachmentInput.files[0]
+          : null;
+
+      taskAttachmentInput.setCustomValidity('');
+
+      if (!file) {
+        removeAttachmentOnSubmit = false;
+        updateTaskAttachmentPreview();
+        return;
+      }
+
+      if (file.size > MAX_TASK_ATTACHMENT_SIZE) {
+        const message = `Le document dépasse la taille maximale autorisée (${formatFileSize(
+          MAX_TASK_ATTACHMENT_SIZE,
+        )}).`;
+        taskAttachmentInput.value = '';
+        taskAttachmentInput.setCustomValidity(message);
+        taskAttachmentInput.reportValidity();
+        removeAttachmentOnSubmit = false;
+        updateTaskAttachmentPreview();
+        return;
+      }
+
+      removeAttachmentOnSubmit = false;
+      updateTaskAttachmentPreview();
+    }
+
+    function handleTaskAttachmentRemove() {
+      if (!(taskAttachmentInput instanceof HTMLInputElement)) {
+        return;
+      }
+
+      const hasSelectedFile = Boolean(
+        taskAttachmentInput.files && taskAttachmentInput.files.length > 0,
+      );
+
+      if (hasSelectedFile) {
+        taskAttachmentInput.value = '';
+        taskAttachmentInput.setCustomValidity('');
+        removeAttachmentOnSubmit = false;
+        updateTaskAttachmentPreview();
+        return;
+      }
+
+      if (editingTaskExistingAttachment) {
+        removeAttachmentOnSubmit = true;
+        taskAttachmentInput.value = '';
+        taskAttachmentInput.setCustomValidity('');
+        updateTaskAttachmentPreview();
+      }
+    }
+
+    function resetTaskAttachmentState() {
+      if (taskAttachmentInput instanceof HTMLInputElement) {
+        taskAttachmentInput.value = '';
+        taskAttachmentInput.setCustomValidity('');
+      }
+
+      editingTaskExistingAttachment = null;
+      removeAttachmentOnSubmit = false;
+      updateTaskAttachmentPreview();
+    }
+
+    function updateTaskAttachmentPreview() {
+      if (!taskAttachmentPreview) {
+        return;
+      }
+
+      const selectedFile =
+        taskAttachmentInput instanceof HTMLInputElement && taskAttachmentInput.files
+          ? taskAttachmentInput.files[0] || null
+          : null;
+
+      const hasSelectedFile = Boolean(selectedFile);
+      const hasExistingAttachment = Boolean(editingTaskExistingAttachment);
+      const showRemovalMessage = removeAttachmentOnSubmit && hasExistingAttachment;
+
+      if (taskAttachmentRemovedMessage) {
+        if (showRemovalMessage) {
+          const attachmentName =
+            editingTaskExistingAttachment && editingTaskExistingAttachment.name
+              ? ` « ${editingTaskExistingAttachment.name} »`
+              : '';
+          taskAttachmentRemovedMessage.textContent = `Le document${attachmentName} sera supprimé lors de l’enregistrement.`;
+          taskAttachmentRemovedMessage.hidden = false;
+          taskAttachmentRemovedMessage.removeAttribute('hidden');
+        } else {
+          taskAttachmentRemovedMessage.hidden = true;
+          if (!taskAttachmentRemovedMessage.hasAttribute('hidden')) {
+            taskAttachmentRemovedMessage.setAttribute('hidden', '');
+          }
+        }
+      }
+
+      if (showRemovalMessage || (!hasSelectedFile && !hasExistingAttachment)) {
+        taskAttachmentPreview.hidden = true;
+        if (!taskAttachmentPreview.hasAttribute('hidden')) {
+          taskAttachmentPreview.setAttribute('hidden', '');
+        }
+
+        if (taskAttachmentPreviewOpen instanceof HTMLAnchorElement) {
+          taskAttachmentPreviewOpen.hidden = true;
+          taskAttachmentPreviewOpen.href = '#';
+          taskAttachmentPreviewOpen.removeAttribute('download');
+        }
+
+        return;
+      }
+
+      taskAttachmentPreview.hidden = false;
+      taskAttachmentPreview.removeAttribute('hidden');
+
+      if (hasSelectedFile) {
+        if (taskAttachmentPreviewName) {
+          taskAttachmentPreviewName.textContent = selectedFile.name || 'Document joint';
+        }
+
+        if (taskAttachmentPreviewMeta) {
+          taskAttachmentPreviewMeta.textContent = formatFileSize(selectedFile.size);
+        }
+
+        if (taskAttachmentPreviewOpen instanceof HTMLAnchorElement) {
+          taskAttachmentPreviewOpen.hidden = true;
+          taskAttachmentPreviewOpen.href = '#';
+          taskAttachmentPreviewOpen.removeAttribute('download');
+        }
+
+        return;
+      }
+
+      const attachment = editingTaskExistingAttachment;
+      if (attachment) {
+        if (taskAttachmentPreviewName) {
+          taskAttachmentPreviewName.textContent = attachment.name || 'Document joint';
+        }
+
+        if (taskAttachmentPreviewMeta) {
+          const sizeLabel = attachment.size ? formatFileSize(Number(attachment.size)) : '';
+          taskAttachmentPreviewMeta.textContent = sizeLabel || 'Document existant';
+        }
+
+        if (taskAttachmentPreviewOpen instanceof HTMLAnchorElement) {
+          const href =
+            (typeof attachment.dataUrl === 'string' && attachment.dataUrl) ||
+            (typeof attachment.url === 'string' && attachment.url) ||
+            '';
+          if (href) {
+            taskAttachmentPreviewOpen.hidden = false;
+            taskAttachmentPreviewOpen.href = href;
+            if (attachment.name && attachment.dataUrl) {
+              taskAttachmentPreviewOpen.setAttribute('download', attachment.name);
+            } else {
+              taskAttachmentPreviewOpen.removeAttribute('download');
+            }
+          } else {
+            taskAttachmentPreviewOpen.hidden = true;
+            taskAttachmentPreviewOpen.href = '#';
+            taskAttachmentPreviewOpen.removeAttribute('download');
+          }
+        }
+      }
+    }
+
+    function formatFileSize(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) {
+        return '';
+      }
+
+      const units = ['octet', 'Ko', 'Mo', 'Go'];
+      let value = bytes;
+      let unitIndex = 0;
+
+      while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+      }
+
+      const formattedValue =
+        unitIndex === 0
+          ? numberFormatter.format(Math.round(value))
+          : fileSizeFormatter.format(value);
+
+      if (unitIndex === 0) {
+        const plural = Math.round(value) > 1 ? 's' : '';
+        return `${formattedValue} octet${plural}`;
+      }
+
+      return `${formattedValue} ${units[unitIndex]}`;
+    }
+
+    function buildAttachmentFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+          const result = typeof reader.result === 'string' ? reader.result : '';
+          if (!result) {
+            reject(new Error('Impossible de lire le document joint.'));
+            return;
+          }
+
+          resolve(
+            normalizeTaskAttachment({
+              name: file.name,
+              size: file.size,
+              type: file.type,
+              dataUrl: result,
+              uploadedAt: new Date().toISOString(),
+            }),
+          );
+        };
+
+        reader.onerror = () => {
+          reject(reader.error || new Error('Impossible de lire le document joint.'));
+        };
+
+        reader.readAsDataURL(file);
+      });
     }
 
     function isTaskPanelOpen() {
@@ -2055,7 +2881,7 @@
       resetTaskFormDefaults();
     }
 
-    function createTaskFromForm() {
+    async function createTaskFromForm() {
       if (!taskForm || !(taskTitleInput instanceof HTMLInputElement)) {
         return;
       }
@@ -2096,8 +2922,35 @@
           }
         });
       }
-	  
-	  const allowedMembers = members.filter((u) => teamMembersById.has(u));
+
+      const allowedMembers = members.filter((u) => teamMembersById.has(u));
+
+      const categoryIdRaw = (formData.get('task-category') || '').toString().trim();
+      const categoryId =
+        categoryIdRaw && taskCategoriesById.has(categoryIdRaw) ? categoryIdRaw : '';
+
+      let attachment = null;
+      if (taskAttachmentInput instanceof HTMLInputElement) {
+        const file =
+          taskAttachmentInput.files && taskAttachmentInput.files.length > 0
+            ? taskAttachmentInput.files[0]
+            : null;
+
+        taskAttachmentInput.setCustomValidity('');
+
+        if (file) {
+          if (file.size > MAX_TASK_ATTACHMENT_SIZE) {
+            const message = `Le document dépasse la taille maximale autorisée (${formatFileSize(
+              MAX_TASK_ATTACHMENT_SIZE,
+            )}).`;
+            taskAttachmentInput.setCustomValidity(message);
+            taskAttachmentInput.reportValidity();
+            return;
+          }
+
+          attachment = await buildAttachmentFromFile(file);
+        }
+      }
 
       const newTask = normalizeTask({
         id: generateId('task'),
@@ -2109,11 +2962,13 @@
         createdAt: new Date().toISOString(),
         createdBy: currentUser,
         comments: [],
+        categoryId,
+        attachment,
       });
-	  
-	  if (newTask.dueDate) {
-	    const eventId = generateId('event');
-	    // Titre d’évènement explicite ; ajuste si tu veux quelque chose de plus court
+
+          if (newTask.dueDate) {
+            const eventId = generateId('event');
+            // Titre d’évènement explicite ; ajuste si tu veux quelque chose de plus court
 	    const eventTitle = `📝 Tâche · ${newTask.title}`;
 
 	    data.events.push({
@@ -2155,29 +3010,55 @@
         data.tasks = tasks.slice();
       }
 
+      const counts = buildTaskCounts(tasks);
+      updateTaskCategoryCountBadges(counts);
+
+      const filteredTasks = tasks.filter((task) => {
+        if (!task || typeof task !== 'object') {
+          return false;
+        }
+
+        if (taskCategoryFilter === TASK_CATEGORY_FILTER_ALL) {
+          return true;
+        }
+
+        if (taskCategoryFilter === TASK_CATEGORY_FILTER_UNCATEGORIZED) {
+          return !task.categoryId;
+        }
+
+        return task.categoryId === taskCategoryFilter;
+      });
+
+      const isFilteredView = taskCategoryFilter !== TASK_CATEGORY_FILTER_ALL;
+
       taskList.innerHTML = '';
 
       if (taskEmptyState) {
-        if (tasks.length === 0) {
+        if (filteredTasks.length === 0) {
           taskEmptyState.hidden = false;
           taskEmptyState.removeAttribute('hidden');
+          taskEmptyState.textContent = isFilteredView
+            ? 'Aucune tâche dans cette catégorie pour le moment.'
+            : taskEmptyStateDefaultText ||
+              'Aucune tâche planifiée pour le moment. Ajoutez votre première action ci-dessus.';
         } else {
           taskEmptyState.hidden = true;
           if (!taskEmptyState.hasAttribute('hidden')) {
             taskEmptyState.setAttribute('hidden', '');
           }
+          taskEmptyState.textContent = taskEmptyStateDefaultText;
         }
       }
 
-      updateTaskCountDisplay(tasks.length);
+      updateTaskCountDisplay(tasks.length, filteredTasks.length);
 
-      if (tasks.length === 0) {
+      if (filteredTasks.length === 0) {
         return;
       }
 
       const fragment = document.createDocumentFragment();
 
-      tasks.forEach((task) => {
+      filteredTasks.forEach((task) => {
         if (!task || typeof task !== 'object') {
           return;
         }
@@ -2185,10 +3066,17 @@
         const listItem = document.createElement('li');
         listItem.className = 'task-item';
         listItem.dataset.id = task.id || '';
+        listItem.dataset.categoryId = task.categoryId || '';
 
         const taskColor = normalizeTaskColor(task.color);
         listItem.style.setProperty('--task-color', taskColor);
         listItem.style.setProperty('--task-color-soft', hexToRgba(taskColor, 0.12));
+
+        if (
+          Array.isArray(task.assignedMembers) && task.assignedMembers.includes(currentUser)
+        ) {
+          listItem.classList.add('task-item--assigned-me');
+        }
 
         const header = document.createElement('div');
         header.className = 'task-item-header';
@@ -2199,6 +3087,21 @@
 
         const metaContainer = document.createElement('div');
         metaContainer.className = 'task-meta';
+
+        const category =
+          typeof task.categoryId === 'string' && task.categoryId
+            ? taskCategoriesById.get(task.categoryId)
+            : null;
+        const categoryChip = document.createElement('span');
+        categoryChip.className = 'task-item-category';
+        if (category) {
+          categoryChip.textContent = category.name;
+          categoryChip.style.setProperty('--task-category-color', category.color);
+        } else {
+          categoryChip.textContent = 'Sans catégorie';
+          categoryChip.classList.add('task-item-category--default');
+        }
+        metaContainer.appendChild(categoryChip);
 
         if (task.dueDate) {
           const dueDate = parseDateInput(task.dueDate);
@@ -2237,14 +3140,14 @@
 
         const actions = document.createElement('div');
         actions.className = 'task-actions';
-		
-		const editButton = document.createElement('button');
-		editButton.type = 'button';
-		editButton.className = 'task-action-button';
-		editButton.dataset.action = 'edit-task';
-		editButton.dataset.taskId = task.id || '';
-		editButton.textContent = 'Modifier';
-		actions.appendChild(editButton);
+
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'task-action-button';
+        editButton.dataset.action = 'edit-task';
+        editButton.dataset.taskId = task.id || '';
+        editButton.textContent = 'Modifier';
+        actions.appendChild(editButton);
 
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
@@ -2255,11 +3158,7 @@
 
         actions.appendChild(deleteButton);
 
-        header.appendChild(titleEl);
-        if (metaContainer.childElementCount > 0) {
-          header.appendChild(metaContainer);
-        }
-        header.appendChild(actions);
+        header.append(titleEl, metaContainer, actions);
 
         const descriptionEl = document.createElement('p');
         descriptionEl.className = 'task-description';
@@ -2268,6 +3167,55 @@
         } else {
           descriptionEl.textContent = 'Aucune description pour cette tâche.';
           descriptionEl.classList.add('task-description--empty');
+        }
+
+        let attachmentNode = null;
+        if (task.attachment && typeof task.attachment === 'object') {
+          const attachmentHref =
+            (typeof task.attachment.dataUrl === 'string' && task.attachment.dataUrl) ||
+            (typeof task.attachment.url === 'string' && task.attachment.url) ||
+            '';
+
+          if (attachmentHref) {
+            attachmentNode = document.createElement('div');
+            attachmentNode.className = 'task-attachment';
+
+            const attachmentLink = document.createElement('a');
+            attachmentLink.className = 'task-attachment-link';
+            attachmentLink.href = attachmentHref;
+            attachmentLink.target = '_blank';
+            attachmentLink.rel = 'noopener';
+
+            if (
+              task.attachment.name &&
+              typeof task.attachment.dataUrl === 'string' &&
+              task.attachment.dataUrl
+            ) {
+              attachmentLink.setAttribute('download', task.attachment.name);
+            } else {
+              attachmentLink.removeAttribute('download');
+            }
+
+            const attachmentIcon = document.createElement('span');
+            attachmentIcon.className = 'task-attachment-link-icon';
+            attachmentIcon.setAttribute('aria-hidden', 'true');
+            attachmentIcon.textContent = '📎';
+
+            const attachmentLabel = document.createElement('span');
+            attachmentLabel.textContent = task.attachment.name || 'Document joint';
+
+            attachmentLink.append(attachmentIcon, attachmentLabel);
+            attachmentNode.appendChild(attachmentLink);
+
+            const rawSize = Number(task.attachment.size);
+            const sizeLabel = Number.isFinite(rawSize) && rawSize > 0 ? formatFileSize(rawSize) : '';
+            if (sizeLabel) {
+              const attachmentMeta = document.createElement('span');
+              attachmentMeta.className = 'task-attachment-meta';
+              attachmentMeta.textContent = sizeLabel;
+              attachmentNode.appendChild(attachmentMeta);
+            }
+          }
         }
 
         const commentsSection = document.createElement('div');
@@ -2344,7 +3292,12 @@
         commentForm.append(commentLabel, commentTextarea, commentSubmit);
         commentsSection.appendChild(commentForm);
 
-        listItem.append(header, descriptionEl, commentsSection);
+        const nodesToAppend = [header, descriptionEl];
+        if (attachmentNode) {
+          nodesToAppend.push(attachmentNode);
+        }
+        nodesToAppend.push(commentsSection);
+        listItem.append(...nodesToAppend);
         fragment.appendChild(listItem);
       });
 
@@ -2468,15 +3421,12 @@
 	  }
 	}
 
-    function updateTaskCountDisplay(count) {
-      let badgeLabel = '';
-      if (count === 0) {
-        badgeLabel = 'Aucune tâche';
-      } else if (count === 1) {
-        badgeLabel = '1 tâche';
-      } else {
-        badgeLabel = `${count} tâches`;
-      }
+    function updateTaskCountDisplay(totalCount, visibleCount = totalCount) {
+      const totalLabel = formatTaskCountLabel(totalCount);
+      const visibleLabel = formatTaskCountLabel(visibleCount);
+
+      const badgeLabel =
+        visibleCount !== totalCount ? `${visibleLabel} · ${totalLabel}` : totalLabel;
 
       if (taskCountBadge) {
         taskCountBadge.textContent = badgeLabel;
@@ -2484,7 +3434,11 @@
 
       if (taskToggleButton) {
         const ariaLabel =
-          count === 0 ? 'Liste des tâches (aucune tâche)' : `Liste des tâches (${badgeLabel})`;
+          visibleCount !== totalCount
+            ? `Liste des tâches (${numberFormatter.format(visibleCount)} sur ${numberFormatter.format(
+                totalCount,
+              )})`
+            : `Liste des tâches (${badgeLabel})`;
         taskToggleButton.setAttribute('aria-label', ariaLabel);
         taskToggleButton.title = ariaLabel;
       }
@@ -2548,14 +3502,28 @@
 	  if (taskColorInput instanceof HTMLInputElement) taskColorInput.value = normalizeTaskColor(t.color || DEFAULT_TASK_COLOR);
 	  if (taskDescriptionInput instanceof HTMLTextAreaElement) taskDescriptionInput.value = t.description || '';
 
-	  if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
-		Array.from(taskMemberSelect.options).forEach((opt) => {
-		  opt.selected = Array.isArray(t.assignedMembers) ? t.assignedMembers.includes(opt.value) : false;
-		});
-	  }
+        if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
+              Array.from(taskMemberSelect.options).forEach((opt) => {
+                opt.selected = Array.isArray(t.assignedMembers) ? t.assignedMembers.includes(opt.value) : false;
+              });
+        }
 
-	  editingTaskId = t.id;
-	  setTaskFormMode('edit');
+          if (taskCategorySelect instanceof HTMLSelectElement) {
+            setTaskFormCategory(t.categoryId);
+          }
+
+          if (taskAttachmentInput instanceof HTMLInputElement) {
+            taskAttachmentInput.value = '';
+            taskAttachmentInput.setCustomValidity('');
+          }
+
+          editingTaskExistingAttachment =
+            t.attachment && typeof t.attachment === 'object' ? { ...t.attachment } : null;
+          removeAttachmentOnSubmit = false;
+          updateTaskAttachmentPreview();
+
+        editingTaskId = t.id;
+        setTaskFormMode('edit');
 
 	  // Focus UX
 	  window.requestAnimationFrame(() => {
@@ -2564,12 +3532,12 @@
 	  });
 	}
 
-	function applyTaskEditsFromForm() {
-	  if (!taskForm || !editingTaskId) return;
-	  if (!(taskTitleInput instanceof HTMLInputElement)) return;
+    async function applyTaskEditsFromForm() {
+      if (!taskForm || !editingTaskId) return;
+      if (!(taskTitleInput instanceof HTMLInputElement)) return;
 
-	  const formData = new FormData(taskForm);
-	  const title = (formData.get('task-title') || '').toString().trim();
+      const formData = new FormData(taskForm);
+      const title = (formData.get('task-title') || '').toString().trim();
 	  if (!title) { taskTitleInput.focus(); return; }
 
 	  // Date
@@ -2590,27 +3558,55 @@
 	  const colorValue       = normalizeTaskColor((formData.get('task-color') || DEFAULT_TASK_COLOR).toString());
 	  const descriptionValue = (formData.get('task-description') || '').toString().trim();
 
-	  const members = [];
-	  if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
-		Array.from(taskMemberSelect.selectedOptions).forEach((option) => {
-		  if (option && option.value) members.push(option.value);
-		});
-	  }
+      const members = [];
+      if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
+            Array.from(taskMemberSelect.selectedOptions).forEach((option) => {
+              if (option && option.value) members.push(option.value);
+            });
+      }
 
-	  // Récupérer & mettre à jour la tâche
-	  const task = Array.isArray(data.tasks) ? data.tasks.find((x) => x && x.id === editingTaskId) : null;
-	  if (!task) return;
+      // Récupérer & mettre à jour la tâche
+      const task = Array.isArray(data.tasks) ? data.tasks.find((x) => x && x.id === editingTaskId) : null;
+      if (!task) return;
 
-	  task.title           = title;
-	  task.dueDate         = dueDate;               // peut devenir ''
-	  task.color           = colorValue;
-	  task.description     = descriptionValue;
-	  task.assignedMembers = members;
+      task.title           = title;
+      task.dueDate         = dueDate;               // peut devenir ''
+      task.color           = colorValue;
+      task.description     = descriptionValue;
+      task.assignedMembers = members;
+      const categoryIdRaw = (formData.get('task-category') || '').toString().trim();
+      task.categoryId =
+        categoryIdRaw && taskCategoriesById.has(categoryIdRaw) ? categoryIdRaw : '';
 
-	  // >>> Synchronisation calendrier (IMMUTABLE + prise en charge du changement de date)
-	  upsertCalendarEventForTask(task);
+      if (taskAttachmentInput instanceof HTMLInputElement) {
+        const file =
+          taskAttachmentInput.files && taskAttachmentInput.files.length > 0
+            ? taskAttachmentInput.files[0]
+            : null;
 
-	  // Sauvegarde + rendu
+        taskAttachmentInput.setCustomValidity('');
+
+        if (file) {
+          if (file.size > MAX_TASK_ATTACHMENT_SIZE) {
+            const message = `Le document dépasse la taille maximale autorisée (${formatFileSize(
+              MAX_TASK_ATTACHMENT_SIZE,
+            )}).`;
+            taskAttachmentInput.setCustomValidity(message);
+            taskAttachmentInput.reportValidity();
+            return;
+          }
+
+          task.attachment = await buildAttachmentFromFile(file);
+          removeAttachmentOnSubmit = false;
+        } else if (removeAttachmentOnSubmit) {
+          task.attachment = null;
+        }
+      }
+
+      // >>> Synchronisation calendrier (IMMUTABLE + prise en charge du changement de date)
+      upsertCalendarEventForTask(task);
+
+      // Sauvegarde + rendu
 	  data.tasks = data.tasks.map((it) => normalizeTask(it)).sort(compareTasks);
 	  data.lastUpdated = new Date().toISOString();
 	  saveDataForUser(currentUser, data);
@@ -5698,11 +6694,23 @@
             .map((comment) => normalizeTaskComment(comment))
             .filter((comment) => comment && comment.content)
         : [];
-		
-	  let calendarEventId = '';
-		if (typeof baseTask.calendarEventId === 'string' && baseTask.calendarEventId.trim() !== '') {
-		  calendarEventId = baseTask.calendarEventId.trim();
-		}
+
+      let categoryId = '';
+      if (typeof baseTask.categoryId === 'string' && baseTask.categoryId.trim()) {
+        categoryId = baseTask.categoryId.trim();
+      } else if (typeof baseTask.category === 'string' && baseTask.category.trim()) {
+        categoryId = baseTask.category.trim();
+      }
+
+      const attachment = normalizeTaskAttachment(baseTask.attachment);
+
+      let calendarEventId = '';
+      if (
+        typeof baseTask.calendarEventId === 'string' &&
+        baseTask.calendarEventId.trim() !== ''
+      ) {
+        calendarEventId = baseTask.calendarEventId.trim();
+      }
 
       return {
         id,
@@ -5714,8 +6722,135 @@
         createdAt,
         createdBy,
         comments,
-		calendarEventId,
+        categoryId,
+        attachment,
+        calendarEventId,
       };
+    }
+
+    function normalizeTaskAttachment(rawAttachment) {
+      const baseAttachment =
+        rawAttachment && typeof rawAttachment === 'object' ? rawAttachment : {};
+
+      let dataUrl = '';
+      const dataUrlCandidates = [
+        typeof baseAttachment.dataUrl === 'string' ? baseAttachment.dataUrl.trim() : '',
+        typeof baseAttachment.data === 'string' ? baseAttachment.data.trim() : '',
+      ];
+
+      for (const candidate of dataUrlCandidates) {
+        if (candidate && candidate.startsWith('data:')) {
+          dataUrl = candidate;
+          break;
+        }
+      }
+
+      let url = '';
+      const urlCandidates = [
+        typeof baseAttachment.url === 'string' ? baseAttachment.url.trim() : '',
+        typeof baseAttachment.href === 'string' ? baseAttachment.href.trim() : '',
+        typeof baseAttachment.link === 'string' ? baseAttachment.link.trim() : '',
+      ];
+
+      for (const candidate of urlCandidates) {
+        if (candidate) {
+          url = candidate;
+          break;
+        }
+      }
+
+      if (!dataUrl && !url) {
+        return null;
+      }
+
+      let name = '';
+      if (typeof baseAttachment.name === 'string') {
+        name = baseAttachment.name.trim();
+      }
+
+      let type = '';
+      if (typeof baseAttachment.type === 'string') {
+        type = baseAttachment.type.trim();
+      }
+
+      let size = 0;
+      if (typeof baseAttachment.size === 'number' && Number.isFinite(baseAttachment.size)) {
+        size = baseAttachment.size;
+      } else if (typeof baseAttachment.size === 'string' && baseAttachment.size.trim()) {
+        const parsed = Number(baseAttachment.size);
+        if (Number.isFinite(parsed)) {
+          size = parsed;
+        }
+      }
+
+      let uploadedAt = '';
+      if (
+        typeof baseAttachment.uploadedAt === 'string' &&
+        !Number.isNaN(new Date(baseAttachment.uploadedAt).getTime())
+      ) {
+        uploadedAt = baseAttachment.uploadedAt;
+      } else {
+        uploadedAt = new Date().toISOString();
+      }
+
+      return {
+        name,
+        type,
+        size,
+        dataUrl,
+        url,
+        uploadedAt,
+      };
+    }
+
+    function normalizeTaskCategory(rawCategory) {
+      const baseCategory = rawCategory && typeof rawCategory === 'object' ? rawCategory : {};
+
+      let id = '';
+      if (typeof baseCategory.id === 'string' && baseCategory.id.trim()) {
+        id = baseCategory.id.trim();
+      } else if (typeof baseCategory.identifier === 'string' && baseCategory.identifier.trim()) {
+        id = baseCategory.identifier.trim();
+      } else {
+        id = generateId('task-category');
+      }
+
+      let name = '';
+      if (typeof baseCategory.name === 'string') {
+        name = baseCategory.name.trim();
+      } else if (typeof baseCategory.label === 'string') {
+        name = baseCategory.label.trim();
+      }
+      if (!name) {
+        name = 'Catégorie';
+      }
+
+      const color = normalizeTaskCategoryColor(baseCategory.color);
+
+      let createdAt = '';
+      if (
+        typeof baseCategory.createdAt === 'string' &&
+        !Number.isNaN(new Date(baseCategory.createdAt).getTime())
+      ) {
+        createdAt = baseCategory.createdAt;
+      } else {
+        createdAt = new Date().toISOString();
+      }
+
+      return {
+        id,
+        name,
+        color,
+        createdAt,
+      };
+    }
+
+    function normalizeTaskCategoryColor(rawColor) {
+      if (typeof rawColor === 'string' && rawColor.trim()) {
+        return normalizeTaskColor(rawColor);
+      }
+
+      return DEFAULT_TASK_CATEGORY_COLOR;
     }
 
     function normalizeTaskComment(rawComment) {
@@ -5904,6 +7039,32 @@
           .sort(compareCalendarEvents);
       }
 
+      if (!Array.isArray(base.taskCategories)) {
+        base.taskCategories = [];
+      } else {
+        const normalizedTaskCategories = base.taskCategories
+          .filter((item) => item && typeof item === 'object')
+          .map((item) => normalizeTaskCategory(item))
+          .filter((item) => item && item.id);
+
+        const uniqueTaskCategories = new Map();
+        normalizedTaskCategories.forEach((category) => {
+          if (category && category.id && !uniqueTaskCategories.has(category.id)) {
+            uniqueTaskCategories.set(category.id, category);
+          }
+        });
+
+        base.taskCategories = Array.from(uniqueTaskCategories.values()).sort((a, b) =>
+          a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }),
+        );
+      }
+
+      const taskCategoryIdSet = new Set(
+        Array.isArray(base.taskCategories)
+          ? base.taskCategories.map((category) => category.id)
+          : [],
+      );
+
       if (!Array.isArray(base.tasks)) {
         base.tasks = [];
       } else {
@@ -5911,6 +7072,28 @@
           .filter((item) => item && typeof item === 'object')
           .map((item) => normalizeTask(item))
           .sort(compareTasks);
+
+        base.tasks.forEach((task) => {
+          if (!task || typeof task !== 'object') {
+            return;
+          }
+
+          if (typeof task.categoryId !== 'string' || !taskCategoryIdSet.has(task.categoryId)) {
+            task.categoryId = '';
+          }
+
+          if (!task.attachment || typeof task.attachment !== 'object') {
+            task.attachment = null;
+            return;
+          }
+
+          const hasDataUrl =
+            typeof task.attachment.dataUrl === 'string' && task.attachment.dataUrl;
+          const hasUrl = typeof task.attachment.url === 'string' && task.attachment.url;
+          if (!hasDataUrl && !hasUrl) {
+            task.attachment = null;
+          }
+        });
       }
 
       const categoriesById = buildCategoryMap(base);
@@ -6106,12 +7289,13 @@
 
 			// normalisations sans perdre de données
 			metrics: { ...defaultData.metrics, ...(base.metrics || {}) },
-			categories: Array.isArray(base.categories) ? base.categories : [],
-			keywords: Array.isArray(base.keywords) ? base.keywords : [],
-			contacts: Array.isArray(base.contacts) ? base.contacts : [],
-			events: Array.isArray(base.events) ? base.events : [],
-			tasks: Array.isArray(base.tasks) ? base.tasks : [],
-			lastUpdated: base.lastUpdated || null,
+                        categories: Array.isArray(base.categories) ? base.categories : [],
+                        keywords: Array.isArray(base.keywords) ? base.keywords : [],
+                        contacts: Array.isArray(base.contacts) ? base.contacts : [],
+                        events: Array.isArray(base.events) ? base.events : [],
+                        taskCategories: Array.isArray(base.taskCategories) ? base.taskCategories : [],
+                        tasks: Array.isArray(base.tasks) ? base.tasks : [],
+                        lastUpdated: base.lastUpdated || null,
 
 			// si jamais ces champs n’existaient pas encore
 			panelOwner: typeof base.panelOwner === 'string' ? base.panelOwner : '',
@@ -6142,13 +7326,14 @@
   function cloneDefaultData() {
 	  return {
 		metrics: { ...defaultData.metrics },
-		categories: [],
-		keywords: [],
-		contacts: [],
-		events: [],
-		tasks: [],
-		lastUpdated: null,
-		// Nouveaux champs persistés
+                categories: [],
+                keywords: [],
+                contacts: [],
+                events: [],
+                taskCategories: [],
+                tasks: [],
+                lastUpdated: null,
+                // Nouveaux champs persistés
 		panelOwner: '',
 		teamMembers: [],
 	  };
