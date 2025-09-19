@@ -138,6 +138,18 @@
       return;
     }
 
+    if (autoMergeCheckbox instanceof HTMLInputElement) {
+      autoMergeCheckbox.checked = false;
+      autoMergeCheckbox.disabled = true;
+      const autoMergeRow = autoMergeCheckbox.closest('.form-row');
+      if (autoMergeRow instanceof HTMLElement) {
+        autoMergeRow.hidden = true;
+        if (!autoMergeRow.hasAttribute('hidden')) {
+          autoMergeRow.setAttribute('hidden', '');
+        }
+      }
+    }
+
     const state = {
       rows: [],
       columns: [],
@@ -533,22 +545,15 @@
         const result = await Promise.resolve(api.importContacts(payload));
         const importedCountRaw =
           result && result.importedCount != null ? Number(result.importedCount) : 0;
-        const mergedCountRaw =
-          result && result.mergedCount != null ? Number(result.mergedCount) : 0;
+        const updatedCountRaw =
+          result && result.updatedCount != null ? Number(result.updatedCount) : 0;
         const skippedRaw =
           result && result.skippedEmptyCount != null ? Number(result.skippedEmptyCount) : 0;
         const errorRaw = result && result.errorCount != null ? Number(result.errorCount) : 0;
-        const duplicatesRaw =
-          result && result.duplicatesDetected != null ? Number(result.duplicatesDetected) : mergedCountRaw;
         const importedCount = Number.isFinite(importedCountRaw) ? importedCountRaw : 0;
-        const mergedCount = Number.isFinite(mergedCountRaw) ? mergedCountRaw : 0;
+        const updatedCount = Number.isFinite(updatedCountRaw) ? updatedCountRaw : 0;
         const skippedEmptyCount = Number.isFinite(skippedRaw) ? skippedRaw : 0;
         const errorCount = Number.isFinite(errorRaw) ? errorRaw : 0;
-        const duplicatesDetected = Number.isFinite(duplicatesRaw) ? duplicatesRaw : 0;
-        const autoMergeApplied =
-          typeof (result && result.autoMergeApplied) === 'boolean'
-            ? Boolean(result.autoMergeApplied)
-            : Boolean(state.autoMerge);
         const summaryParts = [];
         if (importedCount > 0) {
           summaryParts.push(
@@ -557,18 +562,9 @@
             }`,
           );
         }
-        if (autoMergeApplied && mergedCount > 0) {
+        if (updatedCount > 0) {
           summaryParts.push(
-            `${numberFormatter.format(mergedCount)} contact${mergedCount > 1 ? 's' : ''} fusionné${
-              mergedCount > 1 ? 's' : ''
-            }`,
-          );
-        }
-        if (!autoMergeApplied && duplicatesDetected > 0) {
-          summaryParts.push(
-            `${numberFormatter.format(duplicatesDetected)} doublon${
-              duplicatesDetected > 1 ? 's' : ''
-            } détecté${duplicatesDetected > 1 ? 's' : ''} à fusionner manuellement`,
+            `${numberFormatter.format(updatedCount)} contact${updatedCount > 1 ? 's' : ''} mis à jour`,
           );
         }
         if (skippedEmptyCount > 0) {
@@ -584,17 +580,14 @@
           );
         }
         if (summaryParts.length === 0) {
-          summaryParts.push('Aucun contact ajouté ou fusionné.');
+          summaryParts.push('Aucun contact importé ou mis à jour.');
         }
 
         let feedbackType = 'success';
-        const totalIntegrated = importedCount + (autoMergeApplied ? mergedCount : 0);
+        const totalIntegrated = importedCount + updatedCount;
         if (totalIntegrated === 0) {
           feedbackType = errorCount > 0 ? 'error' : 'warning';
         } else if (errorCount > 0 || skippedEmptyCount > 0) {
-          feedbackType = 'warning';
-        }
-        if (!autoMergeApplied && duplicatesDetected > 0) {
           feedbackType = 'warning';
         }
 
