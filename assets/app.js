@@ -10115,8 +10115,7 @@
 
     if (cryptoObj && cryptoObj.subtle && typeof cryptoObj.subtle.digest === 'function') {
       try {
-        const encoder = new TextEncoder();
-        const dataBuffer = encoder.encode(message);
+        const dataBuffer = encodeUtf8(message);
         const hashBuffer = await cryptoObj.subtle.digest('SHA-256', dataBuffer);
         return bufferToHex(hashBuffer);
       } catch (error) {
@@ -10125,6 +10124,42 @@
     }
 
     return sha256Sync(message);
+  }
+
+  function encodeUtf8(message) {
+    const normalized = message == null ? '' : String(message);
+
+    if (typeof window !== 'undefined' && window.TextEncoder) {
+      try {
+        return new window.TextEncoder().encode(normalized);
+      } catch (error) {
+        // Ignore and use manual fallback below.
+      }
+    }
+
+    if (typeof TextEncoder === 'function') {
+      try {
+        return new TextEncoder().encode(normalized);
+      } catch (error) {
+        // Ignore and use manual fallback below.
+      }
+    }
+
+    const encoded = encodeURIComponent(normalized);
+    const bytes = [];
+
+    for (let index = 0; index < encoded.length; index += 1) {
+      const char = encoded[index];
+      if (char === '%' && index + 2 < encoded.length) {
+        const hex = encoded.slice(index + 1, index + 3);
+        bytes.push(Number.parseInt(hex, 16));
+        index += 2;
+      } else {
+        bytes.push(char.charCodeAt(0));
+      }
+    }
+
+    return new Uint8Array(bytes);
   }
 
   function bufferToHex(buffer) {
@@ -10147,8 +10182,7 @@
       0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
     ]);
 
-    const encoder = new TextEncoder();
-    const messageBytes = encoder.encode(message);
+    const messageBytes = encodeUtf8(message);
     const bitLength = BigInt(messageBytes.length) * 8n;
     const paddedLength = (((messageBytes.length + 9 + 63) >> 6) << 6);
 
