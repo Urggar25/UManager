@@ -872,6 +872,78 @@ button {
   font-style: italic;
 }
 
+.team-chat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+}
+
+.team-chat-messages-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.team-chat-messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.team-chat-message {
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.team-chat-message-meta {
+  font-weight: 600;
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.team-chat-message-content {
+  margin: 0;
+  color: var(--color-text);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.team-chat-empty {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.team-chat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.team-chat-form textarea {
+  resize: vertical;
+}
+
+.team-chat-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .task-item {
   --task-color: var(--color-primary);
   --task-color-soft: rgba(37, 99, 235, 0.08);
@@ -2566,7 +2638,7 @@ button {
 
 .import-mapping {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -2706,6 +2778,12 @@ button {
   border-bottom: none;
 }
 
+@media (max-width: 1200px) {
+  .import-mapping {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1024px) {
   .calendar-side {
     width: 280px;
@@ -2727,6 +2805,10 @@ button {
     border-top: 1px solid var(--color-border);
     padding: 20px 24px;
     max-height: none;
+  }
+
+  .import-mapping {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
