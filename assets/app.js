@@ -375,19 +375,20 @@
         { id: 'team-chat', label: 'Tchat interne' },
       ],
       directory: [
-        { id: 'categories', label: 'Catégorie' },
-    { id: 'keywords', label: 'Mots clés' },
-    { id: 'contacts-add', label: 'Ajouter des contacts' },
-    { id: 'contacts-import', label: 'Importer des contacts' },
-    { id: 'contacts-search', label: 'Rechercher des contacts' },
-    { id: 'saved-searches', label: 'Recherches sauvegardées' },
-  ],
-  communication: [
-    { id: 'email-templates', label: 'Créer un modèle mail' },
-    { id: 'email-campaigns', label: 'Envoyer une campagne de mail' },
-  ],
-  team: [{ id: 'team', label: "Gestion de l'équipe" }],
-};
+        { id: 'directory-home', label: 'Accueil' },
+        { id: 'categories', label: 'Catégories' },
+        { id: 'keywords', label: 'Mots clés' },
+        { id: 'contacts-add', label: 'Ajouter des contacts' },
+        { id: 'contacts-import', label: 'Importer des contacts' },
+        { id: 'contacts-search', label: 'Rechercher des contacts' },
+        { id: 'saved-searches', label: 'Recherches sauvegardées' },
+      ],
+      communication: [
+        { id: 'email-templates', label: 'Créer un modèle mail' },
+        { id: 'email-campaigns', label: 'Envoyer une campagne de mail' },
+      ],
+      team: [{ id: 'team', label: "Gestion de l'équipe" }],
+    };
 
     const pageModuleMap = new Map();
     Object.entries(MODULE_CONFIG).forEach(([moduleId, entries]) => {
@@ -444,7 +445,13 @@
     const contactAdvancedSearchForm = document.getElementById('contact-advanced-search');
     const searchCategoryFieldsContainer = document.getElementById('search-category-fields');
     const searchCategoriesEmpty = document.getElementById('search-categories-empty');
-    const searchKeywordsSelect = document.getElementById('search-keywords');
+    const searchKeywordsContainer = document.getElementById('search-keywords-container');
+    const searchKeywordsEmpty = document.getElementById('search-keywords-empty');
+    const searchKeywordModeRadios = Array.from(
+      document.querySelectorAll('input[name="search-keyword-mode"]'),
+    );
+    const searchIncludeAllCheckbox = document.getElementById('search-include-all');
+    const searchIncludeAllMessage = document.getElementById('search-include-all-message');
     const contactSearchCountEl = document.getElementById('contact-search-count');
     const contactSaveSearchButton = document.getElementById('contact-save-search');
     const contactSavedSearchSelect = document.getElementById('contact-saved-searches');
@@ -1367,9 +1374,13 @@
       contactAdvancedSearchForm.addEventListener('submit', (event) => {
         event.preventDefault();
         const formData = new FormData(contactAdvancedSearchForm);
+        const includeAll = formData.has('search-include-all');
+        const keywordModeValue = formData.get('search-keyword-mode');
+        const keywordMode = keywordModeValue === 'AND' ? 'AND' : 'OR';
+
         const categoryFilters = {};
 
-        if (searchCategoryFieldsContainer) {
+        if (!includeAll && searchCategoryFieldsContainer) {
           const filterInputs = searchCategoryFieldsContainer.querySelectorAll(
             '[data-search-category-input]',
           );
@@ -1412,13 +1423,22 @@
           });
         }
 
-        const keywordFilters = formData.getAll('search-keywords').map((value) => value.toString());
+        const keywordFilters = includeAll
+          ? []
+          : formData
+              .getAll('search-keywords')
+              .map((value) => value.toString())
+              .filter((value) => Boolean(value));
 
         advancedFilters = {
-          categories: categoryFilters,
+          categories: includeAll ? {} : categoryFilters,
           keywords: keywordFilters,
+          includeAll,
+          keywordMode,
         };
         contactCurrentPage = 1;
+        renderSearchCategoryFields();
+        renderSearchKeywordOptions();
         renderContacts();
       });
 
@@ -1426,8 +1446,56 @@
         window.requestAnimationFrame(() => {
           advancedFilters = createEmptyAdvancedFilters();
           renderSearchCategoryFields();
+          renderSearchKeywordOptions();
           contactCurrentPage = 1;
           renderContacts();
+        });
+      });
+    }
+
+    if (searchIncludeAllCheckbox instanceof HTMLInputElement) {
+      searchIncludeAllCheckbox.addEventListener('change', () => {
+        const includeAll = searchIncludeAllCheckbox.checked;
+        if (includeAll) {
+          advancedFilters = {
+            ...advancedFilters,
+            includeAll: true,
+            categories: {},
+            keywords: [],
+          };
+        } else {
+          advancedFilters = { ...advancedFilters, includeAll: false };
+        }
+
+        contactCurrentPage = 1;
+        renderSearchCategoryFields();
+        renderSearchKeywordOptions();
+        renderContacts();
+      });
+    }
+
+    if (searchKeywordModeRadios.length > 0) {
+      searchKeywordModeRadios.forEach((element) => {
+        if (!(element instanceof HTMLInputElement)) {
+          return;
+        }
+
+        element.addEventListener('change', () => {
+          if (!element.checked) {
+            return;
+          }
+
+          const mode = element.value === 'AND' ? 'AND' : 'OR';
+          if (advancedFilters.keywordMode === mode && !advancedFilters.includeAll) {
+            return;
+          }
+
+          advancedFilters = { ...advancedFilters, keywordMode: mode };
+          contactCurrentPage = 1;
+          syncKeywordModeControls();
+          if (!advancedFilters.includeAll) {
+            renderContacts();
+          }
         });
       });
     }
@@ -1458,10 +1526,15 @@
         }
 
         const nowIso = new Date().toISOString();
-        const lowerName = normalizedName.toLowerCase();
-        const existingIndex = data.savedSearches.findIndex((search) =>
-          search && typeof search.name === 'string' && search.name.toLowerCase() === lowerName,
-        );
+        const normalizedInputName = normalizedName.toLowerCase();
+        const normalizedLastAppliedName = lastApplied
+          ? (lastApplied.name || '').toString().trim().toLowerCase()
+          : '';
+        const shouldUpdateExisting =
+          Boolean(lastApplied && normalizedInputName && normalizedInputName === normalizedLastAppliedName);
+        const existingIndex = shouldUpdateExisting
+          ? data.savedSearches.findIndex((search) => search && search.id === lastApplied.id)
+          : -1;
 
         const baseSavedSearch =
           existingIndex >= 0 && data.savedSearches[existingIndex]
@@ -6255,6 +6328,8 @@
     }
 
     function renderSearchCategoryFields() {
+      updateIncludeAllState();
+
       if (!searchCategoryFieldsContainer) {
         if (
           advancedFilters.categories &&
@@ -6266,6 +6341,7 @@
         return;
       }
 
+      const includeAll = Boolean(advancedFilters.includeAll);
       const categories = sortCategoriesForDisplay();
 
       searchCategoryFieldsContainer.innerHTML = '';
@@ -6362,6 +6438,7 @@
         input.dataset.categoryId = category.id || '';
         input.dataset.categoryType = baseType;
         input.setAttribute('data-search-category-input', 'true');
+        input.disabled = includeAll;
 
         const storedFilter =
           advancedFilters.categories && category.id && advancedFilters.categories[category.id]
@@ -6384,12 +6461,18 @@
     }
 
     function renderSearchKeywordOptions() {
-      if (!searchKeywordsSelect) {
-        if (Array.isArray(advancedFilters.keywords) && advancedFilters.keywords.length > 0) {
+      updateIncludeAllState();
+      const includeAll = Boolean(advancedFilters.includeAll);
+
+      if (!searchKeywordsContainer) {
+        if (!includeAll && Array.isArray(advancedFilters.keywords) && advancedFilters.keywords.length > 0) {
           advancedFilters = { ...advancedFilters, keywords: [] };
         }
+        syncKeywordModeControls();
         return;
       }
+
+      searchKeywordsContainer.innerHTML = '';
 
       const keywords = Array.isArray(data.keywords)
         ? data.keywords.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
@@ -6399,22 +6482,79 @@
         ? advancedFilters.keywords
         : [];
       const selectedValues = new Set(previousSelection);
+      const allowedValues = new Set(keywords.map((keyword) => keyword.id || ''));
 
-      searchKeywordsSelect.innerHTML = '';
+      if (keywords.length === 0) {
+        if (searchKeywordsEmpty) {
+          searchKeywordsEmpty.hidden = false;
+        }
+        if (previousSelection.length > 0) {
+          advancedFilters = { ...advancedFilters, keywords: [] };
+        }
+        syncKeywordModeControls();
+        return;
+      }
+
+      if (searchKeywordsEmpty) {
+        searchKeywordsEmpty.hidden = true;
+      }
+
+      const fragment = document.createDocumentFragment();
 
       keywords.forEach((keyword) => {
-        const option = document.createElement('option');
-        option.value = keyword.id || '';
-        option.textContent = keyword.name;
-        option.selected = selectedValues.has(keyword.id);
-        searchKeywordsSelect.appendChild(option);
+        const checkboxId = `search-keyword-${keyword.id}`;
+        const item = document.createElement('div');
+        item.className = 'checkbox-item';
+
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = checkboxId;
+        input.name = 'search-keywords';
+        input.value = keyword.id || '';
+        input.checked = selectedValues.has(keyword.id);
+        input.disabled = includeAll;
+
+        const label = document.createElement('label');
+        label.setAttribute('for', checkboxId);
+        label.textContent = keyword.name;
+
+        item.append(input, label);
+        fragment.appendChild(item);
       });
 
-      const allowedValues = new Set(keywords.map((keyword) => keyword.id || ''));
-      const filteredSelection = previousSelection.filter((value) => allowedValues.has(value));
+      searchKeywordsContainer.appendChild(fragment);
 
+      const filteredSelection = previousSelection.filter((value) => allowedValues.has(value));
       if (filteredSelection.length !== previousSelection.length) {
         advancedFilters = { ...advancedFilters, keywords: filteredSelection };
+      }
+
+      syncKeywordModeControls();
+    }
+
+    function syncKeywordModeControls() {
+      const mode = advancedFilters.keywordMode === 'AND' ? 'AND' : 'OR';
+      const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
+      const disable = Boolean(advancedFilters.includeAll) || !hasKeywords;
+
+      searchKeywordModeRadios.forEach((element) => {
+        if (!(element instanceof HTMLInputElement)) {
+          return;
+        }
+
+        element.checked = element.value === mode;
+        element.disabled = disable;
+      });
+    }
+
+    function updateIncludeAllState() {
+      const includeAll = Boolean(advancedFilters.includeAll);
+      if (searchIncludeAllCheckbox instanceof HTMLInputElement) {
+        searchIncludeAllCheckbox.checked = includeAll;
+      }
+
+      if (searchIncludeAllMessage) {
+        searchIncludeAllMessage.hidden = !includeAll;
       }
     }
 
@@ -6522,7 +6662,10 @@
       );
 
       const normalizedTerm = typeof term === 'string' ? term.trim().toLowerCase() : '';
+      const includeAll = Boolean(filters && filters.includeAll);
+
       const categoryFilterEntries =
+        !includeAll &&
         filters &&
         filters.categories &&
         typeof filters.categories === 'object'
@@ -6530,10 +6673,14 @@
           : [];
 
       const keywordFilters = Array.isArray(filters && filters.keywords)
-        ? filters.keywords.filter((value) => Boolean(value))
+        ? includeAll
+          ? []
+          : filters.keywords.filter((value) => Boolean(value))
         : [];
 
-      const hasAdvancedFilters = categoryFilterEntries.length > 0 || keywordFilters.length > 0;
+      const keywordMode = filters && filters.keywordMode === 'AND' ? 'AND' : 'OR';
+
+      const hasAdvancedFilters = includeAll || categoryFilterEntries.length > 0 || keywordFilters.length > 0;
 
       const filteredContacts = contacts
         .filter((contact) => {
@@ -6546,32 +6693,38 @@
               : {};
           const keywords = Array.isArray(contact.keywords) ? contact.keywords : [];
 
-          for (const [categoryId, filter] of categoryFilterEntries) {
-            if (!filter || typeof filter !== 'object') {
-              continue;
-            }
+          if (!includeAll) {
+            for (const [categoryId, filter] of categoryFilterEntries) {
+              if (!filter || typeof filter !== 'object') {
+                continue;
+              }
 
-            const rawValue = categoryValues[categoryId];
-            const valueString =
-              rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
-            if (!valueString) {
-              return false;
-            }
-
-            if (filter.type === 'text') {
-              const normalizedFilter = (filter.normalizedValue || '').toString();
-              if (!valueString.toLowerCase().includes(normalizedFilter)) {
+              const rawValue = categoryValues[categoryId];
+              const valueString =
+                rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+              if (!valueString) {
                 return false;
               }
-            } else if (valueString !== filter.rawValue) {
-              return false;
-            }
-          }
 
-          if (keywordFilters.length > 0) {
-            const keywordSet = new Set(keywords);
-            if (!keywordFilters.every((keywordId) => keywordSet.has(keywordId))) {
-              return false;
+              if (filter.type === 'text') {
+                const normalizedFilter = (filter.normalizedValue || '').toString();
+                if (!valueString.toLowerCase().includes(normalizedFilter)) {
+                  return false;
+                }
+              } else if (valueString !== filter.rawValue) {
+                return false;
+              }
+            }
+
+            if (keywordFilters.length > 0) {
+              const keywordSet = new Set(keywords);
+              if (keywordMode === 'AND') {
+                if (!keywordFilters.every((keywordId) => keywordSet.has(keywordId))) {
+                  return false;
+                }
+              } else if (!keywordFilters.some((keywordId) => keywordSet.has(keywordId))) {
+                return false;
+              }
             }
           }
 
@@ -8625,6 +8778,10 @@
         return false;
       }
 
+      if (filters.includeAll) {
+        return true;
+      }
+
       const hasCategoryFilters =
         filters.categories &&
         typeof filters.categories === 'object' &&
@@ -8645,6 +8802,13 @@
     function cloneAdvancedFiltersForStorage(filters) {
       const result = createEmptyAdvancedFilters();
       if (!filters || typeof filters !== 'object') {
+        return result;
+      }
+
+      result.includeAll = Boolean(filters.includeAll);
+      result.keywordMode = filters.keywordMode === 'AND' ? 'AND' : 'OR';
+
+      if (result.includeAll) {
         return result;
       }
 
@@ -8682,6 +8846,13 @@
     function cloneSavedSearchFilters(filters) {
       const result = createEmptyAdvancedFilters();
       if (!filters || typeof filters !== 'object') {
+        return result;
+      }
+
+      result.includeAll = Boolean(filters.includeAll);
+      result.keywordMode = filters.keywordMode === 'AND' ? 'AND' : 'OR';
+
+      if (result.includeAll) {
         return result;
       }
 
@@ -8879,8 +9050,18 @@
         parts.push(`Texte libre : "${searchTerm}"`);
       }
 
-      const categories = savedSearch.filters && savedSearch.filters.categories;
-      if (categories && typeof categories === 'object') {
+      const filters = savedSearch.filters && typeof savedSearch.filters === 'object' ? savedSearch.filters : {};
+      const includeAll = Boolean(filters.includeAll);
+      const keywordMode = filters.keywordMode === 'AND' ? 'AND' : 'OR';
+
+      if (includeAll) {
+        parts.push('Tous les contacts sélectionnés');
+      }
+
+      const categories = !includeAll && filters.categories && typeof filters.categories === 'object'
+        ? filters.categories
+        : null;
+      if (categories) {
         const categoriesById = buildCategoryMap();
         Object.entries(categories).forEach(([categoryId, filter]) => {
           if (!categoryId || !filter || typeof filter !== 'object') {
@@ -8903,8 +9084,8 @@
         });
       }
 
-      const keywordIds = savedSearch.filters && savedSearch.filters.keywords;
-      if (Array.isArray(keywordIds) && keywordIds.length > 0) {
+      const keywordIds = !includeAll && Array.isArray(filters.keywords) ? filters.keywords : [];
+      if (keywordIds.length > 0) {
         const keywordsById = new Map(
           Array.isArray(data.keywords)
             ? data.keywords.map((keyword) => [keyword.id, keyword])
@@ -8917,7 +9098,8 @@
           })
           .filter((name) => Boolean(name));
         if (keywordNames.length > 0) {
-          parts.push(`Mots clés : ${keywordNames.join(', ')}`);
+          const labelPrefix = keywordMode === 'AND' ? 'Mots clés (ET)' : 'Mots clés (OU)';
+          parts.push(`${labelPrefix} : ${keywordNames.join(', ')}`);
         }
       }
 
@@ -9757,6 +9939,8 @@
       return {
         categories: {},
         keywords: [],
+        includeAll: false,
+        keywordMode: 'OR',
       };
     }
   }
