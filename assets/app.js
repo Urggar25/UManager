@@ -436,7 +436,10 @@
     const contactAdvancedSearchForm = document.getElementById('contact-advanced-search');
     const searchCategoryFieldsContainer = document.getElementById('search-category-fields');
     const searchCategoriesEmpty = document.getElementById('search-categories-empty');
-    const searchKeywordsSelect = document.getElementById('search-keywords');
+    const searchKeywordsContainer = document.getElementById('search-keywords');
+    const searchKeywordModeInputs = Array.from(
+      document.querySelectorAll('input[name="search-keyword-mode"]'),
+    ).filter((element) => element instanceof HTMLInputElement);
     const contactSearchCountEl = document.getElementById('contact-search-count');
     const contactSaveSearchButton = document.getElementById('contact-save-search');
     const contactSavedSearchSelect = document.getElementById('contact-saved-searches');
@@ -621,6 +624,8 @@
     });
 
     const CONTACT_RESULTS_PER_PAGE_DEFAULT = 10;
+    const KEYWORD_FILTER_MODE_ALL = 'all';
+    const KEYWORD_FILTER_MODE_ANY = 'any';
 
     let contactSearchTerm = '';
     let advancedFilters = createEmptyAdvancedFilters();
@@ -1376,10 +1381,16 @@
         }
 
         const keywordFilters = formData.getAll('search-keywords').map((value) => value.toString());
+        const rawKeywordMode = formData.get('search-keyword-mode');
+        const keywordMode =
+          rawKeywordMode === KEYWORD_FILTER_MODE_ANY
+            ? KEYWORD_FILTER_MODE_ANY
+            : KEYWORD_FILTER_MODE_ALL;
 
         advancedFilters = {
           categories: categoryFilters,
           keywords: keywordFilters,
+          keywordMode,
         };
         setActiveSavedSearchId('');
         clearContactSaveSearchFeedback();
@@ -1391,6 +1402,7 @@
         window.requestAnimationFrame(() => {
           advancedFilters = createEmptyAdvancedFilters();
           renderSearchCategoryFields();
+          renderSearchKeywordOptions();
           setActiveSavedSearchId('');
           clearContactSaveSearchFeedback();
           contactCurrentPage = 1;
@@ -5849,15 +5861,20 @@
     }
 
     function renderSearchKeywordOptions() {
-      if (!searchKeywordsSelect) {
+      if (!searchKeywordsContainer) {
         if (Array.isArray(advancedFilters.keywords) && advancedFilters.keywords.length > 0) {
           advancedFilters = { ...advancedFilters, keywords: [] };
+        }
+        if (advancedFilters.keywordMode !== KEYWORD_FILTER_MODE_ALL) {
+          advancedFilters = { ...advancedFilters, keywordMode: KEYWORD_FILTER_MODE_ALL };
         }
         return;
       }
 
       const keywords = Array.isArray(data.keywords)
-        ? data.keywords.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
+        ? data.keywords
+            .slice()
+            .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
         : [];
 
       const previousSelection = Array.isArray(advancedFilters.keywords)
@@ -5865,23 +5882,98 @@
         : [];
       const selectedValues = new Set(previousSelection);
 
-      searchKeywordsSelect.innerHTML = '';
+      searchKeywordsContainer.innerHTML = '';
+      searchKeywordsContainer.classList.toggle('checkbox-grid', keywords.length > 0);
 
-      keywords.forEach((keyword) => {
-        const option = document.createElement('option');
-        option.value = keyword.id || '';
-        option.textContent = keyword.name;
-        option.selected = selectedValues.has(keyword.id);
-        searchKeywordsSelect.appendChild(option);
-      });
+      if (keywords.length === 0) {
+        const message = document.createElement('p');
+        message.className = 'advanced-keywords-empty';
+        message.textContent =
+          'Aucun mot clé disponible pour le moment. Ajoutez vos mots clés dans l’onglet « Mots clés ».';
+        searchKeywordsContainer.appendChild(message);
+      } else {
+        const fragment = document.createDocumentFragment();
+        keywords.forEach((keyword) => {
+          if (!keyword || typeof keyword !== 'object' || !keyword.id) {
+            return;
+          }
 
-      const allowedValues = new Set(keywords.map((keyword) => keyword.id || ''));
+          const keywordId = keyword.id.toString();
+          if (!keywordId) {
+            return;
+          }
+
+          const checkboxId = `search-keyword-${keywordId}`;
+          const wrapper = document.createElement('div');
+          wrapper.className = 'checkbox-item';
+
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.id = checkboxId;
+          checkbox.name = 'search-keywords';
+          checkbox.value = keywordId;
+          checkbox.checked = selectedValues.has(keywordId);
+
+          const label = document.createElement('label');
+          label.setAttribute('for', checkboxId);
+          label.textContent = keyword.name || 'Mot clé sans nom';
+
+          wrapper.append(checkbox, label);
+          fragment.appendChild(wrapper);
+        });
+        searchKeywordsContainer.appendChild(fragment);
+      }
+
+      const allowedValues = new Set(
+        keywords
+          .map((keyword) => (keyword && keyword.id ? keyword.id.toString() : ''))
+          .filter((value) => Boolean(value)),
+      );
       const filteredSelection = previousSelection.filter((value) => allowedValues.has(value));
 
-    if (filteredSelection.length !== previousSelection.length) {
-      advancedFilters = { ...advancedFilters, keywords: filteredSelection };
+      if (filteredSelection.length !== previousSelection.length) {
+        advancedFilters = { ...advancedFilters, keywords: filteredSelection };
+      }
+
+      updateSearchKeywordModeUI(keywords.length);
     }
-  }
+
+    function updateSearchKeywordModeUI(keywordCount) {
+      const shouldForceAll = typeof keywordCount === 'number' && keywordCount === 0;
+      let normalizedMode = KEYWORD_FILTER_MODE_ALL;
+      if (!shouldForceAll && advancedFilters.keywordMode === KEYWORD_FILTER_MODE_ANY) {
+        normalizedMode = KEYWORD_FILTER_MODE_ANY;
+      }
+
+      let matched = false;
+      searchKeywordModeInputs.forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) {
+          return;
+        }
+
+        input.disabled = shouldForceAll;
+
+        if (input.value === normalizedMode) {
+          input.checked = true;
+          matched = true;
+        } else if (input.checked) {
+          input.checked = false;
+        }
+      });
+
+      if (!matched) {
+        const fallback = searchKeywordModeInputs.find(
+          (input) => input instanceof HTMLInputElement && input.value === KEYWORD_FILTER_MODE_ALL,
+        );
+        if (fallback) {
+          fallback.checked = true;
+        }
+      }
+
+      if (normalizedMode !== advancedFilters.keywordMode) {
+        advancedFilters = { ...advancedFilters, keywordMode: normalizedMode };
+      }
+    }
 
     function handleSaveCurrentSearch() {
       if (!Array.isArray(data.savedSearches)) {
@@ -6321,7 +6413,11 @@
           .filter((value) => Boolean(value));
 
         if (keywordNames.length > 0) {
-          parts.push(`Mots clés : ${keywordNames.join(', ')}`);
+          const keywordModeLabel =
+            savedSearch.advancedFilters && savedSearch.advancedFilters.keywordMode === KEYWORD_FILTER_MODE_ANY
+              ? 'OU'
+              : 'ET';
+          parts.push(`Mots clés (${keywordModeLabel}) : ${keywordNames.join(', ')}`);
         }
       }
 
@@ -6523,6 +6619,10 @@
       const keywordFilters = Array.isArray(advancedFilters.keywords)
         ? advancedFilters.keywords.filter((value) => Boolean(value))
         : [];
+      const keywordMode =
+        advancedFilters.keywordMode === KEYWORD_FILTER_MODE_ANY
+          ? KEYWORD_FILTER_MODE_ANY
+          : KEYWORD_FILTER_MODE_ALL;
 
       const hasAdvancedFilters = categoryFilterEntries.length > 0 || keywordFilters.length > 0;
 
@@ -6556,7 +6656,12 @@
 
           if (keywordFilters.length > 0) {
             const keywordSet = new Set(keywords);
-            const matchesKeywords = keywordFilters.every((keywordId) => keywordSet.has(keywordId));
+            let matchesKeywords = false;
+            if (keywordMode === KEYWORD_FILTER_MODE_ANY) {
+              matchesKeywords = keywordFilters.some((keywordId) => keywordSet.has(keywordId));
+            } else {
+              matchesKeywords = keywordFilters.every((keywordId) => keywordSet.has(keywordId));
+            }
             if (!matchesKeywords) {
               return false;
             }
@@ -8579,6 +8684,7 @@
       return {
         categories: {},
         keywords: [],
+        keywordMode: KEYWORD_FILTER_MODE_ALL,
       };
     }
 
@@ -8630,6 +8736,10 @@
         }
       });
       result.keywords = Array.from(keywordSet);
+      result.keywordMode =
+        source.keywordMode === KEYWORD_FILTER_MODE_ANY
+          ? KEYWORD_FILTER_MODE_ANY
+          : KEYWORD_FILTER_MODE_ALL;
 
       return result;
     }

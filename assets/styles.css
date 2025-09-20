@@ -1814,6 +1814,44 @@ button {
   justify-content: flex-end;
 }
 
+.advanced-keywords {
+  gap: 16px;
+}
+
+.advanced-keywords-list .checkbox-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.advanced-keywords-list .checkbox-item input[type='checkbox'] {
+  flex-shrink: 0;
+}
+
+.advanced-keywords-empty {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.advanced-keywords-mode {
+  gap: 10px;
+}
+
+.advanced-keywords-mode .choice-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.advanced-keywords-mode .choice-option span {
+  flex: 1;
+}
+
+.advanced-keywords-mode input[type='radio'] {
+  width: 18px;
+  height: 18px;
+}
+
 .secondary-button {
   align-self: flex-start;
   background: rgba(15, 23, 42, 0.08);
@@ -1826,10 +1864,6 @@ button {
 
 .secondary-button:hover {
   background: rgba(15, 23, 42, 0.12);
-}
-
-.advanced-multiselect select {
-  min-height: 120px;
 }
 
 .contact-list {
