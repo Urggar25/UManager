@@ -61,6 +61,80 @@
     CONTACT_TYPE_OPTIONS.map((option) => [option.value, option]),
   );
 
+  function createSafeDateTimeFormatter(locale, options) {
+    const normalizedLocale = typeof locale === 'string' && locale ? locale : undefined;
+    const formatterOptions = options && typeof options === 'object' ? { ...options } : undefined;
+    const hasDateStyle = Boolean(formatterOptions && 'dateStyle' in formatterOptions);
+    const hasTimeStyle = Boolean(formatterOptions && 'timeStyle' in formatterOptions);
+
+    try {
+      return new Intl.DateTimeFormat(normalizedLocale, formatterOptions);
+    } catch (error) {
+      return {
+        format(value) {
+          const date = normalizeToDate(value);
+          if (!date) {
+            return '';
+          }
+
+          const parts = [];
+          if (hasDateStyle) {
+            parts.push(formatFallbackDate(date, normalizedLocale));
+          }
+          if (hasTimeStyle) {
+            parts.push(formatFallbackTime(date, normalizedLocale));
+          }
+
+          if (parts.length === 0) {
+            return formatFallbackDateTime(date, normalizedLocale);
+          }
+
+          return parts.filter(Boolean).join(' ').trim();
+        },
+      };
+    }
+  }
+
+  function normalizeToDate(value) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return value;
+    }
+
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+
+    return null;
+  }
+
+  function formatFallbackDate(date, locale) {
+    try {
+      return date.toLocaleDateString(locale);
+    } catch (error) {
+      const year = date.getFullYear().toString().padStart(4, '0');
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      return `${day}/${month}/${year}`;
+    }
+  }
+
+  function formatFallbackTime(date, locale) {
+    try {
+      return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+    } catch (error) {
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+  }
+
+  function formatFallbackDateTime(date, locale) {
+    const datePart = formatFallbackDate(date, locale);
+    const timePart = formatFallbackTime(date, locale);
+    return [datePart, timePart].filter(Boolean).join(' ').trim();
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     const isAuthPage = Boolean(
       document.getElementById('login-form') || document.getElementById('register-form'),
@@ -596,21 +670,17 @@
     const calendarShortWeekdayFormatter = new Intl.DateTimeFormat('fr-FR', {
       weekday: 'short',
     });
-    const taskDateFormatter = new Intl.DateTimeFormat('fr-FR', {
+    const mediumDateFormatter = createSafeDateTimeFormatter('fr-FR', {
       dateStyle: 'medium',
     });
-    const taskCommentDateFormatter = new Intl.DateTimeFormat('fr-FR', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
-    const savedSearchDateFormatter = new Intl.DateTimeFormat('fr-FR', {
+    const mediumDateTimeFormatter = createSafeDateTimeFormatter('fr-FR', {
       dateStyle: 'medium',
       timeStyle: 'short',
     });
-    const emailCampaignDateFormatter = new Intl.DateTimeFormat('fr-FR', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    });
+    const taskDateFormatter = mediumDateFormatter;
+    const taskCommentDateFormatter = mediumDateTimeFormatter;
+    const savedSearchDateFormatter = mediumDateTimeFormatter;
+    const emailCampaignDateFormatter = mediumDateTimeFormatter;
 
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
@@ -5149,11 +5219,8 @@
 
       if (lastUpdatedEl) {
         if (data.lastUpdated) {
-          const formatted = new Intl.DateTimeFormat('fr-FR', {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-          }).format(new Date(data.lastUpdated));
-          lastUpdatedEl.textContent = formatted;
+          const formatted = mediumDateTimeFormatter.format(new Date(data.lastUpdated));
+          lastUpdatedEl.textContent = formatted || '—';
         } else {
           lastUpdatedEl.textContent = '—';
         }
@@ -6923,10 +6990,6 @@
       }
 
       const fragment = document.createDocumentFragment();
-      const dateTimeFormatter = new Intl.DateTimeFormat('fr-FR', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      });
 
       pageContacts.forEach((contact) => {
         const templateItem = contactTemplate && contactTemplate.content
@@ -6989,7 +7052,8 @@
         if (createdEl) {
           const createdValue = contact.createdAt ? new Date(contact.createdAt) : null;
           if (createdValue && !Number.isNaN(createdValue.getTime())) {
-            createdEl.textContent = `Ajouté le ${dateTimeFormatter.format(createdValue)}`;
+            const formatted = mediumDateTimeFormatter.format(createdValue);
+            createdEl.textContent = formatted ? `Ajouté le ${formatted}` : '';
           } else {
             createdEl.textContent = '';
           }
