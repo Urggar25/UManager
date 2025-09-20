@@ -288,6 +288,47 @@
             </div>
           </section>
 
+          <section id="team-chat" class="page" aria-labelledby="team-chat-title">
+            <header class="page-header">
+              <div>
+                <h1 id="team-chat-title">Tchat interne</h1>
+                <p class="page-subtitle">
+                  Échangez en direct avec les membres de l'équipe pour coordonner vos actions.
+                </p>
+              </div>
+            </header>
+
+            <div class="team-chat-panel">
+              <div class="team-chat-messages-wrapper">
+                <ul
+                  id="team-chat-messages"
+                  class="team-chat-messages"
+                  aria-live="polite"
+                  role="list"
+                ></ul>
+                <p id="team-chat-empty" class="team-chat-empty">
+                  Aucun message pour le moment. Démarrez la conversation avec votre équipe.
+                </p>
+              </div>
+              <form id="team-chat-form" class="team-chat-form" autocomplete="off">
+                <div class="form-row">
+                  <label class="sr-only" for="team-chat-input">Votre message</label>
+                  <textarea
+                    id="team-chat-input"
+                    name="team-chat-input"
+                    rows="3"
+                    maxlength="500"
+                    placeholder="Écrivez un message à votre équipe..."
+                    required
+                  ></textarea>
+                </div>
+                <div class="team-chat-actions">
+                  <button type="submit" class="primary-button">Envoyer</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
           <section id="categories" class="page" aria-labelledby="categories-title">
             <header class="page-header">
               <div>

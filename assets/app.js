@@ -21,8 +21,13 @@
     events: [],
     taskCategories: [],
     tasks: [],
+    teamChatMessages: [],
     lastUpdated: null,
   };
+
+  const TEAM_CHAT_HISTORY_LIMIT = 200;
+  const TEAM_CHAT_MAX_MESSAGE_LENGTH = 500;
+  const TASK_MEMBER_NONE_VALUE = '__none__';
 
   const REQUIRED_CATEGORY_IDS = {
     firstName: 'contact-first-name',
@@ -364,6 +369,7 @@
         { id: 'tasks-organization', label: 'Organisation des tâches' },
         { id: 'tasks-create', label: 'Créer une tâche' },
         { id: 'tasks-list', label: 'Recherche de tâches' },
+        { id: 'team-chat', label: 'Tchat interne' },
       ],
       directory: [
         { id: 'categories', label: 'Catégorie' },
@@ -493,6 +499,10 @@
     const taskAttachmentPreviewOpen = document.getElementById('task-attachment-preview-open');
     const taskAttachmentRemoveButton = document.getElementById('task-attachment-remove');
     const taskAttachmentRemovedMessage = document.getElementById('task-attachment-removed-message');
+    const teamChatList = document.getElementById('team-chat-messages');
+    const teamChatEmptyState = document.getElementById('team-chat-empty');
+    const teamChatForm = document.getElementById('team-chat-form');
+    const teamChatInput = document.getElementById('team-chat-input');
 
     const CATEGORY_TYPE_ORDER = ['text', 'number', 'date', 'list'];
     const CATEGORY_TYPES = new Set(CATEGORY_TYPE_ORDER);
@@ -631,6 +641,7 @@
     resetTaskCategoryFormDefaults();
     resetTaskFormDefaults();
     renderTasks();
+    renderTeamChat();
 
     if (currentUsernameEl) {
       currentUsernameEl.textContent = currentUser;
@@ -781,6 +792,30 @@
       });
     }
 
+    if (taskMemberSelect instanceof HTMLSelectElement) {
+      taskMemberSelect.addEventListener('change', () => {
+        if (taskMemberSelect.disabled) {
+          return;
+        }
+
+        const options = Array.from(taskMemberSelect.options || []);
+        const noneOption = options.find((option) => option.value === TASK_MEMBER_NONE_VALUE);
+        if (!noneOption) {
+          return;
+        }
+
+        const hasAssignments = options.some(
+          (option) => option.value !== TASK_MEMBER_NONE_VALUE && option.selected,
+        );
+
+        if (hasAssignments) {
+          noneOption.selected = false;
+        } else {
+          noneOption.selected = true;
+        }
+      });
+    }
+
     if (taskForm) {
       taskForm.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -802,6 +837,55 @@
           resetTaskFormDefaults();
           if (taskTitleInput instanceof HTMLInputElement) {
             taskTitleInput.focus();
+          }
+        });
+      });
+    }
+
+    if (teamChatForm instanceof HTMLFormElement) {
+      teamChatForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+
+        if (!(teamChatInput instanceof HTMLTextAreaElement)) {
+          return;
+        }
+
+        const rawContent = teamChatInput.value.trim();
+        if (!rawContent) {
+          teamChatInput.focus();
+          return;
+        }
+
+        const limitedContent = rawContent.slice(0, TEAM_CHAT_MAX_MESSAGE_LENGTH);
+        const message = normalizeTeamChatMessage({
+          id: generateId('chat'),
+          author: currentUser,
+          content: limitedContent,
+          createdAt: new Date().toISOString(),
+        });
+
+        if (!message) {
+          return;
+        }
+
+        if (!Array.isArray(data.teamChatMessages)) {
+          data.teamChatMessages = [];
+        }
+
+        data.teamChatMessages.push(message);
+        if (data.teamChatMessages.length > TEAM_CHAT_HISTORY_LIMIT) {
+          data.teamChatMessages = data.teamChatMessages.slice(-TEAM_CHAT_HISTORY_LIMIT);
+        }
+
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+        renderTeamChat();
+        notifyDataChanged('team-chat', { type: 'message-created', messageId: message.id });
+
+        teamChatForm.reset();
+        window.requestAnimationFrame(() => {
+          if (teamChatInput instanceof HTMLTextAreaElement) {
+            teamChatInput.focus();
           }
         });
       });
@@ -2253,6 +2337,10 @@
         return;
       }
 
+      const previouslySelected = taskMemberSelect.disabled
+        ? []
+        : Array.from(taskMemberSelect.selectedOptions || []).map((option) => option.value);
+
       taskMemberSelect.innerHTML = '';
 
       if (!Array.isArray(teamMembers) || teamMembers.length === 0) {
@@ -2268,6 +2356,11 @@
       taskMemberSelect.disabled = false;
       const fragment = document.createDocumentFragment();
 
+      const noneOption = document.createElement('option');
+      noneOption.value = TASK_MEMBER_NONE_VALUE;
+      noneOption.textContent = 'Personne';
+      fragment.appendChild(noneOption);
+
       teamMembers.forEach((member) => {
         const option = document.createElement('option');
         option.value = member.username;
@@ -2276,6 +2369,43 @@
       });
 
       taskMemberSelect.appendChild(fragment);
+
+      const sanitizedSelection = Array.isArray(previouslySelected)
+        ? previouslySelected.filter(
+            (value) =>
+              typeof value === 'string' &&
+              value !== TASK_MEMBER_NONE_VALUE &&
+              teamMembersById.has(value),
+          )
+        : [];
+
+      setTaskMemberSelection(sanitizedSelection);
+    }
+
+    function setTaskMemberSelection(memberIds) {
+      if (!(taskMemberSelect instanceof HTMLSelectElement) || taskMemberSelect.disabled) {
+        return;
+      }
+
+      const normalizedIds = Array.isArray(memberIds)
+        ? memberIds
+            .map((value) => (typeof value === 'string' ? value.trim() : ''))
+            .filter((value) => value && teamMembersById.has(value))
+        : [];
+
+      const hasAssignments = normalizedIds.length > 0;
+
+      Array.from(taskMemberSelect.options).forEach((option) => {
+        if (!(option instanceof HTMLOptionElement)) {
+          return;
+        }
+
+        if (option.value === TASK_MEMBER_NONE_VALUE) {
+          option.selected = !hasAssignments;
+        } else {
+          option.selected = normalizedIds.includes(option.value);
+        }
+      });
     }
 	
 	function loadAllUsersFromStore() {
@@ -2299,11 +2429,12 @@
 	  teamMembers = loadTeamMembers();
 	  teamMembersById = new Map(teamMembers.map((m) => [m.username, m]));
 
-	  // Répercuter partout
-	  populateTaskMemberOptions(); // met à jour le <select> des tâches
-	  sanitizeTasksAgainstTeam();  // purge les assignations hors équipe si besoin
-	  updateTaskPanelDescription();
-	}
+        // Répercuter partout
+        populateTaskMemberOptions(); // met à jour le <select> des tâches
+        sanitizeTasksAgainstTeam();  // purge les assignations hors équipe si besoin
+        updateTaskPanelDescription();
+        renderTeamChat();
+      }
 
 
 	function sanitizeTasksAgainstTeam() {
@@ -2350,9 +2481,7 @@
       }
 
       if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
-        Array.from(taskMemberSelect.options).forEach((option) => {
-          option.selected = false;
-        });
+        setTaskMemberSelection([]);
       }
 
       if (taskDescriptionInput instanceof HTMLTextAreaElement) {
@@ -3139,7 +3268,7 @@
       const members = [];
       if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
         Array.from(taskMemberSelect.selectedOptions).forEach((option) => {
-          if (option && option.value) {
+          if (option && option.value && option.value !== TASK_MEMBER_NONE_VALUE) {
             members.push(option.value);
           }
         });
@@ -3591,10 +3720,85 @@
       updateTaskSummaryCounts();
       scheduleTaskCategoryIndicatorUpdate();
     }
-	
-	function renderTeamPage() {
-	  // Remplir infos haut de page
-	  const ownerEl = document.getElementById('team-owner-name');
+
+    function renderTeamChat() {
+      if (!teamChatList) {
+        return;
+      }
+
+      const messages = Array.isArray(data.teamChatMessages)
+        ? data.teamChatMessages
+            .filter((message) => message && typeof message === 'object' && message.content)
+            .slice()
+        : [];
+
+      messages.sort((a, b) => {
+        const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+        const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+        return dateA.localeCompare(dateB);
+      });
+
+      teamChatList.innerHTML = '';
+
+      if (teamChatEmptyState) {
+        if (messages.length === 0) {
+          teamChatEmptyState.hidden = false;
+          teamChatEmptyState.removeAttribute('hidden');
+        } else {
+          teamChatEmptyState.hidden = true;
+          if (!teamChatEmptyState.hasAttribute('hidden')) {
+            teamChatEmptyState.setAttribute('hidden', '');
+          }
+        }
+      }
+
+      if (messages.length === 0) {
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      messages.forEach((message) => {
+        if (!message || typeof message !== 'object' || !message.content) {
+          return;
+        }
+
+        const item = document.createElement('li');
+        item.className = 'team-chat-message';
+        item.setAttribute('role', 'listitem');
+
+        const meta = document.createElement('div');
+        meta.className = 'team-chat-message-meta';
+
+        const authorLabel = formatMemberName(message.author);
+        let dateLabel = '';
+        if (message.createdAt && !Number.isNaN(new Date(message.createdAt).getTime())) {
+          dateLabel = capitalizeLabel(
+            taskCommentDateFormatter.format(new Date(message.createdAt)),
+          );
+        }
+        meta.textContent = dateLabel ? `${authorLabel} · ${dateLabel}` : authorLabel;
+
+        const content = document.createElement('p');
+        content.className = 'team-chat-message-content';
+        content.textContent = message.content;
+
+        item.append(meta, content);
+        fragment.appendChild(item);
+      });
+
+      teamChatList.appendChild(fragment);
+
+      window.requestAnimationFrame(() => {
+        if (teamChatList instanceof HTMLElement) {
+          teamChatList.scrollTop = teamChatList.scrollHeight;
+        }
+      });
+    }
+
+    function renderTeamPage() {
+          // Remplir infos haut de page
+          const ownerEl = document.getElementById('team-owner-name');
 	  if (ownerEl) ownerEl.textContent = data.panelOwner || '—';
 
 	  const listEl = document.getElementById('team-list');
@@ -3834,8 +4038,8 @@
 	  const t = data.tasks.find((x) => x && x.id === taskId);
 	  if (!t) return;
 
-          // Ouvre la page « Liste de tâches » si besoin
-          showPage && showPage('tasks-list');
+          // Ouvre la page « Créer une tâche » pour faciliter la modification
+          showPage && showPage('tasks-create');
 
 	  // Remplit le formulaire
 	  if (taskTitleInput instanceof HTMLInputElement) taskTitleInput.value = t.title || '';
@@ -3844,9 +4048,8 @@
 	  if (taskDescriptionInput instanceof HTMLTextAreaElement) taskDescriptionInput.value = t.description || '';
 
         if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
-              Array.from(taskMemberSelect.options).forEach((opt) => {
-                opt.selected = Array.isArray(t.assignedMembers) ? t.assignedMembers.includes(opt.value) : false;
-              });
+          const assignedMembers = Array.isArray(t.assignedMembers) ? t.assignedMembers.slice() : [];
+          setTaskMemberSelection(assignedMembers);
         }
 
           if (taskCategorySelect instanceof HTMLSelectElement) {
@@ -3902,7 +4105,9 @@
       const members = [];
       if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
             Array.from(taskMemberSelect.selectedOptions).forEach((option) => {
-              if (option && option.value) members.push(option.value);
+              if (option && option.value && option.value !== TASK_MEMBER_NONE_VALUE) {
+                members.push(option.value);
+              }
             });
       }
 
@@ -7285,6 +7490,51 @@
       };
     }
 
+    function normalizeTeamChatMessage(rawMessage) {
+      const baseMessage = rawMessage && typeof rawMessage === 'object' ? rawMessage : {};
+
+      const content =
+        typeof baseMessage.content === 'string'
+          ? baseMessage.content.trim().slice(0, TEAM_CHAT_MAX_MESSAGE_LENGTH)
+          : '';
+
+      if (!content) {
+        return null;
+      }
+
+      const author =
+        typeof baseMessage.author === 'string' && baseMessage.author.trim()
+          ? baseMessage.author.trim()
+          : '';
+
+      let createdAt = '';
+      if (
+        typeof baseMessage.createdAt === 'string' &&
+        !Number.isNaN(new Date(baseMessage.createdAt).getTime())
+      ) {
+        createdAt = new Date(baseMessage.createdAt).toISOString();
+      } else if (
+        typeof baseMessage.timestamp === 'string' &&
+        !Number.isNaN(new Date(baseMessage.timestamp).getTime())
+      ) {
+        createdAt = new Date(baseMessage.timestamp).toISOString();
+      } else {
+        createdAt = new Date().toISOString();
+      }
+
+      const id =
+        typeof baseMessage.id === 'string' && baseMessage.id.trim()
+          ? baseMessage.id.trim()
+          : generateId('chat');
+
+      return {
+        id,
+        author,
+        content,
+        createdAt,
+      };
+    }
+
     function compareTasks(a, b) {
       if (!a || !b) {
         return 0;
@@ -7477,6 +7727,15 @@
             task.attachment = null;
           }
         });
+      }
+
+      if (!Array.isArray(base.teamChatMessages)) {
+        base.teamChatMessages = [];
+      } else {
+        base.teamChatMessages = base.teamChatMessages
+          .map((item) => normalizeTeamChatMessage(item))
+          .filter((item) => item && item.content)
+          .slice(-TEAM_CHAT_HISTORY_LIMIT);
       }
 
       const categoriesById = buildCategoryMap(base);
@@ -7678,11 +7937,14 @@
                         events: Array.isArray(base.events) ? base.events : [],
                         taskCategories: Array.isArray(base.taskCategories) ? base.taskCategories : [],
                         tasks: Array.isArray(base.tasks) ? base.tasks : [],
+                        teamChatMessages: Array.isArray(base.teamChatMessages)
+                          ? base.teamChatMessages
+                          : [],
                         lastUpdated: base.lastUpdated || null,
 
-			// si jamais ces champs n’existaient pas encore
-			panelOwner: typeof base.panelOwner === 'string' ? base.panelOwner : '',
-			teamMembers: Array.isArray(base.teamMembers) ? base.teamMembers : [],
+                        // si jamais ces champs n’existaient pas encore
+                        panelOwner: typeof base.panelOwner === 'string' ? base.panelOwner : '',
+                        teamMembers: Array.isArray(base.teamMembers) ? base.teamMembers : [],
 		  };
 		}
 	  } catch (error) {
@@ -7715,11 +7977,12 @@
                 events: [],
                 taskCategories: [],
                 tasks: [],
+                teamChatMessages: [],
                 lastUpdated: null,
                 // Nouveaux champs persistés
-		panelOwner: '',
-		teamMembers: [],
-	  };
+                panelOwner: '',
+                teamMembers: [],
+          };
 	}
 
 
