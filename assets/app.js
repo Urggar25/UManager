@@ -10145,18 +10145,52 @@
       }
     }
 
-    const encoded = encodeURIComponent(normalized);
     const bytes = [];
+    for (let index = 0; index < normalized.length; index += 1) {
+      const codePoint = normalized.charCodeAt(index);
 
-    for (let index = 0; index < encoded.length; index += 1) {
-      const char = encoded[index];
-      if (char === '%' && index + 2 < encoded.length) {
-        const hex = encoded.slice(index + 1, index + 3);
-        bytes.push(Number.parseInt(hex, 16));
-        index += 2;
-      } else {
-        bytes.push(char.charCodeAt(0));
+      if (codePoint < 0x80) {
+        bytes.push(codePoint);
+        continue;
       }
+
+      if (codePoint < 0x800) {
+        bytes.push((codePoint >> 6) | 0xc0, (codePoint & 0x3f) | 0x80);
+        continue;
+      }
+
+      if (codePoint >= 0xd800 && codePoint <= 0xdbff) {
+        const nextIndex = index + 1;
+        if (nextIndex < normalized.length) {
+          const nextCodePoint = normalized.charCodeAt(nextIndex);
+          if (nextCodePoint >= 0xdc00 && nextCodePoint <= 0xdfff) {
+            const combined =
+              ((codePoint - 0xd800) << 10) + (nextCodePoint - 0xdc00) + 0x10000;
+            bytes.push(
+              0xf0 | ((combined >> 18) & 0x07),
+              0x80 | ((combined >> 12) & 0x3f),
+              0x80 | ((combined >> 6) & 0x3f),
+              0x80 | (combined & 0x3f),
+            );
+            index = nextIndex;
+            continue;
+          }
+        }
+
+        bytes.push(0xef, 0xbf, 0xbd);
+        continue;
+      }
+
+      if (codePoint >= 0xdc00 && codePoint <= 0xdfff) {
+        bytes.push(0xef, 0xbf, 0xbd);
+        continue;
+      }
+
+      bytes.push(
+        (codePoint >> 12) | 0xe0,
+        ((codePoint >> 6) & 0x3f) | 0x80,
+        (codePoint & 0x3f) | 0x80,
+      );
     }
 
     return new Uint8Array(bytes);
@@ -10183,7 +10217,6 @@
     ]);
 
     const messageBytes = encodeUtf8(message);
-    const bitLength = BigInt(messageBytes.length) * 8n;
     const paddedLength = (((messageBytes.length + 9 + 63) >> 6) << 6);
     const buffer = new Uint8Array(paddedLength);
     buffer.set(messageBytes);
