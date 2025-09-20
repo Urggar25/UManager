@@ -624,7 +624,7 @@
     });
 
     const CONTACT_RESULTS_PER_PAGE_DEFAULT = 10;
-    const KEYWORD_FILTER_MODE_ALL = 'all';
+	const KEYWORD_FILTER_MODE_ALL = 'all';
     const KEYWORD_FILTER_MODE_ANY = 'any';
 
     let contactSearchTerm = '';
@@ -1381,16 +1381,16 @@
         }
 
         const keywordFilters = formData.getAll('search-keywords').map((value) => value.toString());
-        const rawKeywordMode = formData.get('search-keyword-mode');
-        const keywordMode =
-          rawKeywordMode === KEYWORD_FILTER_MODE_ANY
-            ? KEYWORD_FILTER_MODE_ANY
-            : KEYWORD_FILTER_MODE_ALL;
+		const rawKeywordMode = formData.get('search-keyword-mode') || KEYWORD_FILTER_MODE_ALL;
+		const keywordMode =
+		  rawKeywordMode === KEYWORD_FILTER_MODE_ANY
+			? KEYWORD_FILTER_MODE_ANY
+			: KEYWORD_FILTER_MODE_ALL;
 
         advancedFilters = {
           categories: categoryFilters,
           keywords: keywordFilters,
-          keywordMode,
+		  keywordMode,
         };
         setActiveSavedSearchId('');
         clearContactSaveSearchFeedback();
@@ -1402,7 +1402,7 @@
         window.requestAnimationFrame(() => {
           advancedFilters = createEmptyAdvancedFilters();
           renderSearchCategoryFields();
-          renderSearchKeywordOptions();
+		  renderSearchKeywordOptions();
           setActiveSavedSearchId('');
           clearContactSaveSearchFeedback();
           contactCurrentPage = 1;
@@ -5865,7 +5865,7 @@
         if (Array.isArray(advancedFilters.keywords) && advancedFilters.keywords.length > 0) {
           advancedFilters = { ...advancedFilters, keywords: [] };
         }
-        if (advancedFilters.keywordMode !== KEYWORD_FILTER_MODE_ALL) {
+		if (advancedFilters.keywordMode !== KEYWORD_FILTER_MODE_ALL) {
           advancedFilters = { ...advancedFilters, keywordMode: KEYWORD_FILTER_MODE_ALL };
         }
         return;
@@ -5925,13 +5925,15 @@
       }
 
       const allowedValues = new Set(
-        keywords
-          .map((keyword) => (keyword && keyword.id ? keyword.id.toString() : ''))
-          .filter((value) => Boolean(value)),
-      );
+	    Array.isArray(keywords)
+		  ? keywords
+		  	.map((keyword) => (keyword && keyword.id ? keyword.id.toString() : ''))
+			.filter((value) => Boolean(value))
+		  : []
+	  );
       const filteredSelection = previousSelection.filter((value) => allowedValues.has(value));
 
-      if (filteredSelection.length !== previousSelection.length) {
+    if (filteredSelection.length !== previousSelection.length) {
         advancedFilters = { ...advancedFilters, keywords: filteredSelection };
       }
 
@@ -5946,20 +5948,25 @@
       }
 
       let matched = false;
-      searchKeywordModeInputs.forEach((input) => {
-        if (!(input instanceof HTMLInputElement)) {
-          return;
-        }
+      if (!searchKeywordModeInputs || searchKeywordModeInputs.length === 0) {
+		return; // rien à traiter
+	  }
 
-        input.disabled = shouldForceAll;
+	  searchKeywordModeInputs.forEach((input) => {
+		if (!(input instanceof HTMLInputElement)) {
+		  return;
+		}
 
-        if (input.value === normalizedMode) {
-          input.checked = true;
-          matched = true;
-        } else if (input.checked) {
-          input.checked = false;
-        }
-      });
+		input.disabled = shouldForceAll;
+
+		if (input.value === normalizedMode) {
+		  input.checked = true;
+		  matched = true;
+		} else if (input.checked) {
+		  input.checked = false;
+  	    }
+	  });
+
 
       if (!matched) {
         const fallback = searchKeywordModeInputs.find(
@@ -5971,9 +5978,10 @@
       }
 
       if (normalizedMode !== advancedFilters.keywordMode) {
-        advancedFilters = { ...advancedFilters, keywordMode: normalizedMode };
+        advancedFilters = { ...(advancedFilters || {}), keywordMode: normalizedMode };
       }
     }
+  
 
     function handleSaveCurrentSearch() {
       if (!Array.isArray(data.savedSearches)) {
@@ -6414,9 +6422,9 @@
 
         if (keywordNames.length > 0) {
           const keywordModeLabel =
-            savedSearch.advancedFilters && savedSearch.advancedFilters.keywordMode === KEYWORD_FILTER_MODE_ANY
-              ? 'OU'
-              : 'ET';
+		  savedSearch?.advancedFilters?.keywordMode === KEYWORD_FILTER_MODE_ANY
+			? 'OU'
+			: 'ET';
           parts.push(`Mots clés (${keywordModeLabel}) : ${keywordNames.join(', ')}`);
         }
       }
@@ -6620,9 +6628,9 @@
         ? advancedFilters.keywords.filter((value) => Boolean(value))
         : [];
       const keywordMode =
-        advancedFilters.keywordMode === KEYWORD_FILTER_MODE_ANY
-          ? KEYWORD_FILTER_MODE_ANY
-          : KEYWORD_FILTER_MODE_ALL;
+	  (advancedFilters?.keywordMode === KEYWORD_FILTER_MODE_ANY)
+		? KEYWORD_FILTER_MODE_ANY
+		: KEYWORD_FILTER_MODE_ALL;
 
       const hasAdvancedFilters = categoryFilterEntries.length > 0 || keywordFilters.length > 0;
 
@@ -8680,13 +8688,14 @@
       return base;
     }
 
-    function createEmptyAdvancedFilters() {
-      return {
-        categories: {},
-        keywords: [],
-        keywordMode: KEYWORD_FILTER_MODE_ALL,
-      };
-    }
+	// Ensuite seulement, ta fonction
+	function createEmptyAdvancedFilters() {
+	  return {
+		categories: {},
+		keywords: [],
+		keywordMode: (window.KEYWORD_FILTER_MODE_ALL || 'all'),
+	  };
+	}
 
     function cloneAdvancedFilters(source) {
       const result = createEmptyAdvancedFilters();
@@ -8725,21 +8734,24 @@
       });
 
       const rawKeywords = Array.isArray(source.keywords) ? source.keywords : [];
+      const ANY = window.KEYWORD_FILTER_MODE_ANY || 'any';
+      const ALL = window.KEYWORD_FILTER_MODE_ALL || 'all';
+
+        // keywords
+      const items = Array.isArray(rawKeywords) ? rawKeywords : [];
       const keywordSet = new Set();
-      rawKeywords.forEach((value) => {
-        if (typeof value !== 'string') {
-          return;
-        }
-        const trimmed = value.trim();
-        if (trimmed) {
-          keywordSet.add(trimmed);
+      items.forEach((v) => {
+        if (typeof v === 'string') {
+          const t = v.trim();
+          if (t) keywordSet.add(t);
         }
       });
       result.keywords = Array.from(keywordSet);
-      result.keywordMode =
-        source.keywordMode === KEYWORD_FILTER_MODE_ANY
-          ? KEYWORD_FILTER_MODE_ANY
-          : KEYWORD_FILTER_MODE_ALL;
+
+      // mode
+      const mode = (source && typeof source.keywordMode === 'string') ? source.keywordMode : ALL;
+      result.keywordMode = (mode === ANY) ? ANY : ALL;
+
 
       return result;
     }
