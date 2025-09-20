@@ -62,7 +62,7 @@
             </div>
             <div class="task-summary-actions">
               <button class="primary-button" type="button" data-navigate="tasks-list">
-                Consulter la liste des tâches
+                Accéder à la recherche de tâches
               </button>
             </div>
           </section>
@@ -127,49 +127,15 @@
             </section>
           </section>
 
-          <section id="tasks-list" class="page" aria-labelledby="tasks-list-title">
+          <section id="tasks-create" class="page" aria-labelledby="tasks-create-title">
             <header class="page-header">
               <div>
-                <h1 id="tasks-list-title">Liste de tâches</h1>
+                <h1 id="tasks-create-title">Créer une tâche</h1>
                 <p id="task-panel-description" class="page-subtitle">
                   Centralisez vos actions et attribuez-les aux membres de l'équipe.
                 </p>
               </div>
-              <span id="task-count-badge" class="task-count-badge" aria-live="polite">0 tâche</span>
             </header>
-
-            <div class="task-list-controls">
-              <div class="task-status-filter" role="group" aria-label="Filtrer les tâches par statut">
-                <button
-                  type="button"
-                  class="task-status-button active"
-                  data-task-status="active"
-                  aria-pressed="true"
-                >
-                  En cours
-                  <span class="task-status-count" data-task-status-count="active">0</span>
-                </button>
-                <button
-                  type="button"
-                  class="task-status-button"
-                  data-task-status="archived"
-                  aria-pressed="false"
-                >
-                  Archivées
-                  <span class="task-status-count" data-task-status-count="archived">0</span>
-                </button>
-              </div>
-              <div class="task-category-nav-wrapper">
-                <div
-                  id="task-category-nav"
-                  class="task-category-nav"
-                  role="tablist"
-                  aria-label="Filtrer les tâches par catégorie"
-                >
-                  <span id="task-category-indicator" class="task-category-indicator" aria-hidden="true"></span>
-                </div>
-              </div>
-            </div>
 
             <form id="task-form" class="task-form" autocomplete="off">
               <div class="task-form-grid">
@@ -263,10 +229,61 @@
                 <button type="reset" class="secondary-button">Réinitialiser</button>
               </div>
             </form>
+          </section>
+
+          <section id="tasks-list" class="page" aria-labelledby="tasks-list-title">
+            <header class="page-header">
+              <div>
+                <h1 id="tasks-list-title">Recherche de tâches</h1>
+                <p class="page-subtitle">
+                  Consultez vos actions en cours et affinez votre recherche par statut ou catégorie.
+                </p>
+              </div>
+              <span id="task-count-badge" class="task-count-badge" aria-live="polite">0 tâche</span>
+            </header>
+
+            <div class="task-list-actions">
+              <button class="secondary-button" type="button" data-navigate="tasks-create">
+                Créer une nouvelle tâche
+              </button>
+            </div>
+
+            <div class="task-list-controls">
+              <div class="task-status-filter" role="group" aria-label="Filtrer les tâches par statut">
+                <button
+                  type="button"
+                  class="task-status-button active"
+                  data-task-status="active"
+                  aria-pressed="true"
+                >
+                  En cours
+                  <span class="task-status-count" data-task-status-count="active">0</span>
+                </button>
+                <button
+                  type="button"
+                  class="task-status-button"
+                  data-task-status="archived"
+                  aria-pressed="false"
+                >
+                  Archivées
+                  <span class="task-status-count" data-task-status-count="archived">0</span>
+                </button>
+              </div>
+              <div class="task-category-nav-wrapper">
+                <div
+                  id="task-category-nav"
+                  class="task-category-nav"
+                  role="tablist"
+                  aria-label="Filtrer les tâches par catégorie"
+                >
+                  <span id="task-category-indicator" class="task-category-indicator" aria-hidden="true"></span>
+                </div>
+              </div>
+            </div>
             <div class="task-list-wrapper">
               <ul id="task-list" class="task-list" aria-live="polite"></ul>
               <p id="task-empty-state" class="task-empty-state">
-                Aucune tâche planifiée pour le moment. Ajoutez votre première action ci-dessus.
+                Aucune tâche planifiée pour le moment. Ajoutez votre première action depuis l’onglet «&nbsp;Créer une tâche&nbsp;».
               </p>
             </div>
           </section>
@@ -395,6 +412,15 @@
               </div>
             </header>
             <form id="contact-form" class="contact-form" autocomplete="off">
+              <div class="form-row">
+                <label for="contact-type">Type de contact</label>
+                <select id="contact-type" name="contact-type">
+                  <option value="person" selected>Personne</option>
+                  <option value="company">Entreprise</option>
+                  <option value="association">Association</option>
+                  <option value="institution">Institution</option>
+                </select>
+              </div>
               <fieldset id="contact-categories-fieldset" class="form-fieldset">
                 <legend>Données personnalisées</legend>
                 <p class="form-hint">
@@ -787,7 +813,10 @@
       <li class="contact-item">
         <div class="contact-header">
           <div class="contact-header-text">
-            <h3 class="contact-name"></h3>
+            <div class="contact-header-main">
+              <h3 class="contact-name"></h3>
+              <span class="contact-type-badge"></span>
+            </div>
             <span class="contact-created"></span>
           </div>
           <label class="contact-select">

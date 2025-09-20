@@ -42,6 +42,17 @@
     REQUIRED_CONTACT_CATEGORIES.map((category) => category.id),
   );
 
+  const CONTACT_TYPE_OPTIONS = [
+    { value: 'person', label: 'Personne', badgeClass: 'contact-type-badge--person' },
+    { value: 'company', label: 'Entreprise', badgeClass: 'contact-type-badge--company' },
+    { value: 'association', label: 'Association', badgeClass: 'contact-type-badge--association' },
+    { value: 'institution', label: 'Institution', badgeClass: 'contact-type-badge--institution' },
+  ];
+  const CONTACT_TYPE_DEFAULT = 'person';
+  const CONTACT_TYPE_MAP = new Map(
+    CONTACT_TYPE_OPTIONS.map((option) => [option.value, option]),
+  );
+
   document.addEventListener('DOMContentLoaded', () => {
     const isAuthPage = Boolean(
       document.getElementById('login-form') || document.getElementById('register-form'),
@@ -351,7 +362,8 @@
       tasks: [
         { id: 'tasks-summary', label: 'Page de récapitulatif' },
         { id: 'tasks-organization', label: 'Organisation des tâches' },
-        { id: 'tasks-list', label: 'Liste de tâches' },
+        { id: 'tasks-create', label: 'Créer une tâche' },
+        { id: 'tasks-list', label: 'Recherche de tâches' },
       ],
       directory: [
         { id: 'categories', label: 'Catégorie' },
@@ -406,6 +418,7 @@
     const keywordTemplate = document.getElementById('keyword-item-template');
     const contactsCountEl = document.getElementById('contacts-count');
     const contactForm = document.getElementById('contact-form');
+    const contactTypeSelect = document.getElementById('contact-type');
     const contactCategoryFieldsContainer = document.getElementById('contact-category-fields');
     const contactCategoriesEmpty = document.getElementById('contact-categories-empty');
     const contactKeywordsContainer = document.getElementById('contact-keywords-container');
@@ -1033,6 +1046,9 @@
       contactForm.addEventListener('submit', (event) => {
         event.preventDefault();
         const formData = new FormData(contactForm);
+        const contactType = normalizeContactType(
+          (formData.get('contact-type') || '').toString(),
+        );
         const notes = (formData.get('contact-notes') || '').toString().trim();
         const keywordIds = formData.getAll('contact-keywords').map((value) => value.toString());
 
@@ -1121,6 +1137,7 @@
           contactToUpdate.categoryValues = { ...categoryValues };
           contactToUpdate.keywords = keywordIds;
           contactToUpdate.notes = notes;
+          contactToUpdate.type = contactType;
           if (derivedName) {
             contactToUpdate.fullName = derivedName;
             contactToUpdate.displayName = derivedName;
@@ -1139,6 +1156,7 @@
             categoryValues: { ...categoryValues },
             keywords: keywordIds,
             notes,
+            type: contactType,
             fullName: displayName,
             displayName,
             createdAt: nowIso,
@@ -3303,10 +3321,6 @@
         listItem.dataset.id = task.id || '';
         listItem.dataset.categoryId = task.categoryId || '';
 
-        const taskColor = normalizeTaskColor(task.color);
-        listItem.style.setProperty('--task-color', taskColor);
-        listItem.style.setProperty('--task-color-soft', hexToRgba(taskColor, 0.12));
-
         const isArchived = Boolean(task.isArchived);
         if (isArchived) {
           listItem.classList.add('task-item--archived');
@@ -3316,6 +3330,10 @@
           Array.isArray(task.assignedMembers) && task.assignedMembers.includes(currentUser);
         if (isAssignedToMe) {
           listItem.classList.add('task-item--assigned-me');
+        } else {
+          const taskColor = normalizeTaskColor(task.color);
+          listItem.style.setProperty('--task-color', taskColor);
+          listItem.style.setProperty('--task-color-soft', hexToRgba(taskColor, 0.12));
         }
 
         const header = document.createElement('div');
@@ -5479,6 +5497,16 @@
       updateSelectedContactsUI();
     }
 
+    function normalizeContactType(rawType) {
+      if (typeof rawType === 'string') {
+        const normalized = rawType.trim().toLowerCase();
+        if (CONTACT_TYPE_MAP.has(normalized)) {
+          return normalized;
+        }
+      }
+      return CONTACT_TYPE_DEFAULT;
+    }
+
     function updateSelectedContactsUI() {
       const selectedCount = selectedContactIds.size;
       if (contactSelectedCountEl) {
@@ -5612,6 +5640,9 @@
             return true;
           }
 
+          const normalizedType = normalizeContactType(contact.type);
+          const typeConfig =
+            CONTACT_TYPE_MAP.get(normalizedType) || CONTACT_TYPE_MAP.get(CONTACT_TYPE_DEFAULT);
           const displayName = getContactDisplayName(contact, categoriesById);
           const channels = computeContactChannels(contact, categoriesById);
 
@@ -5636,6 +5667,7 @@
 
           const haystackParts = [
             displayName,
+            typeConfig ? typeConfig.label : '',
             contact.fullName || '',
             contact.firstName || '',
             contact.usageName || '',
@@ -5809,6 +5841,18 @@
           nameEl.textContent = displayName;
         }
 
+        const typeBadgeEl = listItem.querySelector('.contact-type-badge');
+        if (typeBadgeEl) {
+          const normalizedType = normalizeContactType(contact.type);
+          const typeConfig =
+            CONTACT_TYPE_MAP.get(normalizedType) || CONTACT_TYPE_MAP.get(CONTACT_TYPE_DEFAULT);
+          typeBadgeEl.textContent = typeConfig ? typeConfig.label : '';
+          typeBadgeEl.className = 'contact-type-badge';
+          if (typeConfig && typeConfig.badgeClass) {
+            typeBadgeEl.classList.add(typeConfig.badgeClass);
+          }
+        }
+
         const createdEl = listItem.querySelector('.contact-created');
         if (createdEl) {
           const createdValue = contact.createdAt ? new Date(contact.createdAt) : null;
@@ -5955,6 +5999,9 @@
       }
 
       contactForm.reset();
+      if (contactTypeSelect instanceof HTMLSelectElement) {
+        contactTypeSelect.value = CONTACT_TYPE_DEFAULT;
+      }
       exitContactEditMode();
       renderContactCategoryFields();
 
@@ -6031,6 +6078,9 @@
       showPage('contacts-add');
       contactForm.reset();
       contactForm.dataset.editingId = contactId;
+      if (contactTypeSelect instanceof HTMLSelectElement) {
+        contactTypeSelect.value = normalizeContactType(contact.type);
+      }
       if (contactSubmitButton) {
         contactSubmitButton.textContent = 'Enregistrer les modifications';
       }
@@ -7821,11 +7871,35 @@
 
     const header = document.createElement('div');
     header.className = 'contact-header';
+
+    const headerText = document.createElement('div');
+    headerText.className = 'contact-header-text';
+
+    const headerMain = document.createElement('div');
+    headerMain.className = 'contact-header-main';
+
     const nameEl = document.createElement('h3');
     nameEl.className = 'contact-name';
+    const typeBadge = document.createElement('span');
+    typeBadge.className = 'contact-type-badge';
+    headerMain.append(nameEl, typeBadge);
+
     const createdEl = document.createElement('span');
     createdEl.className = 'contact-created';
-    header.append(nameEl, createdEl);
+
+    headerText.append(headerMain, createdEl);
+
+    const selectLabel = document.createElement('label');
+    selectLabel.className = 'contact-select';
+    const selectInput = document.createElement('input');
+    selectInput.type = 'checkbox';
+    selectInput.className = 'contact-select-checkbox';
+    const srLabel = document.createElement('span');
+    srLabel.className = 'sr-only';
+    srLabel.textContent = 'Sélectionner ce contact';
+    selectLabel.append(selectInput, srLabel);
+
+    header.append(headerText, selectLabel);
 
     const details = document.createElement('div');
     details.className = 'contact-details';
