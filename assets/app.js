@@ -23,6 +23,8 @@
     tasks: [],
     teamChatMessages: [],
     savedSearches: [],
+    emailTemplates: [],
+    emailCampaigns: [],
     lastUpdated: null,
   };
 
@@ -379,6 +381,10 @@
         { id: 'contacts-import', label: 'Importer des contacts' },
         { id: 'contacts-search', label: 'Rechercher des contacts' },
       ],
+      communication: [
+        { id: 'email-templates', label: 'Créer un modèle mail' },
+        { id: 'email-campaigns', label: 'Envoyer une campagne de mail' },
+      ],
       team: [{ id: 'team', label: "Gestion de l'équipe" }],
     };
 
@@ -447,7 +453,37 @@
     const savedSearchCountEl = document.getElementById('saved-search-count');
     const savedSearchList = document.getElementById('saved-search-list');
     const savedSearchEmptyState = document.getElementById('saved-search-empty');
+    const emailTemplateForm = document.getElementById('email-template-form');
+    const emailTemplateBlocksContainer = document.getElementById('email-template-blocks');
+    const emailTemplateAddParagraphButton = document.getElementById('email-template-add-paragraph');
+    const emailTemplateAddImageButton = document.getElementById('email-template-add-image');
+    const emailTemplateAddButtonButton = document.getElementById('email-template-add-button');
+    const emailTemplatePreview = document.getElementById('email-template-preview');
+    const emailTemplateFeedback = document.getElementById('email-template-feedback');
+    const emailTemplateList = document.getElementById('email-template-list');
+    const emailTemplateEmptyState = document.getElementById('email-template-empty');
+    const emailTemplateNameInput = document.getElementById('email-template-name');
+    const emailTemplateSubjectInput = document.getElementById('email-template-subject');
+    const emailTemplateBlocksEmptyText = emailTemplateBlocksContainer
+      ? (emailTemplateBlocksContainer.textContent || '').trim() ||
+        'Ajoutez un bloc pour commencer la composition du message.'
+      : 'Ajoutez un bloc pour commencer la composition du message.';
     const campaignSavedSearchSelect = document.getElementById('campaign-saved-search-select');
+    const campaignTemplateSelect = document.getElementById('campaign-template-select');
+    const emailCampaignForm = document.getElementById('email-campaign-form');
+    const emailCampaignFeedback = document.getElementById('email-campaign-feedback');
+    const campaignSummary = document.getElementById('campaign-summary');
+    const campaignRecipientList = document.getElementById('campaign-recipient-list');
+    const campaignEmailPreview = document.getElementById('campaign-email-preview');
+    const campaignHistoryList = document.getElementById('campaign-history-list');
+    const campaignHistoryEmpty = document.getElementById('campaign-history-empty');
+    const emailCampaignSubjectInput = document.getElementById('email-campaign-subject');
+    const campaignSummaryDefaultText = campaignSummary
+      ? campaignSummary.textContent || ''
+      : 'Sélectionnez une recherche sauvegardée pour afficher les contacts concernés.';
+    const campaignEmailPreviewEmptyHtml = campaignEmailPreview
+      ? campaignEmailPreview.innerHTML
+      : '<p class="empty-state">Choisissez un modèle pour afficher un aperçu.</p>';
     const contactSelectAllButton = document.getElementById('contact-select-all');
     const contactDeleteSelectedButton = document.getElementById('contact-delete-selected');
     const contactBulkKeywordSelect = document.getElementById('contact-bulk-keyword');
@@ -622,6 +658,10 @@
       dateStyle: 'medium',
       timeStyle: 'short',
     });
+    const campaignDateFormatter = new Intl.DateTimeFormat('fr-FR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
 
     const CONTACT_RESULTS_PER_PAGE_DEFAULT = 10;
 	const KEYWORD_FILTER_MODE_ALL = 'all';
@@ -651,6 +691,12 @@
     let editingTaskExistingAttachment = null;
     let removeAttachmentOnSubmit = false;
     let taskCategoryIndicatorFrame = 0;
+    let emailTemplateDraftBlocks = [];
+    let emailTemplateEditingId = '';
+    let campaignRecipients = [];
+    let campaignSubjectEdited = false;
+    let campaignActiveTemplateId = '';
+    let campaignSubjectTemplateId = '';
 
     normalizeCategoryOrders();
     populateTaskMemberOptions();
@@ -1144,6 +1190,298 @@
       });
     }
 
+    if (emailTemplateAddParagraphButton instanceof HTMLButtonElement) {
+      emailTemplateAddParagraphButton.addEventListener('click', () => {
+        addEmailTemplateBlock('paragraph');
+      });
+    }
+
+    if (emailTemplateAddImageButton instanceof HTMLButtonElement) {
+      emailTemplateAddImageButton.addEventListener('click', () => {
+        addEmailTemplateBlock('image');
+      });
+    }
+
+    if (emailTemplateAddButtonButton instanceof HTMLButtonElement) {
+      emailTemplateAddButtonButton.addEventListener('click', () => {
+        addEmailTemplateBlock('button');
+      });
+    }
+
+    if (emailTemplateBlocksContainer) {
+      emailTemplateBlocksContainer.addEventListener('input', handleEmailTemplateBlockInput);
+      emailTemplateBlocksContainer.addEventListener('change', handleEmailTemplateBlockInput);
+      emailTemplateBlocksContainer.addEventListener('click', handleEmailTemplateBlockAction);
+    }
+
+    if (emailTemplateForm) {
+      emailTemplateForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!emailTemplateNameInput || !emailTemplateSubjectInput) {
+          return;
+        }
+
+        const name = emailTemplateNameInput.value.trim();
+        const subject = emailTemplateSubjectInput.value.trim();
+
+        if (!name) {
+          setEmailTemplateFeedback('Veuillez renseigner un nom pour le modèle.', 'error');
+          emailTemplateNameInput.focus();
+          return;
+        }
+
+        if (!subject) {
+          setEmailTemplateFeedback("Veuillez renseigner l'objet du mail.", 'error');
+          emailTemplateSubjectInput.focus();
+          return;
+        }
+
+        if (!Array.isArray(emailTemplateDraftBlocks) || emailTemplateDraftBlocks.length === 0) {
+          setEmailTemplateFeedback('Ajoutez au moins un bloc de contenu au modèle.', 'error');
+          return;
+        }
+
+        for (const block of emailTemplateDraftBlocks) {
+          if (block.type === 'image' && !block.data.url) {
+            setEmailTemplateFeedback("Chaque bloc image doit comporter l'URL de l'image.", 'error');
+            focusEmailTemplateBlock(block.id, "input[data-block-field='url']");
+            return;
+          }
+          if (block.type === 'button') {
+            if (!block.data.label) {
+              setEmailTemplateFeedback('Chaque bouton doit avoir un libellé.', 'error');
+              focusEmailTemplateBlock(block.id, "input[data-block-field='label']");
+              return;
+            }
+            if (!block.data.url) {
+              setEmailTemplateFeedback('Chaque bouton doit pointer vers une adresse web.', 'error');
+              focusEmailTemplateBlock(block.id, "input[data-block-field='url']");
+              return;
+            }
+          }
+        }
+
+        const normalizedBlocks = emailTemplateDraftBlocks.map((block) =>
+          cloneEmailTemplateBlock(block, { preserveId: true }),
+        );
+
+        const now = new Date().toISOString();
+        if (!Array.isArray(data.emailTemplates)) {
+          data.emailTemplates = [];
+        }
+
+        let templateRecord = null;
+        let operation = 'created';
+
+        if (emailTemplateEditingId) {
+          templateRecord = data.emailTemplates.find((item) => item && item.id === emailTemplateEditingId) || null;
+          if (templateRecord) {
+            templateRecord.name = name;
+            templateRecord.subject = subject;
+            templateRecord.blocks = normalizedBlocks;
+            templateRecord.updatedAt = now;
+            if (!templateRecord.createdAt) {
+              templateRecord.createdAt = now;
+            }
+            operation = 'updated';
+          }
+        }
+
+        if (!templateRecord) {
+          templateRecord = {
+            id: generateId('email-template'),
+            name,
+            subject,
+            blocks: normalizedBlocks,
+            createdAt: now,
+            updatedAt: now,
+          };
+          data.emailTemplates.push(templateRecord);
+        }
+
+        emailTemplateEditingId = '';
+        data.lastUpdated = now;
+        saveDataForUser(currentUser, data);
+        renderEmailTemplateList();
+        renderCampaignTemplateOptions();
+
+        const feedbackMessage =
+          operation === 'updated'
+            ? `Modèle « ${name} » mis à jour.`
+            : `Modèle « ${name} » enregistré.`;
+        notifyDataChanged('email-templates', {
+          type: operation,
+          templateId: templateRecord.id,
+        });
+        resetEmailTemplateForm(true, true);
+        setEmailTemplateFeedback(feedbackMessage, 'success');
+      });
+
+      emailTemplateForm.addEventListener('reset', () => {
+        window.requestAnimationFrame(() => {
+          resetEmailTemplateForm();
+        });
+      });
+    }
+
+    if (emailTemplateList) {
+      emailTemplateList.addEventListener('click', (event) => {
+        const button = event.target instanceof HTMLElement ? event.target.closest('button[data-action]') : null;
+        if (!(button instanceof HTMLButtonElement)) {
+          return;
+        }
+        const templateId = button.dataset.templateId || '';
+        if (!templateId) {
+          return;
+        }
+        if (button.dataset.action === 'edit-template') {
+          loadEmailTemplateForEditing(templateId);
+        } else if (button.dataset.action === 'duplicate-template') {
+          duplicateEmailTemplate(templateId);
+        } else if (button.dataset.action === 'delete-template') {
+          deleteEmailTemplate(templateId);
+        }
+      });
+    }
+
+    if (campaignTemplateSelect instanceof HTMLSelectElement) {
+      campaignTemplateSelect.addEventListener('change', () => {
+        campaignSubjectEdited = false;
+        updateCampaignTemplatePreview();
+      });
+    }
+
+    if (campaignSavedSearchSelect instanceof HTMLSelectElement) {
+      campaignSavedSearchSelect.addEventListener('change', () => {
+        updateCampaignRecipients();
+      });
+    }
+
+    if (emailCampaignSubjectInput instanceof HTMLInputElement) {
+      emailCampaignSubjectInput.addEventListener('input', () => {
+        const currentValue = emailCampaignSubjectInput.value.trim();
+        if (!campaignSubjectTemplateId) {
+          campaignSubjectEdited = currentValue.length > 0;
+          return;
+        }
+        const template = getTemplateById(campaignSubjectTemplateId);
+        const templateSubject = template && template.subject ? template.subject.trim() : '';
+        campaignSubjectEdited = currentValue !== templateSubject;
+      });
+    }
+
+    if (emailCampaignForm) {
+      emailCampaignForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!(campaignTemplateSelect instanceof HTMLSelectElement)) {
+          return;
+        }
+        if (!(campaignSavedSearchSelect instanceof HTMLSelectElement)) {
+          return;
+        }
+
+        const templateId = campaignTemplateSelect.value;
+        if (!templateId) {
+          setEmailCampaignFeedback('Sélectionnez un modèle de mail à envoyer.', 'error');
+          campaignTemplateSelect.focus();
+          return;
+        }
+        const template = getTemplateById(templateId);
+        if (!template) {
+          setEmailCampaignFeedback('Le modèle choisi est introuvable.', 'error');
+          return;
+        }
+
+        const savedSearchId = campaignSavedSearchSelect.value;
+        if (!savedSearchId) {
+          setEmailCampaignFeedback('Sélectionnez une recherche sauvegardée.', 'error');
+          campaignSavedSearchSelect.focus();
+          return;
+        }
+
+        const { recipients, savedSearch } = getRecipientsForSavedSearch(savedSearchId);
+        if (recipients.length === 0) {
+          setEmailCampaignFeedback(
+            "Aucun contact avec adresse mail n'est disponible dans cette recherche.",
+            'error',
+          );
+          return;
+        }
+
+        const formData = new FormData(emailCampaignForm);
+        const name = (formData.get('email-campaign-name') || '').toString().trim();
+        if (!name) {
+          setEmailCampaignFeedback('Donnez un nom à la campagne pour la retrouver facilement.', 'error');
+          const nameInput = emailCampaignForm.querySelector('#email-campaign-name');
+          if (nameInput instanceof HTMLInputElement) {
+            nameInput.focus();
+          }
+          return;
+        }
+
+        const senderEmail = (formData.get('email-campaign-sender-email') || '').toString().trim();
+        if (!isValidEmail(senderEmail)) {
+          setEmailCampaignFeedback("Renseignez une adresse mail d'expéditeur valide.", 'error');
+          const senderInput = emailCampaignForm.querySelector('#email-campaign-sender-email');
+          if (senderInput instanceof HTMLInputElement) {
+            senderInput.focus();
+          }
+          return;
+        }
+
+        const senderName = (formData.get('email-campaign-sender-name') || '').toString().trim();
+        const subject = (formData.get('email-campaign-subject') || '').toString().trim();
+        if (!subject) {
+          setEmailCampaignFeedback("L'objet du mail est obligatoire.", 'error');
+          if (emailCampaignSubjectInput) {
+            emailCampaignSubjectInput.focus();
+          }
+          return;
+        }
+
+        const now = new Date().toISOString();
+        if (!Array.isArray(data.emailCampaigns)) {
+          data.emailCampaigns = [];
+        }
+
+        const campaignRecord = {
+          id: generateId('email-campaign'),
+          name,
+          templateId: template.id || templateId,
+          templateName: template.name || 'Modèle sans titre',
+          savedSearchId,
+          savedSearchName: savedSearch ? savedSearch.name : '',
+          senderName,
+          senderEmail,
+          subject,
+          sentAt: now,
+          recipientCount: recipients.length,
+          recipients: recipients.map((recipient) => ({ ...recipient })),
+          templateSnapshot: Array.isArray(template.blocks)
+            ? template.blocks.map((block) => cloneEmailTemplateBlock(block, { preserveId: true }))
+            : [],
+        };
+
+        data.emailCampaigns.push(campaignRecord);
+        data.lastUpdated = now;
+        saveDataForUser(currentUser, data);
+        renderCampaignHistory();
+        setEmailCampaignFeedback(`Campagne « ${name} » enregistrée.`, 'success');
+        notifyDataChanged('email-campaigns', {
+          type: 'created',
+          campaignId: campaignRecord.id,
+        });
+        resetCampaignForm(true);
+        updateCampaignRecipients();
+      });
+
+      emailCampaignForm.addEventListener('reset', () => {
+        window.requestAnimationFrame(() => {
+          resetCampaignForm();
+        });
+      });
+    }
+
     if (contactForm) {
       contactForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -1578,6 +1916,12 @@
     renderMetrics();
     renderCategories();
     renderKeywords();
+    renderEmailTemplateBlocks();
+    renderEmailTemplateList();
+    renderCampaignTemplateOptions();
+    renderEmailTemplatePreview();
+    renderCampaignHistory();
+    updateCampaignRecipients();
 
     function openCalendar() {
       if (!calendarOverlay) {
@@ -6241,6 +6585,8 @@
           }
         }
       }
+
+      updateCampaignRecipients();
     }
 
     function renderSavedSearchList() {
@@ -6469,6 +6815,1077 @@
       }
     }
 
+    const EMAIL_TEMPLATE_BLOCK_DEFAULTS = {
+      paragraph: { text: '', align: 'left' },
+      image: { url: '', alt: '', link: '', caption: '' },
+      button: { label: '', url: '', variant: 'primary' },
+    };
+    const EMAIL_TEMPLATE_ALIGN_VALUES = new Set(['left', 'center', 'right']);
+    const EMAIL_TEMPLATE_BUTTON_VARIANTS = new Set(['primary', 'outline']);
+
+    function addEmailTemplateBlock(type, initialData = {}) {
+      const block = createEmailTemplateBlock(type, initialData);
+      emailTemplateDraftBlocks.push(block);
+      renderEmailTemplateBlocks();
+      renderEmailTemplatePreview();
+      focusEmailTemplateBlock(block.id);
+    }
+
+    function createEmailTemplateBlock(type, initialData = {}, options = {}) {
+      const normalizedType = type === 'image' || type === 'button' ? type : 'paragraph';
+      const preserveId = Boolean(options && options.preserveId);
+      const source =
+        initialData &&
+        typeof initialData === 'object' &&
+        initialData.data &&
+        typeof initialData.data === 'object'
+          ? initialData.data
+          : initialData;
+      const data = normalizeEmailTemplateBlockData(normalizedType, source);
+      let blockId = '';
+      if (
+        preserveId &&
+        initialData &&
+        typeof initialData.id === 'string' &&
+        initialData.id.trim()
+      ) {
+        blockId = initialData.id.trim();
+      } else if (options && typeof options.id === 'string' && options.id.trim()) {
+        blockId = options.id.trim();
+      } else {
+        blockId = generateId('email-block');
+      }
+      return { id: blockId, type: normalizedType, data };
+    }
+
+    function normalizeEmailTemplateBlockData(type, rawData = {}) {
+      const defaults = EMAIL_TEMPLATE_BLOCK_DEFAULTS[type] || EMAIL_TEMPLATE_BLOCK_DEFAULTS.paragraph;
+      const data = { ...defaults };
+
+      if (type === 'paragraph') {
+        if (typeof rawData.text === 'string') {
+          data.text = rawData.text;
+        }
+        if (typeof rawData.align === 'string' && EMAIL_TEMPLATE_ALIGN_VALUES.has(rawData.align)) {
+          data.align = rawData.align;
+        }
+        if (!EMAIL_TEMPLATE_ALIGN_VALUES.has(data.align)) {
+          data.align = 'left';
+        }
+        return data;
+      }
+
+      if (type === 'image') {
+        if (typeof rawData.url === 'string') {
+          data.url = rawData.url.trim();
+        }
+        if (typeof rawData.alt === 'string') {
+          data.alt = rawData.alt.trim();
+        }
+        if (typeof rawData.link === 'string') {
+          data.link = rawData.link.trim();
+        }
+        if (typeof rawData.caption === 'string') {
+          data.caption = rawData.caption.trim();
+        }
+        return data;
+      }
+
+      if (type === 'button') {
+        if (typeof rawData.label === 'string') {
+          data.label = rawData.label.trim();
+        }
+        if (typeof rawData.url === 'string') {
+          data.url = rawData.url.trim();
+        }
+        if (
+          typeof rawData.variant === 'string' &&
+          EMAIL_TEMPLATE_BUTTON_VARIANTS.has(rawData.variant)
+        ) {
+          data.variant = rawData.variant;
+        }
+        if (!EMAIL_TEMPLATE_BUTTON_VARIANTS.has(data.variant)) {
+          data.variant = 'primary';
+        }
+        return data;
+      }
+
+      return data;
+    }
+
+    function cloneEmailTemplateBlock(block, options = {}) {
+      if (!block || typeof block !== 'object') {
+        return createEmailTemplateBlock('paragraph', {});
+      }
+      return createEmailTemplateBlock(block.type, block, options);
+    }
+
+    function renderEmailTemplateBlocks() {
+      if (!emailTemplateBlocksContainer) {
+        return;
+      }
+
+      emailTemplateBlocksContainer.innerHTML = '';
+
+      if (!Array.isArray(emailTemplateDraftBlocks) || emailTemplateDraftBlocks.length === 0) {
+        const emptyState = document.createElement('p');
+        emptyState.className = 'empty-state';
+        emptyState.textContent = emailTemplateBlocksEmptyText;
+        emailTemplateBlocksContainer.appendChild(emptyState);
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      emailTemplateDraftBlocks.forEach((block, index) => {
+        const element = createEmailTemplateBlockElement(block, index);
+        fragment.appendChild(element);
+      });
+      emailTemplateBlocksContainer.appendChild(fragment);
+    }
+
+    function createEmailTemplateBlockElement(block, index) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'email-template-block';
+      wrapper.dataset.blockId = block.id;
+      wrapper.dataset.blockType = block.type;
+
+      const header = document.createElement('div');
+      header.className = 'email-template-block-header';
+      const title = document.createElement('h3');
+      title.textContent = `Bloc ${index + 1} · ${getEmailBlockLabel(block.type)}`;
+      header.appendChild(title);
+
+      const controls = document.createElement('div');
+      controls.className = 'email-template-block-controls';
+      controls.appendChild(createBlockControlButton('Monter', 'move-up', index === 0));
+      controls.appendChild(
+        createBlockControlButton('Descendre', 'move-down', index === emailTemplateDraftBlocks.length - 1),
+      );
+      controls.appendChild(createBlockControlButton('Dupliquer', 'duplicate'));
+      controls.appendChild(createBlockControlButton('Supprimer', 'remove', false, true));
+      header.appendChild(controls);
+      wrapper.appendChild(header);
+
+      if (block.type === 'paragraph') {
+        wrapper.appendChild(
+          createTextareaRow(`${block.id}-text`, 'Contenu du paragraphe', block.data.text, 'text'),
+        );
+
+        const alignRow = document.createElement('div');
+        alignRow.className = 'form-row';
+        const alignLabel = document.createElement('label');
+        alignLabel.setAttribute('for', `${block.id}-align`);
+        alignLabel.textContent = 'Alignement';
+        alignRow.appendChild(alignLabel);
+        const alignSelect = document.createElement('select');
+        alignSelect.id = `${block.id}-align`;
+        alignSelect.dataset.blockField = 'align';
+        EMAIL_TEMPLATE_ALIGN_VALUES.forEach((value) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent =
+            value === 'left' ? 'Aligné à gauche' : value === 'center' ? 'Centré' : 'Aligné à droite';
+          if (value === block.data.align) {
+            option.selected = true;
+          }
+          alignSelect.appendChild(option);
+        });
+        alignRow.appendChild(alignSelect);
+        wrapper.appendChild(alignRow);
+        return wrapper;
+      }
+
+      if (block.type === 'image') {
+        wrapper.appendChild(
+          createInputRow(`${block.id}-url`, "URL de l'image *", block.data.url, 'url', 'url', true),
+        );
+        wrapper.appendChild(
+          createInputRow(`${block.id}-alt`, 'Texte alternatif', block.data.alt, 'text', 'alt'),
+        );
+        wrapper.appendChild(
+          createInputRow(`${block.id}-link`, "Lien sur l'image", block.data.link, 'url', 'link'),
+        );
+        wrapper.appendChild(
+          createInputRow(`${block.id}-caption`, 'Légende', block.data.caption, 'text', 'caption'),
+        );
+        return wrapper;
+      }
+
+      wrapper.appendChild(
+        createInputRow(`${block.id}-label`, 'Texte du bouton *', block.data.label, 'text', 'label', true),
+      );
+      wrapper.appendChild(
+        createInputRow(`${block.id}-button-url`, 'Lien cible *', block.data.url, 'url', 'url', true),
+      );
+      const variantRow = document.createElement('div');
+      variantRow.className = 'form-row';
+      const variantLabel = document.createElement('label');
+      variantLabel.setAttribute('for', `${block.id}-variant`);
+      variantLabel.textContent = 'Style du bouton';
+      variantRow.appendChild(variantLabel);
+      const variantSelect = document.createElement('select');
+      variantSelect.id = `${block.id}-variant`;
+      variantSelect.dataset.blockField = 'variant';
+      const variants = [
+        { value: 'primary', label: 'Principal' },
+        { value: 'outline', label: 'Contour' },
+      ];
+      variants.forEach((optionConfig) => {
+        const option = document.createElement('option');
+        option.value = optionConfig.value;
+        option.textContent = optionConfig.label;
+        if (optionConfig.value === block.data.variant) {
+          option.selected = true;
+        }
+        variantSelect.appendChild(option);
+      });
+      variantRow.appendChild(variantSelect);
+      wrapper.appendChild(variantRow);
+      return wrapper;
+    }
+
+    function createBlockControlButton(label, action, disabled = false, danger = false) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = danger ? 'ghost-button ghost-button--danger' : 'ghost-button';
+      button.dataset.action = action;
+      button.textContent = label;
+      button.disabled = disabled;
+      return button;
+    }
+
+    function createTextareaRow(id, labelText, value, field) {
+      const row = document.createElement('div');
+      row.className = 'form-row';
+      const label = document.createElement('label');
+      label.setAttribute('for', id);
+      label.textContent = labelText;
+      row.appendChild(label);
+      const textarea = document.createElement('textarea');
+      textarea.id = id;
+      textarea.dataset.blockField = field;
+      textarea.value = value || '';
+      row.appendChild(textarea);
+      return row;
+    }
+
+    function createInputRow(id, labelText, value, type, field, required = false) {
+      const row = document.createElement('div');
+      row.className = 'form-row';
+      const label = document.createElement('label');
+      label.setAttribute('for', id);
+      label.textContent = labelText;
+      row.appendChild(label);
+      const input = document.createElement('input');
+      input.id = id;
+      input.type = type;
+      input.dataset.blockField = field;
+      input.value = value || '';
+      if (required) {
+        input.required = true;
+      }
+      row.appendChild(input);
+      return row;
+    }
+
+    function getEmailBlockLabel(type) {
+      if (type === 'image') {
+        return 'Image';
+      }
+      if (type === 'button') {
+        return "Bouton d'appel à l'action";
+      }
+      return 'Paragraphe';
+    }
+
+    function handleEmailTemplateBlockInput(event) {
+      const target = event.target;
+      if (
+        !(
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target instanceof HTMLSelectElement
+        )
+      ) {
+        return;
+      }
+
+      const field = target.dataset.blockField;
+      if (!field) {
+        return;
+      }
+
+      const blockElement = target.closest('.email-template-block');
+      if (!blockElement) {
+        return;
+      }
+
+      const blockId = blockElement.dataset.blockId || '';
+      const block = emailTemplateDraftBlocks.find((item) => item && item.id === blockId);
+      if (!block) {
+        return;
+      }
+
+      if (block.type === 'paragraph') {
+        if (field === 'align') {
+          const alignValue = target.value.trim();
+          block.data.align = EMAIL_TEMPLATE_ALIGN_VALUES.has(alignValue) ? alignValue : 'left';
+          target.value = block.data.align;
+        } else if (field === 'text') {
+          block.data.text = target.value;
+        }
+      } else if (block.type === 'image') {
+        if (field in block.data) {
+          block.data[field] = target.value.trim();
+        }
+      } else if (block.type === 'button') {
+        if (field === 'variant') {
+          const variantValue = target.value.trim();
+          block.data.variant = EMAIL_TEMPLATE_BUTTON_VARIANTS.has(variantValue)
+            ? variantValue
+            : 'primary';
+          target.value = block.data.variant;
+        } else if (field in block.data) {
+          block.data[field] = target.value.trim();
+        }
+      }
+
+      renderEmailTemplatePreview();
+    }
+
+    function handleEmailTemplateBlockAction(event) {
+      const button = event.target instanceof HTMLElement ? event.target.closest('button[data-action]') : null;
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const blockElement = button.closest('.email-template-block');
+      if (!blockElement) {
+        return;
+      }
+      const blockId = blockElement.dataset.blockId || '';
+      const action = button.dataset.action || '';
+      const index = emailTemplateDraftBlocks.findIndex((item) => item && item.id === blockId);
+      if (index === -1) {
+        return;
+      }
+
+      if (action === 'move-up' && index > 0) {
+        const [block] = emailTemplateDraftBlocks.splice(index, 1);
+        emailTemplateDraftBlocks.splice(index - 1, 0, block);
+        renderEmailTemplateBlocks();
+        renderEmailTemplatePreview();
+        focusEmailTemplateBlock(block.id);
+        return;
+      }
+
+      if (action === 'move-down' && index < emailTemplateDraftBlocks.length - 1) {
+        const [block] = emailTemplateDraftBlocks.splice(index, 1);
+        emailTemplateDraftBlocks.splice(index + 1, 0, block);
+        renderEmailTemplateBlocks();
+        renderEmailTemplatePreview();
+        focusEmailTemplateBlock(block.id);
+        return;
+      }
+
+      if (action === 'duplicate') {
+        const clone = cloneEmailTemplateBlock(emailTemplateDraftBlocks[index], { preserveId: false });
+        emailTemplateDraftBlocks.splice(index + 1, 0, clone);
+        renderEmailTemplateBlocks();
+        renderEmailTemplatePreview();
+        focusEmailTemplateBlock(clone.id);
+        return;
+      }
+
+      if (action === 'remove') {
+        emailTemplateDraftBlocks.splice(index, 1);
+        renderEmailTemplateBlocks();
+        renderEmailTemplatePreview();
+      }
+    }
+
+    function focusEmailTemplateBlock(blockId, selector = '[data-block-field]') {
+      if (!blockId || !emailTemplateBlocksContainer) {
+        return;
+      }
+      const escapedId = escapeSelector(blockId);
+      window.requestAnimationFrame(() => {
+        const target = emailTemplateBlocksContainer.querySelector(
+          `.email-template-block[data-block-id="${escapedId}"] ${selector}`,
+        );
+        if (target && typeof target.focus === 'function') {
+          target.focus();
+        }
+      });
+    }
+
+    function renderEmailTemplatePreview() {
+      renderTemplatePreview(emailTemplateDraftBlocks, emailTemplatePreview);
+    }
+
+    function renderTemplatePreview(blocks, container) {
+      if (!container) {
+        return;
+      }
+
+      container.innerHTML = '';
+
+      const validBlocks = Array.isArray(blocks) ? blocks.filter((block) => block && block.type) : [];
+      if (validBlocks.length === 0) {
+        container.innerHTML =
+          '<p class="empty-state">Ajoutez des blocs pour visualiser le rendu du mail.</p>';
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      validBlocks.forEach((block) => {
+        let element = null;
+        if (block.type === 'paragraph') {
+          element = createParagraphPreview(block);
+        } else if (block.type === 'image') {
+          element = createImagePreview(block);
+        } else if (block.type === 'button') {
+          element = createButtonPreview(block);
+        }
+        if (element) {
+          fragment.appendChild(element);
+        }
+      });
+      container.appendChild(fragment);
+    }
+
+    function createParagraphPreview(block) {
+      const paragraph = document.createElement('p');
+      if (block.data.align && EMAIL_TEMPLATE_ALIGN_VALUES.has(block.data.align)) {
+        paragraph.style.textAlign = block.data.align;
+      }
+
+      const text = typeof block.data.text === 'string' ? block.data.text : '';
+      const lines = text.split(/\r?\n/);
+      lines.forEach((line, index) => {
+        paragraph.appendChild(createLinkifiedFragment(line));
+        if (index < lines.length - 1) {
+          paragraph.appendChild(document.createElement('br'));
+        }
+      });
+      return paragraph;
+    }
+
+    function createImagePreview(block) {
+      const figure = document.createElement('figure');
+      const imageUrl = block.data.url || '';
+      if (!imageUrl) {
+        const placeholder = document.createElement('p');
+        placeholder.textContent = 'Image non renseignée';
+        figure.appendChild(placeholder);
+        return figure;
+      }
+
+      const image = document.createElement('img');
+      image.src = imageUrl;
+      image.alt = block.data.alt || '';
+
+      let imageContainer = image;
+      if (block.data.link) {
+        const link = document.createElement('a');
+        link.href = block.data.link;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.appendChild(image);
+        imageContainer = link;
+      }
+      figure.appendChild(imageContainer);
+
+      if (block.data.caption) {
+        const caption = document.createElement('figcaption');
+        caption.textContent = block.data.caption;
+        figure.appendChild(caption);
+      }
+      return figure;
+    }
+
+    function createButtonPreview(block) {
+      const container = document.createElement('p');
+      container.style.textAlign = 'center';
+      const button = document.createElement('a');
+      button.className = 'email-preview-button';
+      if (block.data.variant === 'outline') {
+        button.classList.add('email-preview-button--outline');
+      }
+      button.href = block.data.url || '#';
+      button.target = '_blank';
+      button.rel = 'noopener noreferrer';
+      button.textContent = block.data.label || "Appel à l'action";
+      container.appendChild(button);
+      return container;
+    }
+
+    function createLinkifiedFragment(text) {
+      const fragment = document.createDocumentFragment();
+      if (!text) {
+        fragment.appendChild(document.createTextNode(''));
+        return fragment;
+      }
+      const urlPattern = /(https?:\/\/[^\s]+)/gi;
+      let lastIndex = 0;
+      let match = urlPattern.exec(text);
+      while (match) {
+        if (match.index > lastIndex) {
+          fragment.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+        const url = match[0];
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = url;
+        fragment.appendChild(link);
+        lastIndex = match.index + url.length;
+        match = urlPattern.exec(text);
+      }
+      if (lastIndex < text.length) {
+        fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+      }
+      return fragment;
+    }
+
+    function setEmailTemplateFeedback(message, status = '') {
+      if (!emailTemplateFeedback) {
+        return;
+      }
+      emailTemplateFeedback.textContent = message;
+      emailTemplateFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+      if (status === 'error') {
+        emailTemplateFeedback.classList.add('form-feedback--error');
+      } else if (status === 'success') {
+        emailTemplateFeedback.classList.add('form-feedback--success');
+      }
+    }
+
+    function resetEmailTemplateForm(shouldFocus = true, keepFeedback = false) {
+      if (emailTemplateForm) {
+        emailTemplateForm.reset();
+        delete emailTemplateForm.dataset.editingId;
+      }
+      emailTemplateEditingId = '';
+      emailTemplateDraftBlocks = [];
+      if (!keepFeedback) {
+        setEmailTemplateFeedback('');
+      }
+      renderEmailTemplateBlocks();
+      renderEmailTemplatePreview();
+      if (shouldFocus && emailTemplateNameInput && typeof emailTemplateNameInput.focus === 'function') {
+        emailTemplateNameInput.focus();
+      }
+    }
+
+    function loadEmailTemplateForEditing(templateId) {
+      const template = getTemplateById(templateId);
+      if (!template) {
+        return;
+      }
+
+      emailTemplateEditingId = template.id || '';
+      if (emailTemplateForm) {
+        emailTemplateForm.dataset.editingId = template.id || '';
+      }
+      if (emailTemplateNameInput) {
+        emailTemplateNameInput.value = template.name || '';
+      }
+      if (emailTemplateSubjectInput) {
+        emailTemplateSubjectInput.value = template.subject || '';
+      }
+      emailTemplateDraftBlocks = Array.isArray(template.blocks)
+        ? template.blocks.map((block) => cloneEmailTemplateBlock(block, { preserveId: true }))
+        : [];
+      renderEmailTemplateBlocks();
+      renderEmailTemplatePreview();
+      setEmailTemplateFeedback(
+        `Modification du modèle « ${template.name || 'Sans titre'} ».`,
+        '',
+      );
+      if (emailTemplateNameInput && typeof emailTemplateNameInput.focus === 'function') {
+        emailTemplateNameInput.focus();
+      }
+    }
+
+    function duplicateEmailTemplate(templateId) {
+      const template = getTemplateById(templateId);
+      if (!template) {
+        return;
+      }
+      const now = new Date().toISOString();
+      const copy = {
+        id: generateId('email-template'),
+        name: `${template.name || 'Modèle sans titre'} (copie)`,
+        subject: template.subject || '',
+        blocks: Array.isArray(template.blocks)
+          ? template.blocks.map((block) => cloneEmailTemplateBlock(block, { preserveId: false }))
+          : [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (!Array.isArray(data.emailTemplates)) {
+        data.emailTemplates = [];
+      }
+      data.emailTemplates.push(copy);
+      data.lastUpdated = now;
+      saveDataForUser(currentUser, data);
+      renderEmailTemplateList();
+      renderCampaignTemplateOptions();
+      setEmailTemplateFeedback(`Modèle « ${template.name || 'Sans titre'} » dupliqué.`, 'success');
+      notifyDataChanged('email-templates', { type: 'duplicated', templateId: copy.id });
+    }
+
+    function deleteEmailTemplate(templateId) {
+      if (!Array.isArray(data.emailTemplates)) {
+        return;
+      }
+      const index = data.emailTemplates.findIndex((item) => item && item.id === templateId);
+      if (index === -1) {
+        return;
+      }
+      const [removed] = data.emailTemplates.splice(index, 1);
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      if (emailTemplateEditingId === templateId) {
+        resetEmailTemplateForm(false);
+      }
+      if (
+        campaignTemplateSelect instanceof HTMLSelectElement &&
+        campaignTemplateSelect.value === templateId
+      ) {
+        campaignTemplateSelect.value = '';
+        campaignActiveTemplateId = '';
+        updateCampaignTemplatePreview();
+      }
+      renderEmailTemplateList();
+      renderCampaignTemplateOptions();
+      setEmailTemplateFeedback(
+        `Modèle « ${(removed && removed.name) || 'Sans titre'} » supprimé.`,
+        'success',
+      );
+      notifyDataChanged('email-templates', { type: 'deleted', templateId });
+    }
+
+    function renderEmailTemplateList() {
+      const templates = getSortedEmailTemplates();
+      if (emailTemplateEmptyState) {
+        emailTemplateEmptyState.hidden = templates.length > 0;
+      }
+      if (!emailTemplateList) {
+        return;
+      }
+      emailTemplateList.innerHTML = '';
+      if (templates.length === 0) {
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      templates.forEach((template) => {
+        const listItem = document.createElement('li');
+        listItem.className = 'email-template-card';
+        listItem.dataset.templateId = template.id || '';
+
+        const header = document.createElement('div');
+        header.className = 'email-template-card-header';
+        const title = document.createElement('h3');
+        title.textContent = template.name || 'Modèle sans titre';
+        header.appendChild(title);
+        const meta = document.createElement('p');
+        meta.className = 'email-template-card-meta';
+        meta.textContent = buildEmailTemplateMeta(template);
+        header.appendChild(meta);
+        listItem.appendChild(header);
+
+        const preview = document.createElement('div');
+        preview.className = 'email-template-card-preview';
+        preview.textContent = summarizeTemplateBlocks(template.blocks);
+        listItem.appendChild(preview);
+
+        const actions = document.createElement('div');
+        actions.className = 'email-template-card-actions';
+        actions.appendChild(createTemplateActionButton('Modifier', 'edit-template', template.id));
+        actions.appendChild(createTemplateActionButton('Dupliquer', 'duplicate-template', template.id));
+        actions.appendChild(
+          createTemplateActionButton('Supprimer', 'delete-template', template.id, true),
+        );
+        listItem.appendChild(actions);
+
+        fragment.appendChild(listItem);
+      });
+      emailTemplateList.appendChild(fragment);
+    }
+
+    function createTemplateActionButton(label, action, templateId, danger = false) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = danger ? 'secondary-button ghost-button--danger' : 'secondary-button';
+      button.dataset.action = action;
+      button.dataset.templateId = templateId || '';
+      button.textContent = label;
+      return button;
+    }
+
+    function summarizeTemplateBlocks(blocks) {
+      if (!Array.isArray(blocks) || blocks.length === 0) {
+        return 'Aucun contenu pour le moment.';
+      }
+      const descriptions = [];
+      blocks.forEach((block) => {
+        if (!block) {
+          return;
+        }
+        if (block.type === 'paragraph') {
+          const text = block.data && typeof block.data.text === 'string' ? block.data.text.trim() : '';
+          if (text) {
+            descriptions.push(text.replace(/\s+/g, ' ').slice(0, 120));
+          }
+          return;
+        }
+        if (block.type === 'image') {
+          descriptions.push('Bloc image');
+          return;
+        }
+        if (block.type === 'button') {
+          const label = block.data && typeof block.data.label === 'string' ? block.data.label.trim() : '';
+          descriptions.push(`Bouton : ${label || 'Sans libellé'}`);
+        }
+      });
+      if (descriptions.length === 0) {
+        return 'Aucun contenu pour le moment.';
+      }
+      return descriptions.join(' · ');
+    }
+
+    function buildEmailTemplateMeta(template) {
+      const parts = [];
+      if (template.subject) {
+        parts.push(`Objet : ${template.subject}`);
+      }
+      const blockCount = Array.isArray(template.blocks) ? template.blocks.length : 0;
+      if (blockCount === 1) {
+        parts.push('1 bloc');
+      } else if (blockCount > 1) {
+        parts.push(`${blockCount} blocs`);
+      }
+      const timestamp = getTemplateTimestamp(template);
+      if (timestamp) {
+        parts.push(`Mis à jour le ${campaignDateFormatter.format(new Date(timestamp))}`);
+      }
+      return parts.join(' · ');
+    }
+
+    function getSortedEmailTemplates() {
+      const templates = Array.isArray(data.emailTemplates) ? data.emailTemplates.slice() : [];
+      templates.sort((a, b) => {
+        const diff = getTemplateTimestamp(b) - getTemplateTimestamp(a);
+        if (diff !== 0) {
+          return diff;
+        }
+        const nameA = a && typeof a.name === 'string' ? a.name : '';
+        const nameB = b && typeof b.name === 'string' ? b.name : '';
+        return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+      });
+      return templates;
+    }
+
+    function getTemplateTimestamp(template) {
+      if (!template || typeof template !== 'object') {
+        return 0;
+      }
+      const updated = Date.parse(template.updatedAt || '');
+      if (!Number.isNaN(updated)) {
+        return updated;
+      }
+      const created = Date.parse(template.createdAt || '');
+      if (!Number.isNaN(created)) {
+        return created;
+      }
+      return 0;
+    }
+
+    function getTemplateById(templateId) {
+      if (!templateId || !Array.isArray(data.emailTemplates)) {
+        return null;
+      }
+      return data.emailTemplates.find((template) => template && template.id === templateId) || null;
+    }
+
+    function renderCampaignTemplateOptions() {
+      if (!(campaignTemplateSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+      const templates = getSortedEmailTemplates();
+      const previousValue = campaignTemplateSelect.value || '';
+      campaignTemplateSelect.innerHTML = '';
+      const placeholder = document.createElement('option');
+      const hasTemplates = templates.length > 0;
+      placeholder.value = '';
+      placeholder.textContent = hasTemplates ? 'Sélectionnez un modèle' : 'Aucun modèle disponible';
+      placeholder.disabled = hasTemplates;
+      placeholder.selected = true;
+      campaignTemplateSelect.appendChild(placeholder);
+      templates.forEach((template) => {
+        const option = document.createElement('option');
+        option.value = template.id || '';
+        option.textContent = template.name || 'Modèle sans titre';
+        campaignTemplateSelect.appendChild(option);
+      });
+      campaignTemplateSelect.disabled = !hasTemplates;
+      if (hasTemplates && templates.some((template) => template.id === previousValue)) {
+        campaignTemplateSelect.value = previousValue;
+        campaignActiveTemplateId = previousValue;
+      } else {
+        campaignTemplateSelect.value = '';
+        campaignActiveTemplateId = '';
+      }
+      updateCampaignTemplatePreview();
+    }
+
+    function setEmailCampaignFeedback(message, status = '') {
+      if (!emailCampaignFeedback) {
+        return;
+      }
+      emailCampaignFeedback.textContent = message;
+      emailCampaignFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+      if (status === 'error') {
+        emailCampaignFeedback.classList.add('form-feedback--error');
+      } else if (status === 'success') {
+        emailCampaignFeedback.classList.add('form-feedback--success');
+      }
+    }
+
+    function updateCampaignTemplatePreview() {
+      const templateId =
+        campaignTemplateSelect instanceof HTMLSelectElement ? campaignTemplateSelect.value : '';
+      const template = getTemplateById(templateId);
+      if (!template) {
+        campaignActiveTemplateId = '';
+        if (campaignEmailPreview) {
+          campaignEmailPreview.innerHTML = campaignEmailPreviewEmptyHtml;
+        }
+        if (!campaignSubjectEdited && emailCampaignSubjectInput) {
+          emailCampaignSubjectInput.value = '';
+        }
+        campaignSubjectTemplateId = '';
+        return;
+      }
+
+      campaignActiveTemplateId = template.id || '';
+      renderTemplatePreview(template.blocks, campaignEmailPreview);
+      if (emailCampaignSubjectInput) {
+        const templateSubject = template.subject || '';
+        if (!campaignSubjectEdited) {
+          emailCampaignSubjectInput.value = templateSubject;
+        }
+        campaignSubjectTemplateId = template.id || '';
+        if (emailCampaignSubjectInput.value.trim() === templateSubject.trim()) {
+          campaignSubjectEdited = false;
+        }
+      }
+    }
+
+    function updateCampaignRecipients() {
+      if (!campaignSummary) {
+        return;
+      }
+      const savedSearchId =
+        campaignSavedSearchSelect instanceof HTMLSelectElement ? campaignSavedSearchSelect.value : '';
+      if (!savedSearchId) {
+        campaignRecipients = [];
+        campaignSummary.textContent = campaignSummaryDefaultText;
+        if (campaignRecipientList) {
+          campaignRecipientList.innerHTML = '';
+        }
+        return;
+      }
+
+      const { recipients, savedSearch } = getRecipientsForSavedSearch(savedSearchId);
+      campaignRecipients = recipients;
+
+      if (campaignRecipientList) {
+        campaignRecipientList.innerHTML = '';
+        if (recipients.length > 0) {
+          const fragment = document.createDocumentFragment();
+          recipients.forEach((recipient) => {
+            const item = document.createElement('li');
+            item.className = 'campaign-recipient-item';
+            const emailLine = document.createElement('p');
+            emailLine.className = 'campaign-recipient-email';
+            emailLine.textContent = recipient.email;
+            item.appendChild(emailLine);
+            const nameLine = document.createElement('p');
+            nameLine.className = 'campaign-recipient-name';
+            nameLine.textContent = recipient.name || 'Contact';
+            item.appendChild(nameLine);
+            fragment.appendChild(item);
+          });
+          campaignRecipientList.appendChild(fragment);
+        }
+      }
+
+      if (recipients.length === 0) {
+        campaignSummary.textContent =
+          "Aucun contact muni d'une adresse mail dans cette recherche sauvegardée.";
+      } else {
+        const suffix = recipients.length > 1 ? 'destinataires' : 'destinataire';
+        const searchName = savedSearch ? savedSearch.name : '';
+        campaignSummary.textContent = `${numberFormatter.format(
+          recipients.length,
+        )} ${suffix} recevront ce message via la recherche « ${searchName} ».`;
+      }
+    }
+
+    function getRecipientsForSavedSearch(savedSearchId) {
+      if (!savedSearchId || !Array.isArray(data.savedSearches)) {
+        return { recipients: [], savedSearch: null };
+      }
+      const savedSearch =
+        data.savedSearches.find((item) => item && item.id === savedSearchId) || null;
+      if (!savedSearch) {
+        return { recipients: [], savedSearch: null };
+      }
+
+      const categoriesById = buildCategoryMap();
+      const keywordsById = new Map(
+        Array.isArray(data.keywords) ? data.keywords.map((keyword) => [keyword.id, keyword]) : [],
+      );
+      const { matches } = filterContactsUsingSearch(
+        Array.isArray(data.contacts) ? data.contacts.slice() : [],
+        savedSearch.searchTerm || '',
+        cloneAdvancedFilters(savedSearch.advancedFilters || {}),
+        categoriesById,
+        keywordsById,
+      );
+
+      const emailSet = new Set();
+      const recipients = [];
+      matches.forEach((contact) => {
+        const channels = computeContactChannels(contact, categoriesById);
+        channels.emails.forEach((email) => {
+          if (!email || emailSet.has(email)) {
+            return;
+          }
+          emailSet.add(email);
+          recipients.push({
+            contactId: contact.id || '',
+            email,
+            name: getContactDisplayName(contact, categoriesById),
+          });
+        });
+      });
+      return { recipients, savedSearch };
+    }
+
+    function renderCampaignHistory() {
+      if (campaignHistoryEmpty) {
+        campaignHistoryEmpty.hidden = Array.isArray(data.emailCampaigns) && data.emailCampaigns.length > 0;
+      }
+      if (!campaignHistoryList) {
+        return;
+      }
+      campaignHistoryList.innerHTML = '';
+      const campaigns = Array.isArray(data.emailCampaigns) ? data.emailCampaigns.slice() : [];
+      if (campaigns.length === 0) {
+        return;
+      }
+      campaigns.sort((a, b) => getCampaignTimestamp(b) - getCampaignTimestamp(a));
+      const fragment = document.createDocumentFragment();
+      campaigns.forEach((campaign) => {
+        const item = document.createElement('li');
+        item.className = 'campaign-history-item';
+        const title = document.createElement('h3');
+        title.className = 'campaign-history-title';
+        title.textContent = campaign.name || 'Campagne sans nom';
+        item.appendChild(title);
+        const meta = document.createElement('p');
+        meta.className = 'campaign-history-meta';
+        meta.textContent = buildCampaignHistoryMeta(campaign);
+        item.appendChild(meta);
+        const summary = document.createElement('p');
+        summary.className = 'campaign-history-summary';
+        summary.textContent = `Objet : ${campaign.subject || '—'} · Modèle : ${
+          campaign.templateName || 'Sans titre'
+        }`;
+        item.appendChild(summary);
+        fragment.appendChild(item);
+      });
+      campaignHistoryList.appendChild(fragment);
+    }
+
+    function buildCampaignHistoryMeta(campaign) {
+      const parts = [];
+      const timestamp = getCampaignTimestamp(campaign);
+      if (timestamp) {
+        parts.push(`Envoyée le ${campaignDateFormatter.format(new Date(timestamp))}`);
+      }
+      const count = Number.isFinite(campaign.recipientCount) ? campaign.recipientCount : 0;
+      if (count > 0) {
+        const suffix = count > 1 ? 'destinataires' : 'destinataire';
+        parts.push(`${numberFormatter.format(count)} ${suffix}`);
+      } else {
+        parts.push('Aucun destinataire');
+      }
+      if (campaign.senderEmail) {
+        parts.push(`Expéditeur : ${campaign.senderEmail}`);
+      }
+      return parts.join(' · ');
+    }
+
+    function getCampaignTimestamp(campaign) {
+      if (!campaign || typeof campaign !== 'object') {
+        return 0;
+      }
+      const sentAt = Date.parse(campaign.sentAt || '');
+      if (!Number.isNaN(sentAt)) {
+        return sentAt;
+      }
+      const createdAt = Date.parse(campaign.createdAt || '');
+      if (!Number.isNaN(createdAt)) {
+        return createdAt;
+      }
+      return 0;
+    }
+
+    function resetCampaignForm(shouldFocus = true) {
+      if (emailCampaignForm) {
+        emailCampaignForm.reset();
+      }
+      campaignRecipients = [];
+      campaignSubjectEdited = false;
+      campaignActiveTemplateId = '';
+      campaignSubjectTemplateId = '';
+      if (campaignTemplateSelect instanceof HTMLSelectElement) {
+        campaignTemplateSelect.value = '';
+      }
+      if (campaignSavedSearchSelect instanceof HTMLSelectElement) {
+        campaignSavedSearchSelect.value = '';
+      }
+      if (campaignSummary) {
+        campaignSummary.textContent = campaignSummaryDefaultText;
+      }
+      if (campaignRecipientList) {
+        campaignRecipientList.innerHTML = '';
+      }
+      if (campaignEmailPreview) {
+        campaignEmailPreview.innerHTML = campaignEmailPreviewEmptyHtml;
+      }
+      setEmailCampaignFeedback('');
+      if (shouldFocus && campaignTemplateSelect instanceof HTMLSelectElement) {
+        campaignTemplateSelect.focus();
+      }
+    }
+
+    function escapeSelector(value) {
+      if (typeof value !== 'string') {
+        return '';
+      }
+      if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+        return CSS.escape(value);
+      }
+      return value.replace(/(["\\])/g, '\\$1');
+    }
+
     function sortSavedSearchesInPlace() {
       if (!Array.isArray(data.savedSearches)) {
         data.savedSearches = [];
@@ -6525,6 +7942,149 @@
 
       contactBulkKeywordSelect.disabled = keywords.length === 0;
       updateSelectedContactsUI();
+    }
+
+    function filterContactsUsingSearch(
+      contacts,
+      searchTerm,
+      filters,
+      categoriesById,
+      keywordsById,
+    ) {
+      const normalizedTerm = typeof searchTerm === 'string' ? searchTerm.trim().toLowerCase() : '';
+      const categoryFilterEntries =
+        filters && filters.categories && typeof filters.categories === 'object'
+          ? Object.entries(filters.categories).filter(([, filter]) => filter && typeof filter === 'object')
+          : [];
+      const keywordFilters = Array.isArray(filters && filters.keywords)
+        ? filters.keywords.filter((value) => Boolean(value))
+        : [];
+      const keywordMode =
+        filters && filters.keywordMode === KEYWORD_FILTER_MODE_ANY
+          ? KEYWORD_FILTER_MODE_ANY
+          : KEYWORD_FILTER_MODE_ALL;
+      const hasAdvancedFilters = categoryFilterEntries.length > 0 || keywordFilters.length > 0;
+
+      const matches = contacts.filter((contact) =>
+        contactMatchesSearchCriteria(
+          contact,
+          normalizedTerm,
+          categoryFilterEntries,
+          keywordFilters,
+          keywordMode,
+          categoriesById,
+          keywordsById,
+        ),
+      );
+
+      matches.sort((a, b) => {
+        const nameA = getContactDisplayName(a, categoriesById).toString();
+        const nameB = getContactDisplayName(b, categoriesById).toString();
+        return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+      });
+
+      return { matches, normalizedTerm, hasAdvancedFilters };
+    }
+
+    function contactMatchesSearchCriteria(
+      contact,
+      normalizedTerm,
+      categoryFilterEntries,
+      keywordFilters,
+      keywordMode,
+      categoriesById,
+      keywordsById,
+    ) {
+      if (!contact || typeof contact !== 'object') {
+        return false;
+      }
+
+      const categoryValues =
+        contact.categoryValues && typeof contact.categoryValues === 'object'
+          ? contact.categoryValues
+          : {};
+      const keywords = Array.isArray(contact.keywords) ? contact.keywords : [];
+
+      for (const [categoryId, filter] of categoryFilterEntries) {
+        if (!filter || typeof filter !== 'object') {
+          continue;
+        }
+
+        const rawValue = categoryValues[categoryId];
+        const valueString = rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+        if (!valueString) {
+          return false;
+        }
+
+        if (filter.type === 'text') {
+          const normalizedFilter = (filter.normalizedValue || '').toString();
+          if (!valueString.toLowerCase().includes(normalizedFilter)) {
+            return false;
+          }
+        } else if (valueString !== filter.rawValue) {
+          return false;
+        }
+      }
+
+      if (keywordFilters.length > 0) {
+        const keywordSet = new Set(keywords);
+        const matchesKeywords =
+          keywordMode === KEYWORD_FILTER_MODE_ANY
+            ? keywordFilters.some((keywordId) => keywordSet.has(keywordId))
+            : keywordFilters.every((keywordId) => keywordSet.has(keywordId));
+        if (!matchesKeywords) {
+          return false;
+        }
+      }
+
+      if (!normalizedTerm) {
+        return true;
+      }
+
+      const normalizedType = normalizeContactType(contact.type);
+      const typeConfig =
+        CONTACT_TYPE_MAP.get(normalizedType) || CONTACT_TYPE_MAP.get(CONTACT_TYPE_DEFAULT);
+      const displayName = getContactDisplayName(contact, categoriesById);
+      const channels = computeContactChannels(contact, categoriesById);
+
+      const categoryEntries = Object.entries(categoryValues)
+        .map(([categoryId, rawValue]) => {
+          const category = categoriesById.get(categoryId);
+          if (!category) {
+            return null;
+          }
+          const value = rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+          return value ? { name: category.name, value } : null;
+        })
+        .filter((entry) => Boolean(entry));
+
+      const keywordNames = keywords
+        .map((keywordId) => {
+          const keyword = keywordsById.get(keywordId);
+          return keyword ? keyword.name : '';
+        })
+        .filter(Boolean);
+
+      const haystackParts = [
+        displayName,
+        typeConfig ? typeConfig.label : '',
+        contact.fullName || '',
+        contact.firstName || '',
+        contact.usageName || '',
+        contact.birthName || '',
+        contact.notes || '',
+        contact.organization || '',
+        contact.city || '',
+        contact.customField || '',
+        keywordNames.join(' '),
+        categoryEntries.map((entry) => entry && entry.name).join(' '),
+        categoryEntries.map((entry) => (entry ? entry.value : '')).join(' '),
+        channels.emails.join(' '),
+        channels.phones.join(' '),
+      ];
+
+      const haystack = haystackParts.join(' ').toLowerCase();
+      return haystack.includes(normalizedTerm);
     }
 
     function normalizeContactType(rawType) {
@@ -6609,7 +8169,6 @@
         updateSelectedContactsUI();
       }
 
-      const normalizedTerm = contactSearchTerm.trim().toLowerCase();
       const categoriesById = buildCategoryMap();
       const keywordsById = new Map(
         Array.isArray(data.keywords)
@@ -6617,119 +8176,11 @@
           : [],
       );
 
-      const categoryFilterEntries =
-        advancedFilters &&
-        advancedFilters.categories &&
-        typeof advancedFilters.categories === 'object'
-          ? Object.entries(advancedFilters.categories)
-          : [];
-
-      const keywordFilters = Array.isArray(advancedFilters.keywords)
-        ? advancedFilters.keywords.filter((value) => Boolean(value))
-        : [];
-      const keywordMode =
-	  (advancedFilters?.keywordMode === KEYWORD_FILTER_MODE_ANY)
-		? KEYWORD_FILTER_MODE_ANY
-		: KEYWORD_FILTER_MODE_ALL;
-
-      const hasAdvancedFilters = categoryFilterEntries.length > 0 || keywordFilters.length > 0;
-
-      const filteredContacts = contacts
-        .filter((contact) => {
-          const categoryValues =
-            contact && typeof contact === 'object' && contact.categoryValues && typeof contact.categoryValues === 'object'
-              ? contact.categoryValues
-              : {};
-          const keywords = Array.isArray(contact.keywords) ? contact.keywords : [];
-          for (const [categoryId, filter] of categoryFilterEntries) {
-            if (!filter || typeof filter !== 'object') {
-              continue;
-            }
-            const rawValue = categoryValues[categoryId];
-            const valueString =
-              rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
-            if (!valueString) {
-              return false;
-            }
-
-            if (filter.type === 'text') {
-              const normalizedFilter = (filter.normalizedValue || '').toString();
-              if (!valueString.toLowerCase().includes(normalizedFilter)) {
-                return false;
-              }
-            } else if (valueString !== filter.rawValue) {
-              return false;
-            }
-          }
-
-          if (keywordFilters.length > 0) {
-            const keywordSet = new Set(keywords);
-            let matchesKeywords = false;
-            if (keywordMode === KEYWORD_FILTER_MODE_ANY) {
-              matchesKeywords = keywordFilters.some((keywordId) => keywordSet.has(keywordId));
-            } else {
-              matchesKeywords = keywordFilters.every((keywordId) => keywordSet.has(keywordId));
-            }
-            if (!matchesKeywords) {
-              return false;
-            }
-          }
-
-          if (!normalizedTerm) {
-            return true;
-          }
-
-          const normalizedType = normalizeContactType(contact.type);
-          const typeConfig =
-            CONTACT_TYPE_MAP.get(normalizedType) || CONTACT_TYPE_MAP.get(CONTACT_TYPE_DEFAULT);
-          const displayName = getContactDisplayName(contact, categoriesById);
-          const channels = computeContactChannels(contact, categoriesById);
-
-          const categoryEntries = Object.entries(categoryValues)
-            .map(([categoryId, rawValue]) => {
-              const category = categoriesById.get(categoryId);
-              if (!category) {
-                return null;
-              }
-              const value =
-                rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
-              return value ? { name: category.name, value } : null;
-            })
-            .filter((entry) => Boolean(entry));
-
-          const keywordNames = keywords
-            .map((keywordId) => {
-              const keyword = keywordsById.get(keywordId);
-              return keyword ? keyword.name : '';
-            })
-            .filter(Boolean);
-
-          const haystackParts = [
-            displayName,
-            typeConfig ? typeConfig.label : '',
-            contact.fullName || '',
-            contact.firstName || '',
-            contact.usageName || '',
-            contact.birthName || '',
-            contact.notes || '',
-            contact.organization || '',
-            contact.city || '',
-            contact.customField || '',
-            keywordNames.join(' '),
-            categoryEntries.map((entry) => entry && entry.name).join(' '),
-            categoryEntries.map((entry) => (entry ? entry.value : '')).join(' '),
-            channels.emails.join(' '),
-            channels.phones.join(' '),
-          ];
-
-          const haystack = haystackParts.join(' ').toLowerCase();
-          return haystack.includes(normalizedTerm);
-        })
-        .sort((a, b) => {
-          const nameA = getContactDisplayName(a, categoriesById).toString();
-          const nameB = getContactDisplayName(b, categoriesById).toString();
-          return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
-        });
+      const {
+        matches: filteredContacts,
+        normalizedTerm,
+        hasAdvancedFilters,
+      } = filterContactsUsingSearch(contacts, contactSearchTerm, advancedFilters, categoriesById, keywordsById);
 
       lastContactSearchResultIds = filteredContacts
         .map((contact) => (contact && contact.id ? contact.id : ''))
@@ -8607,6 +10058,22 @@
         base.savedSearches = normalizedSavedSearches;
       }
 
+      if (!Array.isArray(base.emailTemplates)) {
+        base.emailTemplates = [];
+      } else {
+        base.emailTemplates = base.emailTemplates
+          .map((item) => normalizeEmailTemplateRecord(item))
+          .filter((item) => item);
+      }
+
+      if (!Array.isArray(base.emailCampaigns)) {
+        base.emailCampaigns = [];
+      } else {
+        base.emailCampaigns = base.emailCampaigns
+          .map((item) => normalizeEmailCampaignRecord(item))
+          .filter((item) => item);
+      }
+
       base.contacts.forEach((contact) => {
         if (!contact || typeof contact !== 'object') {
           return;
@@ -8754,6 +10221,341 @@
 
 
       return result;
+    }
+
+    function getFirstNonEmptyString(candidates) {
+      if (!Array.isArray(candidates)) {
+        return '';
+      }
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string') {
+          const value = candidate.trim();
+          if (value) {
+            return value;
+          }
+        }
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          const value = candidate.toString();
+          if (value) {
+            return value;
+          }
+        }
+      }
+      return '';
+    }
+
+    function selectValidIsoDate(...candidates) {
+      const values = Array.isArray(candidates) ? candidates : [];
+      for (const candidate of values) {
+        if (candidate instanceof Date && !Number.isNaN(candidate.getTime())) {
+          return candidate.toISOString();
+        }
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          const date = new Date(candidate);
+          if (!Number.isNaN(date.getTime())) {
+            return date.toISOString();
+          }
+        }
+        if (typeof candidate === 'string') {
+          const value = candidate.trim();
+          if (value && !Number.isNaN(Date.parse(value))) {
+            return value;
+          }
+        }
+      }
+      return '';
+    }
+
+    function ensureUniqueEmailBlockId(existingId, seenIds) {
+      const usedIds = seenIds instanceof Set ? seenIds : new Set();
+      let candidateId = typeof existingId === 'string' ? existingId.trim() : '';
+      if (!candidateId) {
+        candidateId = generateId('email-block');
+      }
+      while (usedIds.has(candidateId)) {
+        candidateId = generateId('email-block');
+      }
+      usedIds.add(candidateId);
+      return candidateId;
+    }
+
+    function normalizeEmailTemplateRecord(rawTemplate) {
+      if (!rawTemplate || typeof rawTemplate !== 'object') {
+        return null;
+      }
+
+      const nowIso = new Date().toISOString();
+      const normalized = {
+        id: '',
+        name: '',
+        subject: '',
+        blocks: [],
+        createdAt: '',
+        updatedAt: '',
+      };
+
+      normalized.id =
+        getFirstNonEmptyString([rawTemplate.id, rawTemplate.templateId, rawTemplate.identifier]) ||
+        generateId('email-template');
+
+      normalized.name =
+        getFirstNonEmptyString([rawTemplate.name, rawTemplate.title, rawTemplate.label]) ||
+        'Modèle sans titre';
+
+      normalized.subject = getFirstNonEmptyString([
+        rawTemplate.subject,
+        rawTemplate.subjectLine,
+        rawTemplate.subject_line,
+        rawTemplate.title,
+      ]);
+
+      const blocksSource = Array.isArray(rawTemplate.blocks)
+        ? rawTemplate.blocks
+        : Array.isArray(rawTemplate.content)
+        ? rawTemplate.content
+        : [];
+
+      const seenBlockIds = new Set();
+      blocksSource.forEach((block) => {
+        if (block == null) {
+          return;
+        }
+
+        let normalizedBlock = null;
+        if (typeof block === 'string') {
+          normalizedBlock = createEmailTemplateBlock('paragraph', { text: block });
+        } else if (typeof block === 'object') {
+          normalizedBlock = cloneEmailTemplateBlock(block, { preserveId: true });
+        }
+
+        if (!normalizedBlock || typeof normalizedBlock !== 'object') {
+          return;
+        }
+
+        normalizedBlock.id = ensureUniqueEmailBlockId(normalizedBlock.id, seenBlockIds);
+        normalized.blocks.push(normalizedBlock);
+      });
+
+      normalized.createdAt = selectValidIsoDate(
+        rawTemplate.createdAt,
+        rawTemplate.created_at,
+        rawTemplate.dateCreated,
+        rawTemplate.createdOn,
+      );
+      if (!normalized.createdAt) {
+        normalized.createdAt = nowIso;
+      }
+
+      normalized.updatedAt = selectValidIsoDate(
+        rawTemplate.updatedAt,
+        rawTemplate.updated_at,
+        rawTemplate.dateUpdated,
+        rawTemplate.modifiedAt,
+        rawTemplate.lastUpdated,
+      );
+      if (!normalized.updatedAt) {
+        normalized.updatedAt = normalized.createdAt;
+      }
+
+      return normalized;
+    }
+
+    function normalizeEmailCampaignRecord(rawCampaign) {
+      if (!rawCampaign || typeof rawCampaign !== 'object') {
+        return null;
+      }
+
+      const nowIso = new Date().toISOString();
+      const normalized = {
+        id: '',
+        name: '',
+        templateId: '',
+        templateName: '',
+        savedSearchId: '',
+        savedSearchName: '',
+        senderName: '',
+        senderEmail: '',
+        subject: '',
+        sentAt: '',
+        createdAt: '',
+        recipientCount: 0,
+        recipients: [],
+        templateSnapshot: [],
+      };
+
+      normalized.id =
+        getFirstNonEmptyString([rawCampaign.id, rawCampaign.campaignId, rawCampaign.identifier]) ||
+        generateId('email-campaign');
+
+      normalized.name =
+        getFirstNonEmptyString([rawCampaign.name, rawCampaign.title, rawCampaign.label]) ||
+        'Campagne sans nom';
+
+      normalized.templateId = getFirstNonEmptyString([
+        rawCampaign.templateId,
+        rawCampaign.template_id,
+        rawCampaign.template && rawCampaign.template.id,
+      ]);
+
+      normalized.templateName = getFirstNonEmptyString([
+        rawCampaign.templateName,
+        rawCampaign.template && rawCampaign.template.name,
+      ]);
+      if (!normalized.templateName && normalized.templateId) {
+        normalized.templateName = 'Modèle sans titre';
+      }
+
+      normalized.savedSearchId = getFirstNonEmptyString([
+        rawCampaign.savedSearchId,
+        rawCampaign.saved_search_id,
+        rawCampaign.savedSearch && rawCampaign.savedSearch.id,
+      ]);
+
+      normalized.savedSearchName = getFirstNonEmptyString([
+        rawCampaign.savedSearchName,
+        rawCampaign.savedSearch && rawCampaign.savedSearch.name,
+      ]);
+      if (!normalized.savedSearchName && normalized.savedSearchId) {
+        normalized.savedSearchName = 'Recherche sauvegardée';
+      }
+
+      normalized.senderName = getFirstNonEmptyString([
+        rawCampaign.senderName,
+        rawCampaign.sender_name,
+        rawCampaign.fromName,
+      ]);
+
+      const senderEmailCandidate = getFirstNonEmptyString([
+        rawCampaign.senderEmail,
+        rawCampaign.sender_email,
+        rawCampaign.from,
+        rawCampaign.fromEmail,
+      ]);
+      normalized.senderEmail = isValidEmail(senderEmailCandidate) ? senderEmailCandidate : '';
+
+      normalized.subject = getFirstNonEmptyString([
+        rawCampaign.subject,
+        rawCampaign.subjectLine,
+        rawCampaign.subject_line,
+        rawCampaign.title,
+      ]);
+
+      normalized.sentAt = selectValidIsoDate(
+        rawCampaign.sentAt,
+        rawCampaign.sent_at,
+        rawCampaign.dispatchedAt,
+      );
+      if (!normalized.sentAt) {
+        normalized.sentAt = nowIso;
+      }
+
+      normalized.createdAt = selectValidIsoDate(
+        rawCampaign.createdAt,
+        rawCampaign.created_at,
+        rawCampaign.queuedAt,
+        normalized.sentAt,
+      );
+      if (!normalized.createdAt) {
+        normalized.createdAt = normalized.sentAt;
+      }
+
+      const rawRecipients = Array.isArray(rawCampaign.recipients)
+        ? rawCampaign.recipients
+        : Array.isArray(rawCampaign.contacts)
+        ? rawCampaign.contacts
+        : [];
+
+      const recipients = [];
+      const seenEmails = new Set();
+
+      rawRecipients.forEach((entry) => {
+        if (entry == null) {
+          return;
+        }
+
+        if (typeof entry === 'string') {
+          const email = entry.trim();
+          const normalizedEmail = isValidEmail(email) ? email : '';
+          if (!normalizedEmail) {
+            return;
+          }
+          const emailKey = normalizedEmail.toLowerCase();
+          if (seenEmails.has(emailKey)) {
+            return;
+          }
+          seenEmails.add(emailKey);
+          recipients.push({ contactId: '', email: normalizedEmail, name: '' });
+          return;
+        }
+
+        if (typeof entry !== 'object') {
+          return;
+        }
+
+        const email = getFirstNonEmptyString([entry.email, entry.mail, entry.address]);
+        const normalizedEmail = isValidEmail(email) ? email : '';
+        if (!normalizedEmail) {
+          return;
+        }
+        const emailKey = normalizedEmail.toLowerCase();
+        if (seenEmails.has(emailKey)) {
+          return;
+        }
+        seenEmails.add(emailKey);
+
+        const contactId = getFirstNonEmptyString([entry.contactId, entry.contact_id, entry.id]);
+        const name = getFirstNonEmptyString([entry.name, entry.fullName, entry.label]);
+
+        recipients.push({ contactId, email: normalizedEmail, name });
+      });
+
+      normalized.recipients = recipients;
+
+      let recipientCount = Number(rawCampaign.recipientCount);
+      if (!Number.isFinite(recipientCount) || recipientCount < 0) {
+        const altCount = Number(rawCampaign.recipientsCount);
+        if (Number.isFinite(altCount) && altCount >= 0) {
+          recipientCount = altCount;
+        } else {
+          recipientCount = recipients.length;
+        }
+      }
+      recipientCount = Math.max(0, Math.round(recipientCount));
+      normalized.recipientCount = recipientCount;
+
+      const snapshotSource = Array.isArray(rawCampaign.templateSnapshot)
+        ? rawCampaign.templateSnapshot
+        : Array.isArray(rawCampaign.template && rawCampaign.template.blocks)
+        ? rawCampaign.template.blocks
+        : Array.isArray(rawCampaign.blocks)
+        ? rawCampaign.blocks
+        : [];
+
+      const snapshot = [];
+      const snapshotIds = new Set();
+      snapshotSource.forEach((block) => {
+        if (block == null) {
+          return;
+        }
+
+        let normalizedBlock = null;
+        if (typeof block === 'string') {
+          normalizedBlock = createEmailTemplateBlock('paragraph', { text: block });
+        } else if (typeof block === 'object') {
+          normalizedBlock = cloneEmailTemplateBlock(block, { preserveId: true });
+        }
+
+        if (!normalizedBlock || typeof normalizedBlock !== 'object') {
+          return;
+        }
+
+        normalizedBlock.id = ensureUniqueEmailBlockId(normalizedBlock.id, snapshotIds);
+        snapshot.push(normalizedBlock);
+      });
+
+      normalized.templateSnapshot = snapshot;
+
+      return normalized;
     }
 
     function normalizeSavedSearch(rawSavedSearch, categoriesById = buildCategoryMap()) {
@@ -8964,6 +10766,12 @@
                         savedSearches: Array.isArray(base.savedSearches)
                           ? base.savedSearches
                           : [],
+                        emailTemplates: Array.isArray(base.emailTemplates)
+                          ? base.emailTemplates
+                          : [],
+                        emailCampaigns: Array.isArray(base.emailCampaigns)
+                          ? base.emailCampaigns
+                          : [],
                         lastUpdated: base.lastUpdated || null,
 
                         // si jamais ces champs n’existaient pas encore
@@ -8993,8 +10801,8 @@
   }
 
   function cloneDefaultData() {
-	  return {
-		metrics: { ...defaultData.metrics },
+          return {
+                metrics: { ...defaultData.metrics },
                 categories: [],
                 keywords: [],
                 contacts: [],
@@ -9003,6 +10811,8 @@
                 tasks: [],
                 teamChatMessages: [],
                 savedSearches: [],
+                emailTemplates: [],
+                emailCampaigns: [],
                 lastUpdated: null,
                 // Nouveaux champs persistés
                 panelOwner: '',
