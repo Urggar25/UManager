@@ -136,67 +136,172 @@ button {
 
 .app {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 
-.sidebar {
-  width: 260px;
-  background: var(--color-sidebar);
-  color: #e2e8f0;
-  padding: 28px 24px 32px;
+.app-shell {
   display: flex;
-  flex-direction: column;
-  gap: 32px;
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  flex: 1 1 auto;
+  align-items: stretch;
 }
 
-.brand {
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  background: var(--color-surface);
+  padding: 20px 32px;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.08);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar-brand {
   display: flex;
   align-items: center;
   gap: 12px;
   font-weight: 700;
-  font-size: 1.35rem;
+  font-size: 1.3rem;
+  color: var(--color-text);
 }
 
 .brand-logo {
   font-size: 1.6rem;
 }
 
-.sidebar-nav {
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.topbar-button {
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--color-text-secondary);
+  padding: 8px 4px;
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.topbar-button::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -10px;
+  height: 3px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background 0.2s ease, transform 0.2s ease;
+  transform: scaleX(0.4);
+}
+
+.topbar-button:hover,
+.topbar-button:focus {
+  color: var(--color-primary);
+}
+
+.topbar-button.active {
+  color: var(--color-primary);
+}
+
+.topbar-button.active::after {
+  background: var(--color-primary);
+  transform: scaleX(1);
+}
+
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+}
+
+.topbar-user-label {
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.logout-button {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--color-text);
+  font-weight: 600;
+  width: auto;
+  margin: 0;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.logout-button:hover,
+.logout-button:focus {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.context-panel {
+  width: 260px;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.context-nav {
+  display: block;
+}
+
+.context-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.nav-button {
+.context-button {
   width: 100%;
+  text-align: left;
   padding: 12px 16px;
   border-radius: var(--radius-sm);
-  text-align: left;
-  font-size: 0.98rem;
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--color-text);
   font-weight: 600;
-  color: #cbd5f5;
-  transition: background 0.2s, color 0.2s, transform 0.2s;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
-.nav-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+.context-button:hover,
+.context-button:focus {
+  background: rgba(37, 99, 235, 0.15);
   transform: translateX(4px);
 }
 
-.nav-button.active {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
+.context-button.active {
+  background: rgba(37, 99, 235, 0.2);
+  color: var(--color-primary);
 }
 
-.sidebar-footer {
+.context-empty-state {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-text-secondary);
+}
+
+.context-tagline {
   margin-top: auto;
-  font-size: 0.85rem;
-  line-height: 1.4;
-  color: rgba(226, 232, 240, 0.75);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
 }
 
 .sidebar-user {
@@ -667,6 +772,87 @@ button {
   gap: 16px;
 }
 
+.task-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+}
+
+.task-summary-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-summary-value {
+  font-size: 2.4rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--color-primary);
+}
+
+.task-summary-caption {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.task-summary-actions {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.task-list-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.task-status-filter {
+  display: flex;
+  gap: 8px;
+}
+
+.task-status-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--color-text);
+  font-weight: 600;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.task-status-button:hover,
+.task-status-button:focus {
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--color-primary);
+}
+
+.task-status-button.active {
+  background: rgba(37, 99, 235, 0.2);
+  color: var(--color-primary);
+}
+
+.task-status-count {
+  min-width: 32px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
 .task-list {
   list-style: none;
   margin: 0;
@@ -694,6 +880,12 @@ button {
   gap: 14px;
   background: var(--task-color-soft);
   box-shadow: var(--shadow-card);
+}
+
+.task-item--archived {
+  opacity: 0.72;
+  background: rgba(148, 163, 184, 0.12);
+  border-left-color: rgba(148, 163, 184, 0.6);
 }
 
 .task-item--assigned-me {
@@ -730,6 +922,27 @@ button {
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-title-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-assigned-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--color-primary);
+  font-size: 0.95rem;
 }
 
 .task-meta {
@@ -738,6 +951,18 @@ button {
   align-items: flex-end;
   gap: 8px;
   min-width: 180px;
+}
+
+.task-status-badge {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #334155;
+  background: rgba(148, 163, 184, 0.25);
 }
 
 .task-item-category {
