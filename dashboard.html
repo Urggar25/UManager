@@ -27,9 +27,6 @@
           <button class="topbar-button" type="button" data-top-target="directory">
             Répertoire
           </button>
-          <button class="topbar-button" type="button" data-top-target="communication">
-            Communication
-          </button>
           <button class="topbar-button" type="button" data-top-target="team" id="topbar-team">
             Équipe
           </button>
@@ -332,99 +329,6 @@
             </div>
           </section>
 
-          <section id="directory-home" class="page" aria-labelledby="directory-home-title">
-            <header class="page-header">
-              <div>
-                <h1 id="directory-home-title">Accueil du répertoire</h1>
-                <p class="page-subtitle">
-                  Visualisez en un clin d'œil les informations essentielles liées à vos contacts enregistrés.
-                </p>
-              </div>
-              <div class="insight-card">
-                <span class="insight-label">Dernière mise à jour</span>
-                <span class="insight-value" id="last-updated">—</span>
-              </div>
-            </header>
-            <div class="metrics-grid" role="list">
-              <article class="metric-card" role="listitem">
-                <header>
-                  <h2>Contacts enregistrés</h2>
-                  <p class="metric-caption">Nombre total de fiches présentes dans votre répertoire.</p>
-                </header>
-                <p class="metric-value" data-metric="peopleCount">0</p>
-              </article>
-              <article class="metric-card" role="listitem">
-                <header>
-                  <h2>Adresses e-mail collectées</h2>
-                  <p class="metric-caption">Comptage de toutes les adresses e-mail renseignées.</p>
-                </header>
-                <p class="metric-value" data-metric="emailCount">0</p>
-                <p class="metric-subtext" data-metric-share="email">0 % des contacts</p>
-              </article>
-              <article class="metric-card" role="listitem">
-                <header>
-                  <h2>Numéros de téléphone collectés</h2>
-                  <p class="metric-caption">Total des numéros (fixes ou mobiles) disponibles.</p>
-                </header>
-                <p class="metric-value" data-metric="phoneCount">0</p>
-                <p class="metric-subtext" data-metric-share="phone">0 % des contacts</p>
-              </article>
-              <article class="metric-card" role="listitem">
-                <header>
-                  <h2>Données disponibles</h2>
-                  <p class="metric-caption">Somme des contacts et coordonnées stockés.</p>
-                </header>
-                <p class="metric-value" id="total-datasets">0</p>
-                <p class="metric-subtext">Catégories actives&nbsp;: <span id="categories-count">0</span> · Mots clés actifs&nbsp;: <span id="keywords-count">0</span></p>
-              </article>
-            </div>
-            <section class="metrics-coverage" aria-labelledby="coverage-title">
-              <div>
-                <h2 id="coverage-title">Couverture des coordonnées</h2>
-                <p class="metric-caption">
-                  Répartition des contacts selon les informations de contact disponibles.
-                </p>
-              </div>
-              <div class="coverage-content">
-                <div id="contact-coverage-chart" class="coverage-chart" role="img" aria-label="Aucune donnée de contact disponible."></div>
-                <ul class="coverage-legend">
-                  <li>
-                    <span class="coverage-dot coverage-dot--both" aria-hidden="true"></span>
-                    <div class="coverage-legend-text">
-                      <span class="coverage-name">Téléphone et e-mail</span>
-                      <span class="coverage-count" data-coverage-count="both">0 contact</span>
-                    </div>
-                    <span class="coverage-percent" data-coverage-percent="both">0 %</span>
-                  </li>
-                  <li>
-                    <span class="coverage-dot coverage-dot--phone" aria-hidden="true"></span>
-                    <div class="coverage-legend-text">
-                      <span class="coverage-name">Téléphone uniquement</span>
-                      <span class="coverage-count" data-coverage-count="phone">0 contact</span>
-                    </div>
-                    <span class="coverage-percent" data-coverage-percent="phone">0 %</span>
-                  </li>
-                  <li>
-                    <span class="coverage-dot coverage-dot--email" aria-hidden="true"></span>
-                    <div class="coverage-legend-text">
-                      <span class="coverage-name">E-mail uniquement</span>
-                      <span class="coverage-count" data-coverage-count="email">0 contact</span>
-                    </div>
-                    <span class="coverage-percent" data-coverage-percent="email">0 %</span>
-                  </li>
-                  <li>
-                    <span class="coverage-dot coverage-dot--none" aria-hidden="true"></span>
-                    <div class="coverage-legend-text">
-                      <span class="coverage-name">Aucune coordonnée</span>
-                      <span class="coverage-count" data-coverage-count="none">0 contact</span>
-                    </div>
-                    <span class="coverage-percent" data-coverage-percent="none">0 %</span>
-                  </li>
-                </ul>
-              </div>
-            </section>
-          </section>
-
           <section id="categories" class="page" aria-labelledby="categories-title">
             <header class="page-header">
               <div>
@@ -685,61 +589,16 @@
                   placeholder="Rechercher par valeur de catégorie, note ou mot clé"
                   autocomplete="off"
                 />
-                <button type="button" class="secondary-button" id="contact-save-search">
-                  Enregistrer la recherche
-                </button>
-                <div class="contact-saved-searches">
-                  <label for="contact-saved-searches">Recherches sauvegardées</label>
-                  <select id="contact-saved-searches">
-                    <option value="">Aucune recherche sélectionnée</option>
-                  </select>
-                </div>
               </div>
-              <p id="contact-save-search-feedback" class="form-feedback" aria-live="polite"></p>
               <form id="contact-advanced-search" class="contact-advanced-search" autocomplete="off">
-                <div class="advanced-option">
-                  <div class="checkbox-item">
-                    <input type="checkbox" id="search-include-all" name="search-include-all" />
-                    <label for="search-include-all">Sélectionner tous les contacts</label>
-                  </div>
-                  <p id="search-include-all-message" class="form-hint" hidden>
-                    Les filtres détaillés sont désactivés lorsque cette option est cochée.
-                  </p>
-                </div>
                 <div class="advanced-grid" id="search-category-fields" aria-live="polite"></div>
                 <p id="search-categories-empty" class="empty-state" hidden>
                   Ajoutez vos premières catégories pour filtrer vos contacts.
                 </p>
-                <fieldset class="form-fieldset advanced-keywords" aria-labelledby="keyword-mode-title">
-                  <legend>Mots clés</legend>
-                  <p class="form-hint">Cochez les mots clés à activer pour ce filtre.</p>
-                  <div id="search-keywords-container" class="checkbox-grid" aria-live="polite"></div>
-                  <p id="search-keywords-empty" class="empty-state" hidden>
-                    Aucun mot clé disponible pour le moment.
-                  </p>
-                  <div class="keyword-mode-toggle" role="radiogroup" aria-label="Condition d'application des mots clés">
-                    <span id="keyword-mode-title" class="keyword-mode-label">Condition d'application</span>
-                    <label class="radio-item" for="search-keyword-mode-or">
-                      <input
-                        type="radio"
-                        id="search-keyword-mode-or"
-                        name="search-keyword-mode"
-                        value="OR"
-                        checked
-                      />
-                      <span>Au moins un mot clé (OU)</span>
-                    </label>
-                    <label class="radio-item" for="search-keyword-mode-and">
-                      <input
-                        type="radio"
-                        id="search-keyword-mode-and"
-                        name="search-keyword-mode"
-                        value="AND"
-                      />
-                      <span>Tous les mots clés (ET)</span>
-                    </label>
-                  </div>
-                </fieldset>
+                <div class="form-row advanced-multiselect">
+                  <label for="search-keywords">Sélectionnez mes mots clés</label>
+                  <select id="search-keywords" name="search-keywords" multiple></select>
+                </div>
                 <div class="advanced-actions">
                   <button type="submit" class="primary-button">Appliquer les filtres</button>
                   <button type="reset" class="secondary-button">Réinitialiser</button>
@@ -809,182 +668,6 @@
                 </select>
               </label>
             </nav>
-          </section>
-
-          <section id="saved-searches" class="page" aria-labelledby="saved-searches-title">
-            <header class="page-header">
-              <div>
-                <h1 id="saved-searches-title">Recherches sauvegardées</h1>
-                <p class="page-subtitle">
-                  Conservez vos filtres favoris pour les réutiliser en un clic ou les partager avec votre équipe.
-                </p>
-              </div>
-              <div class="insight-card">
-                <span class="insight-label">Recherches actives</span>
-                <span class="insight-value" id="saved-search-count">0</span>
-              </div>
-            </header>
-            <div class="saved-searches-content">
-              <div class="saved-searches-description">
-                <p>
-                  Enregistrez une recherche depuis la page de consultation des contacts puis retrouvez-la ici pour
-                  l'appliquer rapidement ou l'utiliser dans vos campagnes de communication.
-                </p>
-                <p>
-                  Pour mettre à jour une recherche, appliquez-la, ajustez les filtres puis enregistrez-la à nouveau avec
-                  le même nom.
-                </p>
-              </div>
-              <ul id="saved-search-list" class="saved-search-list" aria-live="polite"></ul>
-              <p id="saved-search-empty" class="empty-state" hidden>
-                Aucune recherche sauvegardée pour le moment. Créez-en depuis la recherche de contacts.
-              </p>
-            </div>
-          </section>
-
-          <section id="email-templates" class="page" aria-labelledby="email-templates-title">
-            <header class="page-header">
-              <div>
-                <h1 id="email-templates-title">Créer un modèle mail</h1>
-                <p class="page-subtitle">
-                  Composez vos messages types, ajoutez des images cliquables et préparez vos campagnes à l'avance.
-                </p>
-              </div>
-            </header>
-            <div class="email-template-layout">
-              <form id="email-template-form" class="email-template-form" autocomplete="off">
-                <div class="form-row">
-                  <label for="email-template-name">Nom du modèle *</label>
-                  <input id="email-template-name" name="email-template-name" type="text" required maxlength="120" />
-                </div>
-                <div class="form-row">
-                  <label for="email-template-subject">Objet du mail *</label>
-                  <input
-                    id="email-template-subject"
-                    name="email-template-subject"
-                    type="text"
-                    maxlength="140"
-                    required
-                  />
-                </div>
-                <div class="email-template-block-actions">
-                  <span>Ajouter un bloc&nbsp;:</span>
-                  <button type="button" class="secondary-button" id="email-template-add-paragraph">
-                    Paragraphe
-                  </button>
-                  <button type="button" class="secondary-button" id="email-template-add-image">Image</button>
-                  <button type="button" class="secondary-button" id="email-template-add-button">
-                    Bouton d'appel à l'action
-                  </button>
-                </div>
-                <p class="form-hint">
-                  Les images peuvent être liées à une adresse web. Les destinataires ouvriront le lien associé lors d'un
-                  clic sur l'image.
-                </p>
-                <div id="email-template-blocks" class="email-template-blocks" aria-live="polite">
-                  <p class="empty-state">Ajoutez un bloc pour commencer la composition du message.</p>
-                </div>
-                <p id="email-template-feedback" class="form-feedback" aria-live="polite"></p>
-                <div class="form-actions">
-                  <button type="submit" class="primary-button">Enregistrer le modèle</button>
-                  <button type="reset" class="secondary-button">Réinitialiser</button>
-                </div>
-              </form>
-              <aside class="email-template-preview" aria-label="Prévisualisation du modèle">
-                <h2>Prévisualisation</h2>
-                <div id="email-template-preview" class="email-preview" aria-live="polite">
-                  <p class="empty-state">Ajoutez des blocs pour visualiser le rendu du mail.</p>
-                </div>
-              </aside>
-            </div>
-            <section class="email-template-list-wrapper" aria-labelledby="email-template-list-title">
-              <h2 id="email-template-list-title">Modèles enregistrés</h2>
-              <ul id="email-template-list" class="email-template-list" aria-live="polite"></ul>
-              <p id="email-template-empty" class="empty-state" hidden>Aucun modèle n'a encore été enregistré.</p>
-            </section>
-          </section>
-
-          <section id="email-campaigns" class="page" aria-labelledby="email-campaigns-title">
-            <header class="page-header">
-              <div>
-                <h1 id="email-campaigns-title">Envoyer une campagne de mail</h1>
-                <p class="page-subtitle">
-                  Sélectionnez un modèle et une recherche sauvegardée pour informer rapidement tous les contacts ciblés.
-                </p>
-              </div>
-            </header>
-            <div class="email-campaign-layout">
-              <form id="email-campaign-form" class="email-campaign-form" autocomplete="off">
-                <div class="form-row">
-                  <label for="email-campaign-name">Nom de la campagne *</label>
-                  <input id="email-campaign-name" name="email-campaign-name" type="text" required maxlength="120" />
-                </div>
-                <div class="form-row">
-                  <label for="email-campaign-sender-name">Nom de l'expéditeur</label>
-                  <input
-                    id="email-campaign-sender-name"
-                    name="email-campaign-sender-name"
-                    type="text"
-                    maxlength="120"
-                  />
-                </div>
-                <div class="form-row">
-                  <label for="email-campaign-sender-email">Adresse mail de l'expéditeur *</label>
-                  <input
-                    id="email-campaign-sender-email"
-                    name="email-campaign-sender-email"
-                    type="email"
-                    autocomplete="email"
-                    required
-                  />
-                </div>
-                <div class="form-row">
-                  <label for="campaign-template-select">Modèle à utiliser *</label>
-                  <select id="campaign-template-select" name="campaign-template-select" required></select>
-                </div>
-                <div class="form-row">
-                  <label for="campaign-saved-search-select">Recherche sauvegardée *</label>
-                  <select id="campaign-saved-search-select" name="campaign-saved-search-select" required></select>
-                </div>
-                <div class="form-row">
-                  <label for="email-campaign-subject">Objet de la campagne *</label>
-                  <input
-                    id="email-campaign-subject"
-                    name="email-campaign-subject"
-                    type="text"
-                    maxlength="140"
-                    required
-                  />
-                </div>
-                <p class="form-hint">
-                  Seuls les contacts disposant d'une adresse mail valide dans la recherche sélectionnée recevront le
-                  message.
-                </p>
-                <p id="email-campaign-feedback" class="form-feedback" aria-live="polite"></p>
-                <div class="form-actions">
-                  <button type="submit" class="primary-button">Lancer la campagne</button>
-                  <button type="reset" class="secondary-button">Réinitialiser</button>
-                </div>
-              </form>
-              <aside class="email-campaign-preview" aria-label="Prévisualisation de la campagne">
-                <h2>Destinataires ciblés</h2>
-                <p id="campaign-summary" class="campaign-summary">
-                  Sélectionnez une recherche sauvegardée pour afficher les contacts concernés.
-                </p>
-                <ul id="campaign-recipient-list" class="campaign-recipient-list" aria-live="polite"></ul>
-                <h2>Prévisualisation du mail</h2>
-                <div id="campaign-email-preview" class="email-preview" aria-live="polite">
-                  <p class="empty-state">Choisissez un modèle pour afficher un aperçu.</p>
-                </div>
-              </aside>
-            </div>
-            <section class="campaign-history" aria-labelledby="campaign-history-title">
-              <h2 id="campaign-history-title">Campagnes envoyées</h2>
-              <ul id="campaign-history-list" class="campaign-history-list" aria-live="polite"></ul>
-              <p id="campaign-history-empty" class="empty-state" hidden>
-                Aucune campagne n'a encore été envoyée.
-              </p>
-            </section>
           </section>
 
           <section id="team" class="page" aria-labelledby="team-title">

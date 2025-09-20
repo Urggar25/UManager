@@ -22,9 +22,6 @@
     taskCategories: [],
     tasks: [],
     teamChatMessages: [],
-    savedSearches: [],
-    emailTemplates: [],
-    emailCampaigns: [],
     lastUpdated: null,
   };
 
@@ -60,80 +57,6 @@
   const CONTACT_TYPE_MAP = new Map(
     CONTACT_TYPE_OPTIONS.map((option) => [option.value, option]),
   );
-
-  function createSafeDateTimeFormatter(locale, options) {
-    const normalizedLocale = typeof locale === 'string' && locale ? locale : undefined;
-    const formatterOptions = options && typeof options === 'object' ? { ...options } : undefined;
-    const hasDateStyle = Boolean(formatterOptions && 'dateStyle' in formatterOptions);
-    const hasTimeStyle = Boolean(formatterOptions && 'timeStyle' in formatterOptions);
-
-    try {
-      return new Intl.DateTimeFormat(normalizedLocale, formatterOptions);
-    } catch (error) {
-      return {
-        format(value) {
-          const date = normalizeToDate(value);
-          if (!date) {
-            return '';
-          }
-
-          const parts = [];
-          if (hasDateStyle) {
-            parts.push(formatFallbackDate(date, normalizedLocale));
-          }
-          if (hasTimeStyle) {
-            parts.push(formatFallbackTime(date, normalizedLocale));
-          }
-
-          if (parts.length === 0) {
-            return formatFallbackDateTime(date, normalizedLocale);
-          }
-
-          return parts.filter(Boolean).join(' ').trim();
-        },
-      };
-    }
-  }
-
-  function normalizeToDate(value) {
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      return value;
-    }
-
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed;
-    }
-
-    return null;
-  }
-
-  function formatFallbackDate(date, locale) {
-    try {
-      return date.toLocaleDateString(locale);
-    } catch (error) {
-      const year = date.getFullYear().toString().padStart(4, '0');
-      const month = (date.getMonth() + 1).toString().padStart(2, '0');
-      const day = date.getDate().toString().padStart(2, '0');
-      return `${day}/${month}/${year}`;
-    }
-  }
-
-  function formatFallbackTime(date, locale) {
-    try {
-      return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
-    } catch (error) {
-      const hours = date.getHours().toString().padStart(2, '0');
-      const minutes = date.getMinutes().toString().padStart(2, '0');
-      return `${hours}:${minutes}`;
-    }
-  }
-
-  function formatFallbackDateTime(date, locale) {
-    const datePart = formatFallbackDate(date, locale);
-    const timePart = formatFallbackTime(date, locale);
-    return [datePart, timePart].filter(Boolean).join(' ').trim();
-  }
 
   document.addEventListener('DOMContentLoaded', () => {
     const isAuthPage = Boolean(
@@ -449,17 +372,11 @@
         { id: 'team-chat', label: 'Tchat interne' },
       ],
       directory: [
-        { id: 'directory-home', label: 'Accueil' },
-        { id: 'categories', label: 'Catégories' },
+        { id: 'categories', label: 'Catégorie' },
         { id: 'keywords', label: 'Mots clés' },
         { id: 'contacts-add', label: 'Ajouter des contacts' },
         { id: 'contacts-import', label: 'Importer des contacts' },
         { id: 'contacts-search', label: 'Rechercher des contacts' },
-        { id: 'saved-searches', label: 'Recherches sauvegardées' },
-      ],
-      communication: [
-        { id: 'email-templates', label: 'Créer un modèle mail' },
-        { id: 'email-campaigns', label: 'Envoyer une campagne de mail' },
       ],
       team: [{ id: 'team', label: "Gestion de l'équipe" }],
     };
@@ -493,7 +410,6 @@
     const keywordsCountEl = document.getElementById('keywords-count');
     const categoriesActiveCountEl = document.getElementById('categories-active-count');
     const keywordsActiveCountEl = document.getElementById('keywords-active-count');
-    const savedSearchCountEl = document.getElementById('saved-search-count');
     const lastUpdatedEl = document.getElementById('last-updated');
     const categoryForm = document.getElementById('category-form');
     const categoryList = document.getElementById('category-list');
@@ -519,19 +435,8 @@
     const contactAdvancedSearchForm = document.getElementById('contact-advanced-search');
     const searchCategoryFieldsContainer = document.getElementById('search-category-fields');
     const searchCategoriesEmpty = document.getElementById('search-categories-empty');
-    const searchKeywordsContainer = document.getElementById('search-keywords-container');
-    const searchKeywordsEmpty = document.getElementById('search-keywords-empty');
-    const searchKeywordModeRadios = Array.from(
-      document.querySelectorAll('input[name="search-keyword-mode"]'),
-    );
-    const searchIncludeAllCheckbox = document.getElementById('search-include-all');
-    const searchIncludeAllMessage = document.getElementById('search-include-all-message');
+    const searchKeywordsSelect = document.getElementById('search-keywords');
     const contactSearchCountEl = document.getElementById('contact-search-count');
-    const contactSaveSearchButton = document.getElementById('contact-save-search');
-    const contactSavedSearchSelect = document.getElementById('contact-saved-searches');
-    const contactSaveSearchFeedback = document.getElementById('contact-save-search-feedback');
-    const savedSearchList = document.getElementById('saved-search-list');
-    const savedSearchEmptyState = document.getElementById('saved-search-empty');
     const contactSelectAllButton = document.getElementById('contact-select-all');
     const contactDeleteSelectedButton = document.getElementById('contact-delete-selected');
     const contactBulkKeywordSelect = document.getElementById('contact-bulk-keyword');
@@ -598,30 +503,6 @@
     const teamChatEmptyState = document.getElementById('team-chat-empty');
     const teamChatForm = document.getElementById('team-chat-form');
     const teamChatInput = document.getElementById('team-chat-input');
-    const emailTemplateForm = document.getElementById('email-template-form');
-    const emailTemplateNameInput = document.getElementById('email-template-name');
-    const emailTemplateSubjectInput = document.getElementById('email-template-subject');
-    const emailTemplateBlocksContainer = document.getElementById('email-template-blocks');
-    const emailTemplateAddParagraphButton = document.getElementById('email-template-add-paragraph');
-    const emailTemplateAddImageButton = document.getElementById('email-template-add-image');
-    const emailTemplateAddButtonBlockButton = document.getElementById('email-template-add-button');
-    const emailTemplatePreview = document.getElementById('email-template-preview');
-    const emailTemplateFeedback = document.getElementById('email-template-feedback');
-    const emailTemplateList = document.getElementById('email-template-list');
-    const emailTemplateEmptyState = document.getElementById('email-template-empty');
-    const emailCampaignForm = document.getElementById('email-campaign-form');
-    const emailCampaignNameInput = document.getElementById('email-campaign-name');
-    const emailCampaignSenderNameInput = document.getElementById('email-campaign-sender-name');
-    const emailCampaignSenderEmailInput = document.getElementById('email-campaign-sender-email');
-    const emailCampaignTemplateSelect = document.getElementById('campaign-template-select');
-    const emailCampaignSavedSearchSelect = document.getElementById('campaign-saved-search-select');
-    const emailCampaignSubjectInput = document.getElementById('email-campaign-subject');
-    const emailCampaignFeedback = document.getElementById('email-campaign-feedback');
-    const campaignSummaryEl = document.getElementById('campaign-summary');
-    const campaignRecipientList = document.getElementById('campaign-recipient-list');
-    const campaignEmailPreview = document.getElementById('campaign-email-preview');
-    const campaignHistoryList = document.getElementById('campaign-history-list');
-    const campaignHistoryEmptyState = document.getElementById('campaign-history-empty');
 
     const CATEGORY_TYPE_ORDER = ['text', 'number', 'date', 'list'];
     const CATEGORY_TYPES = new Set(CATEGORY_TYPE_ORDER);
@@ -670,17 +551,13 @@
     const calendarShortWeekdayFormatter = new Intl.DateTimeFormat('fr-FR', {
       weekday: 'short',
     });
-    const mediumDateFormatter = createSafeDateTimeFormatter('fr-FR', {
+    const taskDateFormatter = new Intl.DateTimeFormat('fr-FR', {
       dateStyle: 'medium',
     });
-    const mediumDateTimeFormatter = createSafeDateTimeFormatter('fr-FR', {
+    const taskCommentDateFormatter = new Intl.DateTimeFormat('fr-FR', {
       dateStyle: 'medium',
       timeStyle: 'short',
     });
-    const taskDateFormatter = mediumDateFormatter;
-    const taskCommentDateFormatter = mediumDateTimeFormatter;
-    const savedSearchDateFormatter = mediumDateTimeFormatter;
-    const emailCampaignDateFormatter = mediumDateTimeFormatter;
 
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
@@ -735,12 +612,6 @@
 
     let contactSearchTerm = '';
     let advancedFilters = createEmptyAdvancedFilters();
-    let lastAppliedSavedSearchId = '';
-    let editingEmailTemplateId = '';
-    let emailTemplateBlocks = [];
-    let campaignSubjectManuallyEdited = false;
-    let isResettingEmailTemplateForm = false;
-    let isResettingEmailCampaignForm = false;
     let contactEditReturnPage = 'contacts-search';
     let contactCurrentPage = 1;
     let contactResultsPerPage = CONTACT_RESULTS_PER_PAGE_DEFAULT;
@@ -1444,13 +1315,9 @@
       contactAdvancedSearchForm.addEventListener('submit', (event) => {
         event.preventDefault();
         const formData = new FormData(contactAdvancedSearchForm);
-        const includeAll = formData.has('search-include-all');
-        const keywordModeValue = formData.get('search-keyword-mode');
-        const keywordMode = keywordModeValue === 'AND' ? 'AND' : 'OR';
-
         const categoryFilters = {};
 
-        if (!includeAll && searchCategoryFieldsContainer) {
+        if (searchCategoryFieldsContainer) {
           const filterInputs = searchCategoryFieldsContainer.querySelectorAll(
             '[data-search-category-input]',
           );
@@ -1493,22 +1360,13 @@
           });
         }
 
-        const keywordFilters = includeAll
-          ? []
-          : formData
-              .getAll('search-keywords')
-              .map((value) => value.toString())
-              .filter((value) => Boolean(value));
+        const keywordFilters = formData.getAll('search-keywords').map((value) => value.toString());
 
         advancedFilters = {
-          categories: includeAll ? {} : categoryFilters,
+          categories: categoryFilters,
           keywords: keywordFilters,
-          includeAll,
-          keywordMode,
         };
         contactCurrentPage = 1;
-        renderSearchCategoryFields();
-        renderSearchKeywordOptions();
         renderContacts();
       });
 
@@ -1516,633 +1374,11 @@
         window.requestAnimationFrame(() => {
           advancedFilters = createEmptyAdvancedFilters();
           renderSearchCategoryFields();
-          renderSearchKeywordOptions();
           contactCurrentPage = 1;
           renderContacts();
         });
       });
     }
-
-    if (searchIncludeAllCheckbox instanceof HTMLInputElement) {
-      searchIncludeAllCheckbox.addEventListener('change', () => {
-        const includeAll = searchIncludeAllCheckbox.checked;
-        if (includeAll) {
-          advancedFilters = {
-            ...advancedFilters,
-            includeAll: true,
-            categories: {},
-            keywords: [],
-          };
-        } else {
-          advancedFilters = { ...advancedFilters, includeAll: false };
-        }
-
-        contactCurrentPage = 1;
-        renderSearchCategoryFields();
-        renderSearchKeywordOptions();
-        renderContacts();
-      });
-    }
-
-    if (searchKeywordModeRadios.length > 0) {
-      searchKeywordModeRadios.forEach((element) => {
-        if (!(element instanceof HTMLInputElement)) {
-          return;
-        }
-
-        element.addEventListener('change', () => {
-          if (!element.checked) {
-            return;
-          }
-
-          const mode = element.value === 'AND' ? 'AND' : 'OR';
-          if (advancedFilters.keywordMode === mode && !advancedFilters.includeAll) {
-            return;
-          }
-
-          advancedFilters = { ...advancedFilters, keywordMode: mode };
-          contactCurrentPage = 1;
-          syncKeywordModeControls();
-          if (!advancedFilters.includeAll) {
-            renderContacts();
-          }
-        });
-      });
-    }
-
-    if (contactSaveSearchButton instanceof HTMLButtonElement) {
-      contactSaveSearchButton.addEventListener('click', () => {
-        const trimmedTerm = (contactSearchTerm || '').toString().trim();
-        const filtersForSave = cloneAdvancedFiltersForStorage(advancedFilters);
-        if (!trimmedTerm && !hasActiveAdvancedFilters(filtersForSave)) {
-          setContactSaveSearchFeedback(
-            'Définissez au moins un critère de recherche avant de l’enregistrer.',
-            'error',
-          );
-          return;
-        }
-
-        const lastApplied = lastAppliedSavedSearchId ? getSavedSearchById(lastAppliedSavedSearchId) : null;
-        const proposedName = lastApplied ? lastApplied.name : '';
-        const promptValue = window.prompt('Nom de la recherche sauvegardée', proposedName || '');
-        const normalizedName = promptValue ? promptValue.toString().trim() : '';
-        if (!normalizedName) {
-          setContactSaveSearchFeedback('Enregistrement annulé.', 'info');
-          return;
-        }
-
-        if (!Array.isArray(data.savedSearches)) {
-          data.savedSearches = [];
-        }
-
-        const nowIso = new Date().toISOString();
-        const normalizedInputName = normalizedName.toLowerCase();
-        const normalizedLastAppliedName = lastApplied
-          ? (lastApplied.name || '').toString().trim().toLowerCase()
-          : '';
-        const shouldUpdateExisting =
-          Boolean(lastApplied && normalizedInputName && normalizedInputName === normalizedLastAppliedName);
-        const existingIndex = shouldUpdateExisting
-          ? data.savedSearches.findIndex((search) => search && search.id === lastApplied.id)
-          : -1;
-
-        const baseSavedSearch =
-          existingIndex >= 0 && data.savedSearches[existingIndex]
-            ? { ...data.savedSearches[existingIndex] }
-            : { id: generateId('saved-search'), createdAt: nowIso };
-
-        const normalizedSavedSearch = normalizeSavedSearch({
-          ...baseSavedSearch,
-          name: normalizedName,
-          searchTerm: trimmedTerm,
-          filters: filtersForSave,
-          createdAt: baseSavedSearch.createdAt || nowIso,
-          updatedAt: nowIso,
-        });
-
-        if (existingIndex >= 0) {
-          data.savedSearches.splice(existingIndex, 1, normalizedSavedSearch);
-        } else {
-          data.savedSearches.push(normalizedSavedSearch);
-        }
-
-        lastAppliedSavedSearchId = normalizedSavedSearch.id;
-        data.lastUpdated = nowIso;
-        saveDataForUser(currentUser, data);
-        renderSavedSearchSelect(normalizedSavedSearch.id);
-        renderSavedSearchList();
-        renderCampaignSavedSearchOptions(normalizedSavedSearch.id);
-        setContactSaveSearchFeedback(`Recherche "${normalizedSavedSearch.name}" sauvegardée.`, 'success');
-      });
-    }
-
-    if (contactSavedSearchSelect instanceof HTMLSelectElement) {
-      contactSavedSearchSelect.addEventListener('change', () => {
-        const selectedId = contactSavedSearchSelect.value || '';
-        if (!selectedId) {
-          lastAppliedSavedSearchId = '';
-          setContactSaveSearchFeedback('', 'info');
-          return;
-        }
-        applySavedSearchById(selectedId, { showFeedback: true, updateSelect: false });
-      });
-    }
-
-    if (savedSearchList) {
-      savedSearchList.addEventListener('click', (event) => {
-        const button =
-          event.target instanceof HTMLElement
-            ? event.target.closest('button[data-saved-search-action]')
-            : null;
-        if (!(button instanceof HTMLButtonElement)) {
-          return;
-        }
-
-        const action = button.dataset.savedSearchAction || '';
-        const savedSearchId = button.dataset.savedSearchId || '';
-        if (!savedSearchId) {
-          return;
-        }
-
-        if (action === 'apply') {
-          const applied = applySavedSearchById(savedSearchId, { showFeedback: true });
-          if (applied) {
-            activateModule('directory', 'contacts-search');
-          }
-          return;
-        }
-
-        const savedSearch = getSavedSearchById(savedSearchId);
-        if (!savedSearch) {
-          renderSavedSearchList();
-          return;
-        }
-
-        if (action === 'rename') {
-          const input = window.prompt('Nouveau nom de la recherche', savedSearch.name || '');
-          const newName = input ? input.toString().trim() : '';
-          if (!newName) {
-            return;
-          }
-          const nowIso = new Date().toISOString();
-          const updatedSavedSearch = normalizeSavedSearch({
-            ...savedSearch,
-            name: newName,
-            updatedAt: nowIso,
-          });
-          data.savedSearches = data.savedSearches.map((item) =>
-            item && item.id === savedSearchId ? updatedSavedSearch : item,
-          );
-          data.lastUpdated = nowIso;
-          saveDataForUser(currentUser, data);
-          renderSavedSearchSelect(savedSearchId);
-          renderSavedSearchList();
-          renderCampaignSavedSearchOptions(savedSearchId);
-          setContactSaveSearchFeedback(`Recherche renommée en "${newName}".`, 'success');
-          return;
-        }
-
-        if (action === 'delete') {
-          if (!window.confirm(`Supprimer la recherche "${savedSearch.name}" ?`)) {
-            return;
-          }
-          data.savedSearches = data.savedSearches.filter((item) => item && item.id !== savedSearchId);
-          data.lastUpdated = new Date().toISOString();
-          saveDataForUser(currentUser, data);
-          if (lastAppliedSavedSearchId === savedSearchId) {
-            lastAppliedSavedSearchId = '';
-          }
-          renderSavedSearchSelect(lastAppliedSavedSearchId);
-          renderSavedSearchList();
-          renderCampaignSavedSearchOptions('');
-          setContactSaveSearchFeedback('Recherche supprimée.', 'success');
-        }
-      });
-    }
-
-    if (emailTemplateAddParagraphButton instanceof HTMLButtonElement) {
-      emailTemplateAddParagraphButton.addEventListener('click', () => {
-        emailTemplateBlocks.push(createTemplateBlock('paragraph'));
-        renderEmailTemplateBlocks();
-        renderEmailTemplatePreview();
-        if (emailTemplateFeedback) {
-          emailTemplateFeedback.textContent = '';
-          emailTemplateFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
-        }
-      });
-    }
-
-    if (emailTemplateAddImageButton instanceof HTMLButtonElement) {
-      emailTemplateAddImageButton.addEventListener('click', () => {
-        emailTemplateBlocks.push(createTemplateBlock('image'));
-        renderEmailTemplateBlocks();
-        renderEmailTemplatePreview();
-        if (emailTemplateFeedback) {
-          emailTemplateFeedback.textContent = '';
-          emailTemplateFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
-        }
-      });
-    }
-
-    if (emailTemplateAddButtonBlockButton instanceof HTMLButtonElement) {
-      emailTemplateAddButtonBlockButton.addEventListener('click', () => {
-        emailTemplateBlocks.push(createTemplateBlock('button'));
-        renderEmailTemplateBlocks();
-        renderEmailTemplatePreview();
-        if (emailTemplateFeedback) {
-          emailTemplateFeedback.textContent = '';
-          emailTemplateFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
-        }
-      });
-    }
-
-    if (emailTemplateBlocksContainer) {
-      emailTemplateBlocksContainer.addEventListener('input', (event) => {
-        const target = event.target;
-        if (
-          !target ||
-          !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)
-        ) {
-          return;
-        }
-
-        const blockId = target.dataset.blockId || '';
-        const field = target.dataset.blockField || '';
-        if (!blockId || !field) {
-          return;
-        }
-
-        const index = emailTemplateBlocks.findIndex((block) => block && block.id === blockId);
-        if (index < 0) {
-          return;
-        }
-
-        const updatedBlock = { ...emailTemplateBlocks[index], [field]: target.value };
-        emailTemplateBlocks.splice(index, 1, updatedBlock);
-        renderEmailTemplatePreview();
-      });
-
-      emailTemplateBlocksContainer.addEventListener('click', (event) => {
-        const button =
-          event.target instanceof HTMLElement
-            ? event.target.closest('button[data-block-action]')
-            : null;
-        if (!(button instanceof HTMLButtonElement)) {
-          return;
-        }
-
-        const blockId = button.dataset.blockId || '';
-        const action = button.dataset.blockAction || '';
-        if (!blockId || !action) {
-          return;
-        }
-
-        const index = emailTemplateBlocks.findIndex((block) => block && block.id === blockId);
-        if (index < 0) {
-          return;
-        }
-
-        if (action === 'move-up' && index > 0) {
-          const temp = emailTemplateBlocks[index - 1];
-          emailTemplateBlocks[index - 1] = emailTemplateBlocks[index];
-          emailTemplateBlocks[index] = temp;
-        } else if (action === 'move-down' && index < emailTemplateBlocks.length - 1) {
-          const temp = emailTemplateBlocks[index + 1];
-          emailTemplateBlocks[index + 1] = emailTemplateBlocks[index];
-          emailTemplateBlocks[index] = temp;
-        } else if (action === 'delete') {
-          emailTemplateBlocks.splice(index, 1);
-        } else {
-          return;
-        }
-
-        renderEmailTemplateBlocks();
-        renderEmailTemplatePreview();
-      });
-    }
-
-    if (emailTemplateForm) {
-      emailTemplateForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-
-        if (!(emailTemplateNameInput instanceof HTMLInputElement)) {
-          return;
-        }
-        if (!(emailTemplateSubjectInput instanceof HTMLInputElement)) {
-          return;
-        }
-
-        const name = emailTemplateNameInput.value.trim();
-        const subject = emailTemplateSubjectInput.value.trim();
-        const normalizedBlocks = Array.isArray(emailTemplateBlocks)
-          ? emailTemplateBlocks
-              .map((block) => normalizeEmailTemplateBlock(block))
-              .filter((block) => Boolean(block))
-          : [];
-
-        if (normalizedBlocks.length === 0) {
-          if (emailTemplateFeedback) {
-            emailTemplateFeedback.textContent =
-              'Ajoutez au moins un bloc valide (paragraphe, image ou bouton) avant de sauvegarder.';
-            emailTemplateFeedback.classList.add('form-feedback--error');
-            emailTemplateFeedback.classList.remove('form-feedback--success');
-          }
-          return;
-        }
-
-        if (!Array.isArray(data.emailTemplates)) {
-          data.emailTemplates = [];
-        }
-
-        const nowIso = new Date().toISOString();
-        const templateId = editingEmailTemplateId || generateId('email-template');
-        const existingIndex = data.emailTemplates.findIndex(
-          (template) => template && template.id === templateId,
-        );
-        const baseTemplate = existingIndex >= 0 ? data.emailTemplates[existingIndex] : {};
-
-        const normalizedTemplate = normalizeEmailTemplate({
-          ...baseTemplate,
-          id: templateId,
-          name,
-          subject,
-          blocks: normalizedBlocks,
-          createdAt:
-            baseTemplate && typeof baseTemplate.createdAt === 'string' && baseTemplate.createdAt
-              ? baseTemplate.createdAt
-              : nowIso,
-          updatedAt: nowIso,
-        });
-
-        if (existingIndex >= 0) {
-          data.emailTemplates.splice(existingIndex, 1, normalizedTemplate);
-        } else {
-          data.emailTemplates.push(normalizedTemplate);
-        }
-
-        editingEmailTemplateId = normalizedTemplate.id;
-        emailTemplateBlocks = normalizedTemplate.blocks.map((block) => ({ ...block }));
-        emailTemplateNameInput.value = normalizedTemplate.name;
-        emailTemplateSubjectInput.value = normalizedTemplate.subject;
-
-        data.lastUpdated = nowIso;
-        saveDataForUser(currentUser, data);
-
-        renderEmailTemplateBlocks();
-        renderEmailTemplatePreview();
-        renderEmailTemplateList();
-        renderCampaignTemplateOptions(normalizedTemplate.id);
-        updateCampaignRecipientPreview();
-
-        if (emailTemplateFeedback) {
-          emailTemplateFeedback.textContent = `Modèle "${normalizedTemplate.name}" enregistré.`;
-          emailTemplateFeedback.classList.remove('form-feedback--error');
-          emailTemplateFeedback.classList.add('form-feedback--success');
-        }
-      });
-
-      emailTemplateForm.addEventListener('reset', (event) => {
-        if (isResettingEmailTemplateForm) {
-          return;
-        }
-        event.preventDefault();
-        resetEmailTemplateForm();
-      });
-    }
-
-    if (emailTemplateList) {
-      emailTemplateList.addEventListener('click', (event) => {
-        const button =
-          event.target instanceof HTMLElement
-            ? event.target.closest('button[data-template-action]')
-            : null;
-        if (!(button instanceof HTMLButtonElement)) {
-          return;
-        }
-
-        const action = button.dataset.templateAction || '';
-        const templateId = button.dataset.templateId || '';
-        if (!action || !templateId) {
-          return;
-        }
-
-        const template = getEmailTemplateById(templateId);
-        if (!template) {
-          renderEmailTemplateList();
-          return;
-        }
-
-        if (action === 'edit') {
-          loadEmailTemplateIntoForm(template);
-          return;
-        }
-
-        if (action === 'duplicate') {
-          if (!Array.isArray(data.emailTemplates)) {
-            data.emailTemplates = [];
-          }
-          const nowIso = new Date().toISOString();
-          const duplicateName = `${template.name || 'Modèle sans nom'} (copie)`;
-          const duplicatedTemplate = normalizeEmailTemplate({
-            ...template,
-            id: generateId('email-template'),
-            name: duplicateName,
-            createdAt: nowIso,
-            updatedAt: nowIso,
-          });
-          data.emailTemplates.push(duplicatedTemplate);
-          data.lastUpdated = nowIso;
-          saveDataForUser(currentUser, data);
-          renderEmailTemplateList();
-          renderCampaignTemplateOptions(duplicatedTemplate.id);
-          if (emailTemplateFeedback) {
-            emailTemplateFeedback.textContent = `Modèle dupliqué sous le nom "${duplicateName}".`;
-            emailTemplateFeedback.classList.remove('form-feedback--error');
-            emailTemplateFeedback.classList.add('form-feedback--success');
-          }
-          return;
-        }
-
-        if (action === 'delete') {
-          if (!window.confirm(`Supprimer le modèle "${template.name}" ?`)) {
-            return;
-          }
-          data.emailTemplates = data.emailTemplates.filter((item) => item && item.id !== templateId);
-          data.lastUpdated = new Date().toISOString();
-          saveDataForUser(currentUser, data);
-          if (editingEmailTemplateId === templateId) {
-            resetEmailTemplateForm();
-          }
-          renderEmailTemplateList();
-          renderCampaignTemplateOptions('');
-          updateCampaignRecipientPreview();
-          if (emailTemplateFeedback) {
-            emailTemplateFeedback.textContent = 'Modèle supprimé.';
-            emailTemplateFeedback.classList.remove('form-feedback--error');
-            emailTemplateFeedback.classList.add('form-feedback--success');
-          }
-        }
-      });
-    }
-
-    if (emailCampaignTemplateSelect instanceof HTMLSelectElement) {
-      emailCampaignTemplateSelect.addEventListener('change', () => {
-        const templateId = emailCampaignTemplateSelect.value || '';
-        const template = getEmailTemplateById(templateId);
-
-        if (emailCampaignSubjectInput instanceof HTMLInputElement) {
-          const currentValue = emailCampaignSubjectInput.value || '';
-          const shouldAutoFill = !campaignSubjectManuallyEdited || currentValue.trim() === '';
-
-          if (shouldAutoFill) {
-            emailCampaignSubjectInput.value = template ? template.subject || '' : '';
-            campaignSubjectManuallyEdited = false;
-          }
-        }
-
-        updateCampaignRecipientPreview();
-        if (emailCampaignFeedback) {
-          emailCampaignFeedback.textContent = '';
-          emailCampaignFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
-        }
-      });
-    }
-
-    if (emailCampaignSavedSearchSelect instanceof HTMLSelectElement) {
-      emailCampaignSavedSearchSelect.addEventListener('change', () => {
-        updateCampaignRecipientPreview();
-        if (emailCampaignFeedback) {
-          emailCampaignFeedback.textContent = '';
-          emailCampaignFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
-        }
-      });
-    }
-
-    if (emailCampaignSubjectInput instanceof HTMLInputElement) {
-      emailCampaignSubjectInput.addEventListener('input', () => {
-        const value = emailCampaignSubjectInput.value || '';
-        campaignSubjectManuallyEdited = value.trim().length > 0;
-      });
-    }
-
-    if (emailCampaignForm) {
-      emailCampaignForm.addEventListener('submit', (event) => {
-        event.preventDefault();
-
-        if (!(emailCampaignNameInput instanceof HTMLInputElement)) {
-          return;
-        }
-        if (!(emailCampaignSenderEmailInput instanceof HTMLInputElement)) {
-          return;
-        }
-        if (!(emailCampaignSubjectInput instanceof HTMLInputElement)) {
-          return;
-        }
-
-        const name = emailCampaignNameInput.value.trim();
-        const senderName =
-          emailCampaignSenderNameInput instanceof HTMLInputElement
-            ? emailCampaignSenderNameInput.value.trim()
-            : '';
-        const senderEmail = emailCampaignSenderEmailInput.value.trim();
-        const templateId =
-          emailCampaignTemplateSelect instanceof HTMLSelectElement
-            ? emailCampaignTemplateSelect.value || ''
-            : '';
-        const savedSearchId =
-          emailCampaignSavedSearchSelect instanceof HTMLSelectElement
-            ? emailCampaignSavedSearchSelect.value || ''
-            : '';
-        const subject = emailCampaignSubjectInput.value.trim();
-
-        const template = getEmailTemplateById(templateId);
-        const savedSearch = getSavedSearchById(savedSearchId);
-
-        if (!template) {
-          if (emailCampaignFeedback) {
-            emailCampaignFeedback.textContent = 'Sélectionnez un modèle de mail valide.';
-            emailCampaignFeedback.classList.add('form-feedback--error');
-            emailCampaignFeedback.classList.remove('form-feedback--success');
-          }
-          return;
-        }
-
-        if (!savedSearch) {
-          if (emailCampaignFeedback) {
-            emailCampaignFeedback.textContent = 'Sélectionnez une recherche sauvegardée valide.';
-            emailCampaignFeedback.classList.add('form-feedback--error');
-            emailCampaignFeedback.classList.remove('form-feedback--success');
-          }
-          return;
-        }
-
-        const { recipients, contactsWithoutEmail } = computeCampaignRecipients(savedSearch);
-        if (recipients.length === 0) {
-          if (emailCampaignFeedback) {
-            emailCampaignFeedback.textContent =
-              "Aucun destinataire possédant une adresse mail n'a été trouvé pour cette recherche.";
-            emailCampaignFeedback.classList.add('form-feedback--error');
-            emailCampaignFeedback.classList.remove('form-feedback--success');
-          }
-          return;
-        }
-
-        const recipientEmails = recipients
-          .map((recipient) => recipient && recipient.email)
-          .filter((email) => Boolean(email));
-
-        const nowIso = new Date().toISOString();
-
-        if (!Array.isArray(data.emailCampaigns)) {
-          data.emailCampaigns = [];
-        }
-
-        const normalizedCampaign = normalizeEmailCampaign({
-          id: generateId('email-campaign'),
-          name,
-          senderName,
-          senderEmail,
-          templateId: template.id,
-          savedSearchId: savedSearch.id,
-          subject,
-          recipientEmails,
-          contactsWithoutEmail,
-          createdAt: nowIso,
-        });
-
-        data.emailCampaigns.push(normalizedCampaign);
-        data.lastUpdated = nowIso;
-        saveDataForUser(currentUser, data);
-
-        renderCampaignHistory();
-
-        resetEmailCampaignForm();
-
-        if (emailCampaignFeedback) {
-          emailCampaignFeedback.textContent = `Campagne "${normalizedCampaign.name}" préparée pour envoi.`;
-          emailCampaignFeedback.classList.remove('form-feedback--error');
-          emailCampaignFeedback.classList.add('form-feedback--success');
-        }
-      });
-
-      emailCampaignForm.addEventListener('reset', (event) => {
-        if (isResettingEmailCampaignForm) {
-          return;
-        }
-        event.preventDefault();
-        resetEmailCampaignForm();
-      });
-    }
-
-    renderSavedSearchSelect();
-    renderSavedSearchList();
-    renderEmailTemplateBlocks();
-    renderEmailTemplatePreview();
-    renderEmailTemplateList();
-    renderCampaignSavedSearchOptions('');
-    renderCampaignTemplateOptions('');
-    updateCampaignRecipientPreview();
-    renderCampaignHistory();
 
     if (contactSelectAllButton instanceof HTMLButtonElement) {
       contactSelectAllButton.addEventListener('click', () => {
@@ -5219,8 +4455,11 @@
 
       if (lastUpdatedEl) {
         if (data.lastUpdated) {
-          const formatted = mediumDateTimeFormatter.format(new Date(data.lastUpdated));
-          lastUpdatedEl.textContent = formatted || '—';
+          const formatted = new Intl.DateTimeFormat('fr-FR', {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          }).format(new Date(data.lastUpdated));
+          lastUpdatedEl.textContent = formatted;
         } else {
           lastUpdatedEl.textContent = '—';
         }
@@ -6395,8 +5634,6 @@
     }
 
     function renderSearchCategoryFields() {
-      updateIncludeAllState();
-
       if (!searchCategoryFieldsContainer) {
         if (
           advancedFilters.categories &&
@@ -6408,7 +5645,6 @@
         return;
       }
 
-      const includeAll = Boolean(advancedFilters.includeAll);
       const categories = sortCategoriesForDisplay();
 
       searchCategoryFieldsContainer.innerHTML = '';
@@ -6505,7 +5741,6 @@
         input.dataset.categoryId = category.id || '';
         input.dataset.categoryType = baseType;
         input.setAttribute('data-search-category-input', 'true');
-        input.disabled = includeAll;
 
         const storedFilter =
           advancedFilters.categories && category.id && advancedFilters.categories[category.id]
@@ -6528,18 +5763,12 @@
     }
 
     function renderSearchKeywordOptions() {
-      updateIncludeAllState();
-      const includeAll = Boolean(advancedFilters.includeAll);
-
-      if (!searchKeywordsContainer) {
-        if (!includeAll && Array.isArray(advancedFilters.keywords) && advancedFilters.keywords.length > 0) {
+      if (!searchKeywordsSelect) {
+        if (Array.isArray(advancedFilters.keywords) && advancedFilters.keywords.length > 0) {
           advancedFilters = { ...advancedFilters, keywords: [] };
         }
-        syncKeywordModeControls();
         return;
       }
-
-      searchKeywordsContainer.innerHTML = '';
 
       const keywords = Array.isArray(data.keywords)
         ? data.keywords.slice().sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
@@ -6549,79 +5778,22 @@
         ? advancedFilters.keywords
         : [];
       const selectedValues = new Set(previousSelection);
-      const allowedValues = new Set(keywords.map((keyword) => keyword.id || ''));
 
-      if (keywords.length === 0) {
-        if (searchKeywordsEmpty) {
-          searchKeywordsEmpty.hidden = false;
-        }
-        if (previousSelection.length > 0) {
-          advancedFilters = { ...advancedFilters, keywords: [] };
-        }
-        syncKeywordModeControls();
-        return;
-      }
-
-      if (searchKeywordsEmpty) {
-        searchKeywordsEmpty.hidden = true;
-      }
-
-      const fragment = document.createDocumentFragment();
+      searchKeywordsSelect.innerHTML = '';
 
       keywords.forEach((keyword) => {
-        const checkboxId = `search-keyword-${keyword.id}`;
-        const item = document.createElement('div');
-        item.className = 'checkbox-item';
-
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.id = checkboxId;
-        input.name = 'search-keywords';
-        input.value = keyword.id || '';
-        input.checked = selectedValues.has(keyword.id);
-        input.disabled = includeAll;
-
-        const label = document.createElement('label');
-        label.setAttribute('for', checkboxId);
-        label.textContent = keyword.name;
-
-        item.append(input, label);
-        fragment.appendChild(item);
+        const option = document.createElement('option');
+        option.value = keyword.id || '';
+        option.textContent = keyword.name;
+        option.selected = selectedValues.has(keyword.id);
+        searchKeywordsSelect.appendChild(option);
       });
 
-      searchKeywordsContainer.appendChild(fragment);
-
+      const allowedValues = new Set(keywords.map((keyword) => keyword.id || ''));
       const filteredSelection = previousSelection.filter((value) => allowedValues.has(value));
+
       if (filteredSelection.length !== previousSelection.length) {
         advancedFilters = { ...advancedFilters, keywords: filteredSelection };
-      }
-
-      syncKeywordModeControls();
-    }
-
-    function syncKeywordModeControls() {
-      const mode = advancedFilters.keywordMode === 'AND' ? 'AND' : 'OR';
-      const hasKeywords = Array.isArray(data.keywords) && data.keywords.length > 0;
-      const disable = Boolean(advancedFilters.includeAll) || !hasKeywords;
-
-      searchKeywordModeRadios.forEach((element) => {
-        if (!(element instanceof HTMLInputElement)) {
-          return;
-        }
-
-        element.checked = element.value === mode;
-        element.disabled = disable;
-      });
-    }
-
-    function updateIncludeAllState() {
-      const includeAll = Boolean(advancedFilters.includeAll);
-      if (searchIncludeAllCheckbox instanceof HTMLInputElement) {
-        searchIncludeAllCheckbox.checked = includeAll;
-      }
-
-      if (searchIncludeAllMessage) {
-        searchIncludeAllMessage.hidden = !includeAll;
       }
     }
 
@@ -6719,8 +5891,36 @@
       });
     }
 
-    function getFilteredContactsSnapshot(term, filters) {
+    function renderContacts() {
       const contacts = Array.isArray(data.contacts) ? data.contacts.slice() : [];
+
+      if (contactSearchCountEl) {
+        contactSearchCountEl.textContent = '0';
+      }
+
+      if (!contactList || !contactEmptyState) {
+        return;
+      }
+
+      contactList.innerHTML = '';
+
+      const validContactIds = new Set(
+        contacts
+          .map((contact) => (contact && contact.id ? contact.id : ''))
+          .filter((id) => Boolean(id)),
+      );
+      let selectionChanged = false;
+      selectedContactIds.forEach((id) => {
+        if (!validContactIds.has(id)) {
+          selectedContactIds.delete(id);
+          selectionChanged = true;
+        }
+      });
+      if (selectionChanged) {
+        updateSelectedContactsUI();
+      }
+
+      const normalizedTerm = contactSearchTerm.trim().toLowerCase();
       const categoriesById = buildCategoryMap();
       const keywordsById = new Map(
         Array.isArray(data.keywords)
@@ -6728,70 +5928,52 @@
           : [],
       );
 
-      const normalizedTerm = typeof term === 'string' ? term.trim().toLowerCase() : '';
-      const includeAll = Boolean(filters && filters.includeAll);
-
       const categoryFilterEntries =
-        !includeAll &&
-        filters &&
-        filters.categories &&
-        typeof filters.categories === 'object'
-          ? Object.entries(filters.categories)
+        advancedFilters &&
+        advancedFilters.categories &&
+        typeof advancedFilters.categories === 'object'
+          ? Object.entries(advancedFilters.categories)
           : [];
 
-      const keywordFilters = Array.isArray(filters && filters.keywords)
-        ? includeAll
-          ? []
-          : filters.keywords.filter((value) => Boolean(value))
+      const keywordFilters = Array.isArray(advancedFilters.keywords)
+        ? advancedFilters.keywords.filter((value) => Boolean(value))
         : [];
 
-      const keywordMode = filters && filters.keywordMode === 'AND' ? 'AND' : 'OR';
-
-      const hasAdvancedFilters = includeAll || categoryFilterEntries.length > 0 || keywordFilters.length > 0;
+      const hasAdvancedFilters = categoryFilterEntries.length > 0 || keywordFilters.length > 0;
 
       const filteredContacts = contacts
         .filter((contact) => {
           const categoryValues =
-            contact &&
-            typeof contact === 'object' &&
-            contact.categoryValues &&
-            typeof contact.categoryValues === 'object'
+            contact && typeof contact === 'object' && contact.categoryValues && typeof contact.categoryValues === 'object'
               ? contact.categoryValues
               : {};
           const keywords = Array.isArray(contact.keywords) ? contact.keywords : [];
-
-          if (!includeAll) {
-            for (const [categoryId, filter] of categoryFilterEntries) {
-              if (!filter || typeof filter !== 'object') {
-                continue;
-              }
-
-              const rawValue = categoryValues[categoryId];
-              const valueString =
-                rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
-              if (!valueString) {
-                return false;
-              }
-
-              if (filter.type === 'text') {
-                const normalizedFilter = (filter.normalizedValue || '').toString();
-                if (!valueString.toLowerCase().includes(normalizedFilter)) {
-                  return false;
-                }
-              } else if (valueString !== filter.rawValue) {
-                return false;
-              }
+          for (const [categoryId, filter] of categoryFilterEntries) {
+            if (!filter || typeof filter !== 'object') {
+              continue;
+            }
+            const rawValue = categoryValues[categoryId];
+            const valueString =
+              rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+            if (!valueString) {
+              return false;
             }
 
-            if (keywordFilters.length > 0) {
-              const keywordSet = new Set(keywords);
-              if (keywordMode === 'AND') {
-                if (!keywordFilters.every((keywordId) => keywordSet.has(keywordId))) {
-                  return false;
-                }
-              } else if (!keywordFilters.some((keywordId) => keywordSet.has(keywordId))) {
+            if (filter.type === 'text') {
+              const normalizedFilter = (filter.normalizedValue || '').toString();
+              if (!valueString.toLowerCase().includes(normalizedFilter)) {
                 return false;
               }
+            } else if (valueString !== filter.rawValue) {
+              return false;
+            }
+          }
+
+          if (keywordFilters.length > 0) {
+            const keywordSet = new Set(keywords);
+            const matchesKeywords = keywordFilters.every((keywordId) => keywordSet.has(keywordId));
+            if (!matchesKeywords) {
+              return false;
             }
           }
 
@@ -6815,7 +5997,7 @@
                 rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
               return value ? { name: category.name, value } : null;
             })
-            .filter(Boolean);
+            .filter((entry) => Boolean(entry));
 
           const keywordNames = keywords
             .map((keywordId) => {
@@ -6851,46 +6033,6 @@
           return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
         });
 
-      return {
-        contacts: filteredContacts,
-        normalizedTerm,
-        hasAdvancedFilters,
-        categoriesById,
-      };
-    }
-
-    function renderContacts() {
-      const allContacts = Array.isArray(data.contacts) ? data.contacts.slice() : [];
-
-      if (contactSearchCountEl) {
-        contactSearchCountEl.textContent = '0';
-      }
-
-      if (!contactList || !contactEmptyState) {
-        return;
-      }
-
-      contactList.innerHTML = '';
-
-      const validContactIds = new Set(
-        allContacts
-          .map((contact) => (contact && contact.id ? contact.id : ''))
-          .filter((id) => Boolean(id)),
-      );
-      let selectionChanged = false;
-      selectedContactIds.forEach((id) => {
-        if (!validContactIds.has(id)) {
-          selectedContactIds.delete(id);
-          selectionChanged = true;
-        }
-      });
-      if (selectionChanged) {
-        updateSelectedContactsUI();
-      }
-
-      const snapshot = getFilteredContactsSnapshot(contactSearchTerm, advancedFilters);
-      const { contacts: filteredContacts, normalizedTerm, hasAdvancedFilters, categoriesById } = snapshot;
-
       lastContactSearchResultIds = filteredContacts
         .map((contact) => (contact && contact.id ? contact.id : ''))
         .filter((id) => Boolean(id));
@@ -6909,7 +6051,7 @@
 
       if (totalResults === 0) {
         contactEmptyState.hidden = false;
-        if (allContacts.length === 0) {
+        if (contacts.length === 0) {
           contactEmptyState.textContent = 'Ajoutez vos premiers contacts pour les retrouver ici.';
         } else if (normalizedTerm || hasAdvancedFilters) {
           contactEmptyState.textContent = 'Aucun contact ne correspond à vos critères de recherche.';
@@ -6990,6 +6132,10 @@
       }
 
       const fragment = document.createDocumentFragment();
+      const dateTimeFormatter = new Intl.DateTimeFormat('fr-FR', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
 
       pageContacts.forEach((contact) => {
         const templateItem = contactTemplate && contactTemplate.content
@@ -7052,8 +6198,7 @@
         if (createdEl) {
           const createdValue = contact.createdAt ? new Date(contact.createdAt) : null;
           if (createdValue && !Number.isNaN(createdValue.getTime())) {
-            const formatted = mediumDateTimeFormatter.format(createdValue);
-            createdEl.textContent = formatted ? `Ajouté le ${formatted}` : '';
+            createdEl.textContent = `Ajouté le ${dateTimeFormatter.format(createdValue)}`;
           } else {
             createdEl.textContent = '';
           }
@@ -8802,31 +7947,6 @@
         contact.displayName = derivedName || fallbackName || 'Contact sans nom';
       });
 
-      if (!Array.isArray(base.savedSearches)) {
-        base.savedSearches = [];
-      } else {
-        base.savedSearches = base.savedSearches
-          .filter((item) => item && typeof item === 'object')
-          .map((item) => normalizeSavedSearch(item));
-      }
-
-      if (!Array.isArray(base.emailTemplates)) {
-        base.emailTemplates = [];
-      } else {
-        base.emailTemplates = base.emailTemplates
-          .filter((item) => item && typeof item === 'object')
-          .map((item) => normalizeEmailTemplate(item));
-      }
-
-      if (!Array.isArray(base.emailCampaigns)) {
-        base.emailCampaigns = [];
-      } else {
-        base.emailCampaigns = base.emailCampaigns
-          .filter((item) => item && typeof item === 'object')
-          .map((item) => normalizeEmailCampaign(item))
-          .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-      }
-
       cleanupContactCategoryValues(base);
       updateMetricsFromContacts(base);
 
@@ -8837,1174 +7957,10 @@
       return base;
     }
 
-    function hasActiveAdvancedFilters(filters) {
-      if (!filters || typeof filters !== 'object') {
-        return false;
-      }
-
-      if (filters.includeAll) {
-        return true;
-      }
-
-      const hasCategoryFilters =
-        filters.categories &&
-        typeof filters.categories === 'object' &&
-        Object.values(filters.categories).some((filter) => {
-          if (!filter || typeof filter !== 'object') {
-            return false;
-          }
-          const rawValue = filter.rawValue != null ? filter.rawValue.toString() : '';
-          return Boolean(rawValue.trim());
-        });
-
-      const hasKeywordFilters =
-        Array.isArray(filters.keywords) && filters.keywords.some((value) => Boolean(value));
-
-      return hasCategoryFilters || hasKeywordFilters;
-    }
-
-    function cloneAdvancedFiltersForStorage(filters) {
-      const result = createEmptyAdvancedFilters();
-      if (!filters || typeof filters !== 'object') {
-        return result;
-      }
-
-      result.includeAll = Boolean(filters.includeAll);
-      result.keywordMode = filters.keywordMode === 'AND' ? 'AND' : 'OR';
-
-      if (result.includeAll) {
-        return result;
-      }
-
-      if (filters.categories && typeof filters.categories === 'object') {
-        Object.entries(filters.categories).forEach(([categoryId, filter]) => {
-          if (!categoryId || !filter || typeof filter !== 'object') {
-            return;
-          }
-          const rawValue = filter.rawValue != null ? filter.rawValue.toString() : '';
-          if (!rawValue) {
-            return;
-          }
-
-          const type = CATEGORY_TYPES.has(filter.type) ? filter.type : 'text';
-          const normalizedValue =
-            type === 'text' ? rawValue.toLowerCase() : filter.normalizedValue || rawValue;
-
-          result.categories[categoryId] = {
-            type,
-            rawValue,
-            normalizedValue: normalizedValue != null ? normalizedValue.toString() : rawValue,
-          };
-        });
-      }
-
-      if (Array.isArray(filters.keywords)) {
-        result.keywords = filters.keywords
-          .map((value) => (value != null ? value.toString() : ''))
-          .filter((value) => Boolean(value));
-      }
-
-      return result;
-    }
-
-    function cloneSavedSearchFilters(filters) {
-      const result = createEmptyAdvancedFilters();
-      if (!filters || typeof filters !== 'object') {
-        return result;
-      }
-
-      result.includeAll = Boolean(filters.includeAll);
-      result.keywordMode = filters.keywordMode === 'AND' ? 'AND' : 'OR';
-
-      if (result.includeAll) {
-        return result;
-      }
-
-      if (filters.categories && typeof filters.categories === 'object') {
-        Object.entries(filters.categories).forEach(([categoryId, filter]) => {
-          if (!categoryId || !filter || typeof filter !== 'object') {
-            return;
-          }
-
-          const type = CATEGORY_TYPES.has(filter.type) ? filter.type : 'text';
-          const rawValue = filter.rawValue != null ? filter.rawValue.toString() : '';
-          if (!rawValue) {
-            return;
-          }
-
-          let normalizedValue = filter.normalizedValue != null ? filter.normalizedValue.toString() : '';
-          if (!normalizedValue) {
-            normalizedValue = type === 'text' ? rawValue.toLowerCase() : rawValue;
-          }
-
-          result.categories[categoryId] = {
-            type,
-            rawValue,
-            normalizedValue,
-          };
-        });
-      }
-
-      if (Array.isArray(filters.keywords)) {
-        result.keywords = filters.keywords
-          .map((value) => (value != null ? value.toString() : ''))
-          .filter((value) => Boolean(value));
-      }
-
-      return result;
-    }
-
-    function normalizeSavedSearch(item) {
-      const nowIso = new Date().toISOString();
-      const id = typeof item.id === 'string' && item.id ? item.id : generateId('saved-search');
-      const rawName = (item && item.name != null ? item.name : '').toString().trim();
-      const name = rawName || 'Recherche sans nom';
-      const searchTerm = (item && item.searchTerm != null ? item.searchTerm : '').toString();
-      const filters = cloneSavedSearchFilters(item && item.filters);
-      const createdAt =
-        item && typeof item.createdAt === 'string' && item.createdAt ? item.createdAt : nowIso;
-      const updatedAt =
-        item && typeof item.updatedAt === 'string' && item.updatedAt ? item.updatedAt : createdAt;
-
-      return {
-        id,
-        name,
-        searchTerm,
-        filters,
-        createdAt,
-        updatedAt,
-      };
-    }
-
-    const EMAIL_TEMPLATE_BLOCK_TYPES = new Set(['paragraph', 'image', 'button']);
-
-    function normalizeEmailTemplateBlock(block) {
-      if (!block || typeof block !== 'object') {
-        return null;
-      }
-
-      const type = EMAIL_TEMPLATE_BLOCK_TYPES.has(block.type) ? block.type : 'paragraph';
-      const id = typeof block.id === 'string' && block.id ? block.id : generateId('template-block');
-
-      if (type === 'paragraph') {
-        const text = (block.text || '').toString();
-        if (!text.trim()) {
-          return null;
-        }
-        return { id, type, text };
-      }
-
-      if (type === 'image') {
-        const url = (block.url || '').toString().trim();
-        if (!url) {
-          return null;
-        }
-        const alt = (block.alt || '').toString();
-        const linkUrl = (block.linkUrl || '').toString().trim();
-        const caption = (block.caption || '').toString();
-        return { id, type, url, alt, linkUrl, caption };
-      }
-
-      if (type === 'button') {
-        const label = (block.label || '').toString().trim();
-        const linkUrl = (block.linkUrl || '').toString().trim();
-        if (!label || !linkUrl) {
-          return null;
-        }
-        return { id, type, label, linkUrl };
-      }
-
-      return null;
-    }
-
-    function normalizeEmailTemplate(item) {
-      const nowIso = new Date().toISOString();
-      const id = typeof item.id === 'string' && item.id ? item.id : generateId('email-template');
-      const rawName = (item && item.name != null ? item.name : '').toString().trim();
-      const name = rawName || 'Modèle sans nom';
-      const subject = (item && item.subject != null ? item.subject : '').toString().trim();
-      const blocksSource = Array.isArray(item && item.blocks) ? item.blocks : [];
-      const blocks = blocksSource
-        .map((block) => normalizeEmailTemplateBlock(block))
-        .filter((block) => Boolean(block));
-      const createdAt =
-        item && typeof item.createdAt === 'string' && item.createdAt ? item.createdAt : nowIso;
-      const updatedAt =
-        item && typeof item.updatedAt === 'string' && item.updatedAt ? item.updatedAt : createdAt;
-
-      return {
-        id,
-        name,
-        subject,
-        blocks,
-        createdAt,
-        updatedAt,
-      };
-    }
-
-    function normalizeEmailCampaign(item) {
-      const nowIso = new Date().toISOString();
-      const id = typeof item.id === 'string' && item.id ? item.id : generateId('email-campaign');
-      const name = (item && item.name != null ? item.name : '').toString().trim() || 'Campagne sans nom';
-      const senderName = (item && item.senderName != null ? item.senderName : '').toString().trim();
-      const senderEmail = (item && item.senderEmail != null ? item.senderEmail : '').toString().trim();
-      const templateId = (item && item.templateId != null ? item.templateId : '').toString().trim();
-      const savedSearchId =
-        (item && item.savedSearchId != null ? item.savedSearchId : '').toString().trim();
-      const subject = (item && item.subject != null ? item.subject : '').toString().trim();
-      const recipientEmails = Array.isArray(item && item.recipientEmails)
-        ? Array.from(
-            new Set(
-              item.recipientEmails
-                .map((value) => (value != null ? value.toString().trim() : ''))
-                .filter((value) => Boolean(value)),
-            ),
-          )
-        : [];
-      const contactsWithoutEmail = Number.isFinite(item && item.contactsWithoutEmail)
-        ? Math.max(0, Math.floor(item.contactsWithoutEmail))
-        : 0;
-      const createdAt =
-        item && typeof item.createdAt === 'string' && item.createdAt ? item.createdAt : nowIso;
-
-      return {
-        id,
-        name,
-        senderName,
-        senderEmail,
-        templateId,
-        savedSearchId,
-        subject,
-        recipientEmails,
-        recipientCount: recipientEmails.length,
-        contactsWithoutEmail,
-        createdAt,
-      };
-    }
-
-    function setContactSaveSearchFeedback(message, tone = 'info') {
-      if (!contactSaveSearchFeedback) {
-        return;
-      }
-
-      contactSaveSearchFeedback.textContent = message || '';
-      contactSaveSearchFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
-      if (!message) {
-        return;
-      }
-
-      if (tone === 'error') {
-        contactSaveSearchFeedback.classList.add('form-feedback--error');
-        return;
-      }
-
-      if (tone === 'success') {
-        contactSaveSearchFeedback.classList.add('form-feedback--success');
-      }
-    }
-
-    function describeSavedSearch(savedSearch) {
-      if (!savedSearch || typeof savedSearch !== 'object') {
-        return '';
-      }
-
-      const parts = [];
-      const searchTerm = (savedSearch.searchTerm || '').toString().trim();
-      if (searchTerm) {
-        parts.push(`Texte libre : "${searchTerm}"`);
-      }
-
-      const filters = savedSearch.filters && typeof savedSearch.filters === 'object' ? savedSearch.filters : {};
-      const includeAll = Boolean(filters.includeAll);
-      const keywordMode = filters.keywordMode === 'AND' ? 'AND' : 'OR';
-
-      if (includeAll) {
-        parts.push('Tous les contacts sélectionnés');
-      }
-
-      const categories = !includeAll && filters.categories && typeof filters.categories === 'object'
-        ? filters.categories
-        : null;
-      if (categories) {
-        const categoriesById = buildCategoryMap();
-        Object.entries(categories).forEach(([categoryId, filter]) => {
-          if (!categoryId || !filter || typeof filter !== 'object') {
-            return;
-          }
-          const category = categoriesById.get(categoryId);
-          if (!category) {
-            return;
-          }
-          const label = category.name || 'Catégorie';
-          const rawValue = filter.rawValue != null ? filter.rawValue.toString() : '';
-          if (!rawValue) {
-            return;
-          }
-          if (filter.type === 'text') {
-            parts.push(`${label} contient "${rawValue}"`);
-          } else {
-            parts.push(`${label} = ${rawValue}`);
-          }
-        });
-      }
-
-      const keywordIds = !includeAll && Array.isArray(filters.keywords) ? filters.keywords : [];
-      if (keywordIds.length > 0) {
-        const keywordsById = new Map(
-          Array.isArray(data.keywords)
-            ? data.keywords.map((keyword) => [keyword.id, keyword])
-            : [],
-        );
-        const keywordNames = keywordIds
-          .map((keywordId) => {
-            const keyword = keywordsById.get(keywordId);
-            return keyword ? keyword.name : '';
-          })
-          .filter((name) => Boolean(name));
-        if (keywordNames.length > 0) {
-          const labelPrefix = keywordMode === 'AND' ? 'Mots clés (ET)' : 'Mots clés (OU)';
-          parts.push(`${labelPrefix} : ${keywordNames.join(', ')}`);
-        }
-      }
-
-      if (parts.length === 0) {
-        return 'Tous les contacts sans filtre particulier.';
-      }
-
-      return parts.join(' · ');
-    }
-
-    function getSavedSearchById(savedSearchId) {
-      if (!savedSearchId || !Array.isArray(data.savedSearches)) {
-        return null;
-      }
-      return data.savedSearches.find((search) => search && search.id === savedSearchId) || null;
-    }
-
-    function countContactsForSavedSearch(savedSearch) {
-      if (!savedSearch || typeof savedSearch !== 'object') {
-        return 0;
-      }
-      const snapshot = getFilteredContactsSnapshot(savedSearch.searchTerm, savedSearch.filters || {});
-      return snapshot.contacts.length;
-    }
-
-    function renderSavedSearchSelect(selectedId = lastAppliedSavedSearchId) {
-      if (!(contactSavedSearchSelect instanceof HTMLSelectElement)) {
-        return;
-      }
-
-      const savedSearches = Array.isArray(data.savedSearches)
-        ? data.savedSearches
-            .slice()
-            .filter((item) => item && item.id)
-            .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
-        : [];
-
-      contactSavedSearchSelect.innerHTML = '';
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = savedSearches.length === 0
-        ? 'Aucune recherche sauvegardée'
-        : 'Choisir une recherche';
-      contactSavedSearchSelect.appendChild(placeholder);
-
-      savedSearches.forEach((savedSearch) => {
-        const option = document.createElement('option');
-        option.value = savedSearch.id;
-        option.textContent = savedSearch.name;
-        if (savedSearch.id === selectedId) {
-          option.selected = true;
-        }
-        contactSavedSearchSelect.appendChild(option);
-      });
-
-      contactSavedSearchSelect.disabled = savedSearches.length === 0;
-      if (savedSearches.length === 0) {
-        contactSavedSearchSelect.value = '';
-      } else if (selectedId) {
-        contactSavedSearchSelect.value = selectedId;
-      }
-    }
-
-    function applySavedSearchById(savedSearchId, { showFeedback = false, updateSelect = true } = {}) {
-      const savedSearch = getSavedSearchById(savedSearchId);
-      if (!savedSearch) {
-        if (showFeedback) {
-          setContactSaveSearchFeedback("Cette recherche n'existe plus.", 'error');
-        }
-        return false;
-      }
-
-      lastAppliedSavedSearchId = savedSearch.id;
-      const clonedFilters = cloneSavedSearchFilters(savedSearch.filters || {});
-      advancedFilters = clonedFilters;
-      contactSearchTerm = (savedSearch.searchTerm || '').toString();
-      if (contactSearchInput instanceof HTMLInputElement) {
-        contactSearchInput.value = contactSearchTerm;
-      }
-
-      renderSearchCategoryFields();
-      renderSearchKeywordOptions();
-      contactCurrentPage = 1;
-      renderContacts();
-
-      if (updateSelect) {
-        renderSavedSearchSelect(savedSearch.id);
-      }
-
-      if (showFeedback) {
-        setContactSaveSearchFeedback(`Recherche "${savedSearch.name}" appliquée.`, 'success');
-      }
-      return true;
-    }
-
-    function renderSavedSearchList() {
-      if (!savedSearchList) {
-        return;
-      }
-
-      savedSearchList.innerHTML = '';
-      const savedSearches = Array.isArray(data.savedSearches)
-        ? data.savedSearches
-            .slice()
-            .filter((item) => item && item.id)
-            .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
-        : [];
-
-      if (savedSearchCountEl) {
-        savedSearchCountEl.textContent = savedSearches.length.toString();
-      }
-
-      if (savedSearches.length === 0) {
-        if (savedSearchEmptyState) {
-          savedSearchEmptyState.hidden = false;
-        }
-        return;
-      }
-
-      if (savedSearchEmptyState) {
-        savedSearchEmptyState.hidden = true;
-      }
-
-      const fragment = document.createDocumentFragment();
-      savedSearches.forEach((savedSearch) => {
-        const listItem = document.createElement('li');
-        listItem.className = 'saved-search-item';
-        listItem.dataset.savedSearchId = savedSearch.id;
-
-        const header = document.createElement('div');
-        header.className = 'saved-search-header';
-
-        const title = document.createElement('h3');
-        title.className = 'saved-search-name';
-        title.textContent = savedSearch.name;
-
-        const meta = document.createElement('p');
-        meta.className = 'saved-search-meta';
-        const updatedLabel = savedSearch.updatedAt
-          ? `Modifiée le ${savedSearchDateFormatter.format(new Date(savedSearch.updatedAt))}`
-          : 'Jamais appliquée';
-        const contactCount = countContactsForSavedSearch(savedSearch);
-        meta.textContent = `${updatedLabel} · ${numberFormatter.format(contactCount)} contact${
-          contactCount > 1 ? 's' : ''
-        }`;
-
-        header.append(title, meta);
-
-        const summary = document.createElement('p');
-        summary.className = 'saved-search-summary';
-        summary.textContent = describeSavedSearch(savedSearch);
-
-        const actions = document.createElement('div');
-        actions.className = 'saved-search-actions';
-
-        const applyButton = document.createElement('button');
-        applyButton.type = 'button';
-        applyButton.className = 'secondary-button';
-        applyButton.textContent = 'Appliquer';
-        applyButton.dataset.savedSearchAction = 'apply';
-        applyButton.dataset.savedSearchId = savedSearch.id;
-
-        const renameButton = document.createElement('button');
-        renameButton.type = 'button';
-        renameButton.className = 'ghost-button';
-        renameButton.textContent = 'Renommer';
-        renameButton.dataset.savedSearchAction = 'rename';
-        renameButton.dataset.savedSearchId = savedSearch.id;
-
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'ghost-button ghost-button--danger saved-search-delete';
-        deleteButton.textContent = 'Supprimer';
-        deleteButton.dataset.savedSearchAction = 'delete';
-        deleteButton.dataset.savedSearchId = savedSearch.id;
-
-        actions.append(applyButton, renameButton, deleteButton);
-
-        listItem.append(header, summary, actions);
-        fragment.appendChild(listItem);
-      });
-
-      savedSearchList.appendChild(fragment);
-    }
-
-    function createTemplateBlock(type) {
-      const normalizedType = EMAIL_TEMPLATE_BLOCK_TYPES.has(type) ? type : 'paragraph';
-      if (normalizedType === 'image') {
-        return { id: generateId('template-block'), type: 'image', url: '', alt: '', linkUrl: '', caption: '' };
-      }
-      if (normalizedType === 'button') {
-        return { id: generateId('template-block'), type: 'button', label: '', linkUrl: '' };
-      }
-      return { id: generateId('template-block'), type: 'paragraph', text: '' };
-    }
-
-    function renderEmailTemplateBlocks() {
-      if (!emailTemplateBlocksContainer) {
-        return;
-      }
-
-      emailTemplateBlocksContainer.innerHTML = '';
-
-      if (!Array.isArray(emailTemplateBlocks) || emailTemplateBlocks.length === 0) {
-        const emptyMessage = document.createElement('p');
-        emptyMessage.className = 'empty-state';
-        emptyMessage.textContent = 'Ajoutez un bloc pour commencer la composition du message.';
-        emailTemplateBlocksContainer.appendChild(emptyMessage);
-        return;
-      }
-
-      const fragment = document.createDocumentFragment();
-
-      emailTemplateBlocks.forEach((block, index) => {
-        if (!block || typeof block !== 'object') {
-          return;
-        }
-
-        const wrapper = document.createElement('article');
-        wrapper.className = 'email-template-block';
-        wrapper.dataset.blockId = block.id;
-        wrapper.dataset.blockType = block.type;
-
-        const header = document.createElement('div');
-        header.className = 'email-template-block-header';
-
-        const title = document.createElement('h3');
-        title.textContent = `Bloc ${index + 1}`;
-
-        const controls = document.createElement('div');
-        controls.className = 'email-template-block-controls';
-
-        const moveUpButton = document.createElement('button');
-        moveUpButton.type = 'button';
-        moveUpButton.className = 'ghost-button';
-        moveUpButton.textContent = 'Monter';
-        moveUpButton.dataset.blockAction = 'move-up';
-        moveUpButton.dataset.blockId = block.id;
-        moveUpButton.disabled = index === 0;
-
-        const moveDownButton = document.createElement('button');
-        moveDownButton.type = 'button';
-        moveDownButton.className = 'ghost-button';
-        moveDownButton.textContent = 'Descendre';
-        moveDownButton.dataset.blockAction = 'move-down';
-        moveDownButton.dataset.blockId = block.id;
-        moveDownButton.disabled = index === emailTemplateBlocks.length - 1;
-
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'ghost-button ghost-button--danger';
-        deleteButton.textContent = 'Supprimer';
-        deleteButton.dataset.blockAction = 'delete';
-        deleteButton.dataset.blockId = block.id;
-
-        controls.append(moveUpButton, moveDownButton, deleteButton);
-        header.append(title, controls);
-        wrapper.appendChild(header);
-
-        if (block.type === 'paragraph') {
-          const textRow = document.createElement('div');
-          textRow.className = 'form-row';
-          const label = document.createElement('label');
-          label.textContent = 'Contenu du paragraphe';
-          const textarea = document.createElement('textarea');
-          textarea.rows = 4;
-          textarea.value = block.text || '';
-          textarea.dataset.blockField = 'text';
-          textarea.dataset.blockId = block.id;
-          textRow.append(label, textarea);
-          wrapper.appendChild(textRow);
-        } else if (block.type === 'image') {
-          const urlRow = document.createElement('div');
-          urlRow.className = 'form-row';
-          const urlLabel = document.createElement('label');
-          urlLabel.textContent = "URL de l'image";
-          const urlInput = document.createElement('input');
-          urlInput.type = 'url';
-          urlInput.placeholder = 'https://exemple.com/image.png';
-          urlInput.value = block.url || '';
-          urlInput.dataset.blockField = 'url';
-          urlInput.dataset.blockId = block.id;
-          urlRow.append(urlLabel, urlInput);
-
-          const altRow = document.createElement('div');
-          altRow.className = 'form-row';
-          const altLabel = document.createElement('label');
-          altLabel.textContent = 'Texte alternatif';
-          const altInput = document.createElement('input');
-          altInput.type = 'text';
-          altInput.value = block.alt || '';
-          altInput.dataset.blockField = 'alt';
-          altInput.dataset.blockId = block.id;
-          altRow.append(altLabel, altInput);
-
-          const linkRow = document.createElement('div');
-          linkRow.className = 'form-row';
-          const linkLabel = document.createElement('label');
-          linkLabel.textContent = "Lien à ouvrir au clic (optionnel)";
-          const linkInput = document.createElement('input');
-          linkInput.type = 'url';
-          linkInput.placeholder = 'https://exemple.com';
-          linkInput.value = block.linkUrl || '';
-          linkInput.dataset.blockField = 'linkUrl';
-          linkInput.dataset.blockId = block.id;
-          linkRow.append(linkLabel, linkInput);
-
-          const captionRow = document.createElement('div');
-          captionRow.className = 'form-row';
-          const captionLabel = document.createElement('label');
-          captionLabel.textContent = 'Légende (optionnelle)';
-          const captionInput = document.createElement('input');
-          captionInput.type = 'text';
-          captionInput.value = block.caption || '';
-          captionInput.dataset.blockField = 'caption';
-          captionInput.dataset.blockId = block.id;
-          captionRow.append(captionLabel, captionInput);
-
-          wrapper.append(urlRow, altRow, linkRow, captionRow);
-        } else if (block.type === 'button') {
-          const labelRow = document.createElement('div');
-          labelRow.className = 'form-row';
-          const labelLabel = document.createElement('label');
-          labelLabel.textContent = 'Texte du bouton';
-          const labelInput = document.createElement('input');
-          labelInput.type = 'text';
-          labelInput.value = block.label || '';
-          labelInput.dataset.blockField = 'label';
-          labelInput.dataset.blockId = block.id;
-          labelRow.append(labelLabel, labelInput);
-
-          const linkRow = document.createElement('div');
-          linkRow.className = 'form-row';
-          const linkLabel = document.createElement('label');
-          linkLabel.textContent = 'Lien du bouton';
-          const linkInput = document.createElement('input');
-          linkInput.type = 'url';
-          linkInput.placeholder = 'https://exemple.com';
-          linkInput.value = block.linkUrl || '';
-          linkInput.dataset.blockField = 'linkUrl';
-          linkInput.dataset.blockId = block.id;
-          linkRow.append(linkLabel, linkInput);
-
-          wrapper.append(labelRow, linkRow);
-        }
-
-        fragment.appendChild(wrapper);
-      });
-
-      emailTemplateBlocksContainer.appendChild(fragment);
-    }
-
-    function renderEmailTemplatePreview(blocks = emailTemplateBlocks, container = emailTemplatePreview) {
-      if (!container) {
-        return;
-      }
-
-      container.innerHTML = '';
-
-      if (!Array.isArray(blocks) || blocks.length === 0) {
-        const emptyMessage = document.createElement('p');
-        emptyMessage.className = 'empty-state';
-        emptyMessage.textContent = 'Ajoutez des blocs pour visualiser le rendu du mail.';
-        container.appendChild(emptyMessage);
-        return;
-      }
-
-      const fragment = document.createDocumentFragment();
-
-      blocks.forEach((block) => {
-        if (!block || typeof block !== 'object') {
-          return;
-        }
-        if (block.type === 'paragraph') {
-          const paragraph = document.createElement('p');
-          paragraph.textContent = block.text || '';
-          fragment.appendChild(paragraph);
-        } else if (block.type === 'image') {
-          const figure = document.createElement('figure');
-          const image = document.createElement('img');
-          image.src = block.url || '';
-          image.alt = block.alt || '';
-          if (block.linkUrl) {
-            const link = document.createElement('a');
-            link.href = block.linkUrl;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.appendChild(image);
-            figure.appendChild(link);
-          } else {
-            figure.appendChild(image);
-          }
-          if (block.caption) {
-            const caption = document.createElement('figcaption');
-            caption.textContent = block.caption;
-            figure.appendChild(caption);
-          }
-          fragment.appendChild(figure);
-        } else if (block.type === 'button') {
-          const buttonWrapper = document.createElement('div');
-          const buttonLink = document.createElement('a');
-          buttonLink.href = block.linkUrl || '#';
-          buttonLink.target = '_blank';
-          buttonLink.rel = 'noopener noreferrer';
-          buttonLink.className = 'email-preview-button';
-          buttonLink.textContent = block.label || 'Appel à l\'action';
-          buttonWrapper.appendChild(buttonLink);
-          fragment.appendChild(buttonWrapper);
-        }
-      });
-
-      container.appendChild(fragment);
-    }
-
-    function resetEmailTemplateForm(preserveEditing = false) {
-      if (emailTemplateForm && !isResettingEmailTemplateForm) {
-        isResettingEmailTemplateForm = true;
-        emailTemplateForm.reset();
-        isResettingEmailTemplateForm = false;
-      }
-      if (!preserveEditing) {
-        editingEmailTemplateId = '';
-      }
-      emailTemplateBlocks = [];
-      renderEmailTemplateBlocks();
-      renderEmailTemplatePreview();
-      if (emailTemplateFeedback) {
-        emailTemplateFeedback.textContent = '';
-        emailTemplateFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
-      }
-    }
-
-    function loadEmailTemplateIntoForm(template) {
-      if (!template || typeof template !== 'object') {
-        return;
-      }
-
-      editingEmailTemplateId = template.id || '';
-      if (emailTemplateNameInput instanceof HTMLInputElement) {
-        emailTemplateNameInput.value = template.name || '';
-      }
-      if (emailTemplateSubjectInput instanceof HTMLInputElement) {
-        emailTemplateSubjectInput.value = template.subject || '';
-      }
-
-      emailTemplateBlocks = Array.isArray(template.blocks)
-        ? template.blocks.map((block) => ({ ...block }))
-        : [];
-      renderEmailTemplateBlocks();
-      renderEmailTemplatePreview(emailTemplateBlocks);
-      if (emailTemplateFeedback) {
-        emailTemplateFeedback.textContent = 'Modèle chargé. Vous pouvez le modifier et sauvegarder.';
-        emailTemplateFeedback.classList.remove('form-feedback--error');
-        emailTemplateFeedback.classList.add('form-feedback--success');
-      }
-    }
-
-    function renderEmailTemplateList() {
-      if (!emailTemplateList) {
-        return;
-      }
-
-      emailTemplateList.innerHTML = '';
-
-      const templates = Array.isArray(data.emailTemplates)
-        ? data.emailTemplates
-            .slice()
-            .filter((template) => template && template.id)
-            .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
-        : [];
-
-      if (emailTemplateEmptyState) {
-        emailTemplateEmptyState.hidden = templates.length > 0;
-      }
-
-      if (templates.length === 0) {
-        return;
-      }
-
-      const fragment = document.createDocumentFragment();
-
-      templates.forEach((template) => {
-        const card = document.createElement('li');
-        card.className = 'email-template-card';
-        card.dataset.templateId = template.id;
-
-        const header = document.createElement('div');
-        header.className = 'email-template-card-header';
-
-        const title = document.createElement('h3');
-        title.textContent = template.name || 'Modèle sans nom';
-
-        const meta = document.createElement('p');
-        meta.className = 'email-template-card-meta';
-        const updatedAt = template.updatedAt
-          ? savedSearchDateFormatter.format(new Date(template.updatedAt))
-          : 'Non daté';
-        meta.textContent = `${template.subject || 'Sans objet'} · ${template.blocks.length} bloc${
-          template.blocks.length > 1 ? 's' : ''
-        } · ${updatedAt}`;
-
-        header.append(title, meta);
-
-        const preview = document.createElement('div');
-        preview.className = 'email-template-card-preview';
-        let previewText = 'Aucun contenu pour le moment.';
-        if (template.blocks.length > 0) {
-          const firstBlock = template.blocks[0];
-          if (firstBlock.type === 'paragraph') {
-            const text = (firstBlock.text || '').toString().trim();
-            previewText = text.length > 0 ? text.slice(0, 120) : 'Paragraphe vide';
-            if (text.length > 120) {
-              previewText = `${previewText}…`;
-            }
-          } else if (firstBlock.type === 'image') {
-            previewText = `Image : ${(firstBlock.url || '').toString().trim() || 'URL manquante'}`;
-          } else if (firstBlock.type === 'button') {
-            previewText = `Bouton : ${(firstBlock.label || '').toString().trim() || 'Sans libellé'}`;
-          }
-        }
-        preview.textContent = previewText;
-
-        const actions = document.createElement('div');
-        actions.className = 'email-template-card-actions';
-
-        const editButton = document.createElement('button');
-        editButton.type = 'button';
-        editButton.className = 'secondary-button';
-        editButton.textContent = 'Modifier';
-        editButton.dataset.templateAction = 'edit';
-        editButton.dataset.templateId = template.id;
-
-        const duplicateButton = document.createElement('button');
-        duplicateButton.type = 'button';
-        duplicateButton.className = 'ghost-button';
-        duplicateButton.textContent = 'Dupliquer';
-        duplicateButton.dataset.templateAction = 'duplicate';
-        duplicateButton.dataset.templateId = template.id;
-
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'ghost-button ghost-button--danger';
-        deleteButton.textContent = 'Supprimer';
-        deleteButton.dataset.templateAction = 'delete';
-        deleteButton.dataset.templateId = template.id;
-
-        actions.append(editButton, duplicateButton, deleteButton);
-
-        card.append(header, preview, actions);
-        fragment.appendChild(card);
-      });
-
-      emailTemplateList.appendChild(fragment);
-    }
-
-    function getEmailTemplateById(templateId) {
-      if (!templateId || !Array.isArray(data.emailTemplates)) {
-        return null;
-      }
-      return data.emailTemplates.find((template) => template && template.id === templateId) || null;
-    }
-
-    function renderCampaignSavedSearchOptions(selectedId = emailCampaignSavedSearchSelect instanceof HTMLSelectElement
-      ? emailCampaignSavedSearchSelect.value || ''
-      : '') {
-      if (!(emailCampaignSavedSearchSelect instanceof HTMLSelectElement)) {
-        return;
-      }
-
-      const savedSearches = Array.isArray(data.savedSearches)
-        ? data.savedSearches
-            .slice()
-            .filter((item) => item && item.id)
-            .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
-        : [];
-
-      emailCampaignSavedSearchSelect.innerHTML = '';
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = savedSearches.length === 0
-        ? 'Aucune recherche disponible'
-        : 'Choisir une recherche';
-      emailCampaignSavedSearchSelect.appendChild(placeholder);
-
-      savedSearches.forEach((savedSearch) => {
-        const option = document.createElement('option');
-        option.value = savedSearch.id;
-        option.textContent = savedSearch.name;
-        if (selectedId && savedSearch.id === selectedId) {
-          option.selected = true;
-        }
-        emailCampaignSavedSearchSelect.appendChild(option);
-      });
-
-      emailCampaignSavedSearchSelect.disabled = savedSearches.length === 0;
-      if (savedSearches.length === 0) {
-        emailCampaignSavedSearchSelect.value = '';
-      } else if (selectedId) {
-        emailCampaignSavedSearchSelect.value = selectedId;
-      }
-    }
-
-    function renderCampaignTemplateOptions(selectedId = emailCampaignTemplateSelect instanceof HTMLSelectElement
-      ? emailCampaignTemplateSelect.value || ''
-      : '') {
-      if (!(emailCampaignTemplateSelect instanceof HTMLSelectElement)) {
-        return;
-      }
-
-      const templates = Array.isArray(data.emailTemplates)
-        ? data.emailTemplates
-            .slice()
-            .filter((template) => template && template.id)
-            .sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }))
-        : [];
-
-      emailCampaignTemplateSelect.innerHTML = '';
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = templates.length === 0 ? 'Aucun modèle disponible' : 'Choisir un modèle';
-      emailCampaignTemplateSelect.appendChild(placeholder);
-
-      templates.forEach((template) => {
-        const option = document.createElement('option');
-        option.value = template.id;
-        option.textContent = template.name;
-        if (selectedId && template.id === selectedId) {
-          option.selected = true;
-        }
-        emailCampaignTemplateSelect.appendChild(option);
-      });
-
-      emailCampaignTemplateSelect.disabled = templates.length === 0;
-      if (templates.length === 0) {
-        emailCampaignTemplateSelect.value = '';
-      } else if (selectedId) {
-        emailCampaignTemplateSelect.value = selectedId;
-      }
-    }
-
-    function computeCampaignRecipients(savedSearch) {
-      if (!savedSearch) {
-        return { recipients: [], contactsWithoutEmail: 0 };
-      }
-
-      const snapshot = getFilteredContactsSnapshot(savedSearch.searchTerm, savedSearch.filters || {});
-      const categoriesById = snapshot.categoriesById || buildCategoryMap();
-      const recipientsMap = new Map();
-      let contactsWithoutEmail = 0;
-
-      snapshot.contacts.forEach((contact) => {
-        const channels = computeContactChannels(contact, categoriesById);
-        if (!channels.emails || channels.emails.length === 0) {
-          contactsWithoutEmail += 1;
-          return;
-        }
-
-        const displayName = getContactDisplayName(contact, categoriesById);
-        channels.emails.forEach((email) => {
-          const normalized = email ? email.toString().trim().toLowerCase() : '';
-          if (!normalized) {
-            return;
-          }
-          let entry = recipientsMap.get(normalized);
-          if (!entry) {
-            entry = { email, names: new Set() };
-            recipientsMap.set(normalized, entry);
-          }
-          if (displayName) {
-            entry.names.add(displayName);
-          }
-        });
-      });
-
-      const recipients = Array.from(recipientsMap.values()).map((entry) => ({
-        email: entry.email,
-        names: Array.from(entry.names),
-      }));
-
-      return { recipients, contactsWithoutEmail };
-    }
-
-    function updateCampaignRecipientPreview() {
-      if (!campaignSummaryEl || !campaignRecipientList) {
-        return;
-      }
-
-      const savedSearchId =
-        emailCampaignSavedSearchSelect instanceof HTMLSelectElement
-          ? emailCampaignSavedSearchSelect.value
-          : '';
-      const savedSearch = getSavedSearchById(savedSearchId);
-
-      const templateId =
-        emailCampaignTemplateSelect instanceof HTMLSelectElement
-          ? emailCampaignTemplateSelect.value
-          : '';
-      const template = getEmailTemplateById(templateId);
-
-      if (template) {
-        renderEmailTemplatePreview(template.blocks, campaignEmailPreview);
-      } else {
-        renderEmailTemplatePreview([], campaignEmailPreview);
-      }
-
-      campaignRecipientList.innerHTML = '';
-
-      if (!savedSearch) {
-        campaignSummaryEl.textContent =
-          'Sélectionnez une recherche sauvegardée pour afficher les contacts concernés.';
-        return;
-      }
-
-      const { recipients, contactsWithoutEmail } = computeCampaignRecipients(savedSearch);
-
-      if (recipients.length === 0) {
-        campaignSummaryEl.textContent =
-          contactsWithoutEmail > 0
-            ? 'Aucun contact ne possède d\'adresse mail pour cette recherche.'
-            : 'Aucun contact trouvé pour la recherche sélectionnée.';
-        return;
-      }
-
-      campaignSummaryEl.textContent = `${numberFormatter.format(
-        recipients.length,
-      )} destinataire${recipients.length > 1 ? 's' : ''} seront contactés.`;
-      if (contactsWithoutEmail > 0) {
-        campaignSummaryEl.textContent += ` ${numberFormatter.format(
-          contactsWithoutEmail,
-        )} contact${contactsWithoutEmail > 1 ? 's' : ''} sans mail sont ignorés.`;
-      }
-
-      const fragment = document.createDocumentFragment();
-      recipients.forEach((recipient) => {
-        const item = document.createElement('li');
-        item.className = 'campaign-recipient-item';
-
-        const emailLine = document.createElement('p');
-        emailLine.className = 'campaign-recipient-email';
-        emailLine.textContent = recipient.email;
-
-        item.appendChild(emailLine);
-
-        if (recipient.names && recipient.names.length > 0) {
-          const nameLine = document.createElement('p');
-          nameLine.className = 'campaign-recipient-name';
-          nameLine.textContent = recipient.names.join(', ');
-          item.appendChild(nameLine);
-        }
-
-        fragment.appendChild(item);
-      });
-
-      campaignRecipientList.appendChild(fragment);
-    }
-
-    function resetEmailCampaignForm() {
-      if (emailCampaignForm && !isResettingEmailCampaignForm) {
-        isResettingEmailCampaignForm = true;
-        emailCampaignForm.reset();
-        isResettingEmailCampaignForm = false;
-      }
-      campaignSubjectManuallyEdited = false;
-      renderCampaignSavedSearchOptions('');
-      renderCampaignTemplateOptions('');
-      if (emailCampaignFeedback) {
-        emailCampaignFeedback.textContent = '';
-        emailCampaignFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
-      }
-      if (campaignSummaryEl) {
-        campaignSummaryEl.textContent =
-          'Sélectionnez une recherche sauvegardée pour afficher les contacts concernés.';
-      }
-      if (campaignRecipientList) {
-        campaignRecipientList.innerHTML = '';
-      }
-      renderEmailTemplatePreview([], campaignEmailPreview);
-    }
-
-    function renderCampaignHistory() {
-      if (!campaignHistoryList) {
-        return;
-      }
-
-      campaignHistoryList.innerHTML = '';
-
-      const campaigns = Array.isArray(data.emailCampaigns)
-        ? data.emailCampaigns
-            .slice()
-            .filter((campaign) => campaign && campaign.id)
-            .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-        : [];
-
-      if (campaignHistoryEmptyState) {
-        campaignHistoryEmptyState.hidden = campaigns.length > 0;
-      }
-
-      if (campaigns.length === 0) {
-        return;
-      }
-
-      const fragment = document.createDocumentFragment();
-
-      campaigns.forEach((campaign) => {
-        const item = document.createElement('li');
-        item.className = 'campaign-history-item';
-
-        const title = document.createElement('h3');
-        title.className = 'campaign-history-title';
-        title.textContent = campaign.name || 'Campagne sans nom';
-
-        const meta = document.createElement('p');
-        meta.className = 'campaign-history-meta';
-        const template = getEmailTemplateById(campaign.templateId);
-        const savedSearch = getSavedSearchById(campaign.savedSearchId);
-        const dateLabel = campaign.createdAt
-          ? emailCampaignDateFormatter.format(new Date(campaign.createdAt))
-          : 'Date inconnue';
-        meta.textContent = `${dateLabel} · ${numberFormatter.format(
-          campaign.recipientCount || 0,
-        )} destinataire${campaign.recipientCount > 1 ? 's' : ''}`;
-
-        const summary = document.createElement('p');
-        summary.className = 'campaign-history-summary';
-        summary.textContent = `${campaign.subject || 'Sans objet'} · Modèle : ${
-          template ? template.name : '—'
-        } · Recherche : ${savedSearch ? savedSearch.name : '—'}`;
-
-        item.append(title, meta, summary);
-        fragment.appendChild(item);
-      });
-
-      campaignHistoryList.appendChild(fragment);
-    }
-
     function createEmptyAdvancedFilters() {
       return {
         categories: {},
         keywords: [],
-        includeAll: false,
-        keywordMode: 'OR',
       };
     }
   }
@@ -10120,9 +8076,6 @@
                         teamChatMessages: Array.isArray(base.teamChatMessages)
                           ? base.teamChatMessages
                           : [],
-                        savedSearches: Array.isArray(base.savedSearches) ? base.savedSearches : [],
-                        emailTemplates: Array.isArray(base.emailTemplates) ? base.emailTemplates : [],
-                        emailCampaigns: Array.isArray(base.emailCampaigns) ? base.emailCampaigns : [],
                         lastUpdated: base.lastUpdated || null,
 
                         // si jamais ces champs n’existaient pas encore
@@ -10152,23 +8105,20 @@
   }
 
   function cloneDefaultData() {
-    return {
-      metrics: { ...defaultData.metrics },
-      categories: [],
-      keywords: [],
-      contacts: [],
-      events: [],
-      taskCategories: [],
-      tasks: [],
-      teamChatMessages: [],
-      savedSearches: [],
-      emailTemplates: [],
-      emailCampaigns: [],
-      lastUpdated: null,
-      // Nouveaux champs persistés
-      panelOwner: '',
-      teamMembers: [],
-    };
+	  return {
+		metrics: { ...defaultData.metrics },
+                categories: [],
+                keywords: [],
+                contacts: [],
+                events: [],
+                taskCategories: [],
+                tasks: [],
+                teamChatMessages: [],
+                lastUpdated: null,
+                // Nouveaux champs persistés
+                panelOwner: '',
+                teamMembers: [],
+          };
 	}
 
 
@@ -10179,7 +8129,8 @@
 
     if (cryptoObj && cryptoObj.subtle && typeof cryptoObj.subtle.digest === 'function') {
       try {
-        const dataBuffer = encodeUtf8(message);
+        const encoder = new TextEncoder();
+        const dataBuffer = encoder.encode(message);
         const hashBuffer = await cryptoObj.subtle.digest('SHA-256', dataBuffer);
         return bufferToHex(hashBuffer);
       } catch (error) {
@@ -10188,76 +8139,6 @@
     }
 
     return sha256Sync(message);
-  }
-
-  function encodeUtf8(message) {
-    const normalized = message == null ? '' : String(message);
-
-    if (typeof window !== 'undefined' && window.TextEncoder) {
-      try {
-        return new window.TextEncoder().encode(normalized);
-      } catch (error) {
-        // Ignore and use manual fallback below.
-      }
-    }
-
-    if (typeof TextEncoder === 'function') {
-      try {
-        return new TextEncoder().encode(normalized);
-      } catch (error) {
-        // Ignore and use manual fallback below.
-      }
-    }
-
-    const bytes = [];
-    for (let index = 0; index < normalized.length; index += 1) {
-      const codePoint = normalized.charCodeAt(index);
-
-      if (codePoint < 0x80) {
-        bytes.push(codePoint);
-        continue;
-      }
-
-      if (codePoint < 0x800) {
-        bytes.push((codePoint >> 6) | 0xc0, (codePoint & 0x3f) | 0x80);
-        continue;
-      }
-
-      if (codePoint >= 0xd800 && codePoint <= 0xdbff) {
-        const nextIndex = index + 1;
-        if (nextIndex < normalized.length) {
-          const nextCodePoint = normalized.charCodeAt(nextIndex);
-          if (nextCodePoint >= 0xdc00 && nextCodePoint <= 0xdfff) {
-            const combined =
-              ((codePoint - 0xd800) << 10) + (nextCodePoint - 0xdc00) + 0x10000;
-            bytes.push(
-              0xf0 | ((combined >> 18) & 0x07),
-              0x80 | ((combined >> 12) & 0x3f),
-              0x80 | ((combined >> 6) & 0x3f),
-              0x80 | (combined & 0x3f),
-            );
-            index = nextIndex;
-            continue;
-          }
-        }
-
-        bytes.push(0xef, 0xbf, 0xbd);
-        continue;
-      }
-
-      if (codePoint >= 0xdc00 && codePoint <= 0xdfff) {
-        bytes.push(0xef, 0xbf, 0xbd);
-        continue;
-      }
-
-      bytes.push(
-        (codePoint >> 12) | 0xe0,
-        ((codePoint >> 6) & 0x3f) | 0x80,
-        (codePoint & 0x3f) | 0x80,
-      );
-    }
-
-    return new Uint8Array(bytes);
   }
 
   function bufferToHex(buffer) {
@@ -10280,17 +8161,20 @@
       0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
     ]);
 
-    const messageBytes = encodeUtf8(message);
+    const encoder = new TextEncoder();
+    const messageBytes = encoder.encode(message);
+    const bitLength = BigInt(messageBytes.length) * 8n;
     const paddedLength = (((messageBytes.length + 9 + 63) >> 6) << 6);
+
     const buffer = new Uint8Array(paddedLength);
     buffer.set(messageBytes);
     buffer[messageBytes.length] = 0x80;
 
     const view = new DataView(buffer.buffer);
-    const bitLenHi = Math.floor(messageBytes.length / 0x20000000);
-    const bitLenLo = (messageBytes.length << 3) >>> 0;
-    view.setUint32(paddedLength - 8, bitLenHi);
-    view.setUint32(paddedLength - 4, bitLenLo);
+    const highBits = Number((bitLength >> 32n) & 0xffffffffn);
+    const lowBits = Number(bitLength & 0xffffffffn);
+    view.setUint32(paddedLength - 8, highBits);
+    view.setUint32(paddedLength - 4, lowBits);
 
     let h0 = 0x6a09e667;
     let h1 = 0xbb67ae85;
@@ -10303,25 +8187,15 @@
 
     const w = new Uint32Array(64);
 
-    function rightRotate(value, amount) {
-      return ((value >>> amount) | (value << (32 - amount))) >>> 0;
-    }
-
-    for (let offset = 0; offset < buffer.length; offset += 64) {
-      for (let index = 0; index < 16; index += 1) {
-        w[index] = view.getUint32(offset + index * 4);
+    for (let i = 0; i < paddedLength; i += 64) {
+      for (let j = 0; j < 16; j += 1) {
+        w[j] = view.getUint32(i + j * 4);
       }
 
-      for (let index = 16; index < 64; index += 1) {
-        const s0 =
-          rightRotate(w[index - 15], 7) ^
-          rightRotate(w[index - 15], 18) ^
-          (w[index - 15] >>> 3);
-        const s1 =
-          rightRotate(w[index - 2], 17) ^
-          rightRotate(w[index - 2], 19) ^
-          (w[index - 2] >>> 10);
-        w[index] = (w[index - 16] + s0 + w[index - 7] + s1) >>> 0;
+      for (let j = 16; j < 64; j += 1) {
+        const s0 = rightRotate(w[j - 15], 7) ^ rightRotate(w[j - 15], 18) ^ (w[j - 15] >>> 3);
+        const s1 = rightRotate(w[j - 2], 17) ^ rightRotate(w[j - 2], 19) ^ (w[j - 2] >>> 10);
+        w[j] = (w[j - 16] + s0 + w[j - 7] + s1) >>> 0;
       }
 
       let a = h0;
@@ -10333,13 +8207,11 @@
       let g = h6;
       let h = h7;
 
-      for (let index = 0; index < 64; index += 1) {
-        const S1 =
-          rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
+      for (let j = 0; j < 64; j += 1) {
+        const S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
         const ch = (e & f) ^ (~e & g);
-        const temp1 = (h + S1 + ch + k[index] + w[index]) >>> 0;
-        const S0 =
-          rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
+        const temp1 = (h + S1 + ch + k[j] + w[j]) >>> 0;
+        const S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
         const maj = (a & b) ^ (a & c) ^ (b & c);
         const temp2 = (S0 + maj) >>> 0;
 
@@ -10375,6 +8247,10 @@
     hashView.setUint32(28, h7);
 
     return bufferToHex(hash.buffer);
+  }
+
+  function rightRotate(value, amount) {
+    return (value >>> amount) | (value << (32 - amount));
   }
 
   function isValidEmail(value) {
