@@ -332,6 +332,99 @@
             </div>
           </section>
 
+          <section id="directory-home" class="page" aria-labelledby="directory-home-title">
+            <header class="page-header">
+              <div>
+                <h1 id="directory-home-title">Accueil du répertoire</h1>
+                <p class="page-subtitle">
+                  Visualisez en un clin d'œil les informations essentielles liées à vos contacts enregistrés.
+                </p>
+              </div>
+              <div class="insight-card">
+                <span class="insight-label">Dernière mise à jour</span>
+                <span class="insight-value" id="last-updated">—</span>
+              </div>
+            </header>
+            <div class="metrics-grid" role="list">
+              <article class="metric-card" role="listitem">
+                <header>
+                  <h2>Contacts enregistrés</h2>
+                  <p class="metric-caption">Nombre total de fiches présentes dans votre répertoire.</p>
+                </header>
+                <p class="metric-value" data-metric="peopleCount">0</p>
+              </article>
+              <article class="metric-card" role="listitem">
+                <header>
+                  <h2>Adresses e-mail collectées</h2>
+                  <p class="metric-caption">Comptage de toutes les adresses e-mail renseignées.</p>
+                </header>
+                <p class="metric-value" data-metric="emailCount">0</p>
+                <p class="metric-subtext" data-metric-share="email">0 % des contacts</p>
+              </article>
+              <article class="metric-card" role="listitem">
+                <header>
+                  <h2>Numéros de téléphone collectés</h2>
+                  <p class="metric-caption">Total des numéros (fixes ou mobiles) disponibles.</p>
+                </header>
+                <p class="metric-value" data-metric="phoneCount">0</p>
+                <p class="metric-subtext" data-metric-share="phone">0 % des contacts</p>
+              </article>
+              <article class="metric-card" role="listitem">
+                <header>
+                  <h2>Données disponibles</h2>
+                  <p class="metric-caption">Somme des contacts et coordonnées stockés.</p>
+                </header>
+                <p class="metric-value" id="total-datasets">0</p>
+                <p class="metric-subtext">Catégories actives&nbsp;: <span id="categories-count">0</span> · Mots clés actifs&nbsp;: <span id="keywords-count">0</span></p>
+              </article>
+            </div>
+            <section class="metrics-coverage" aria-labelledby="coverage-title">
+              <div>
+                <h2 id="coverage-title">Couverture des coordonnées</h2>
+                <p class="metric-caption">
+                  Répartition des contacts selon les informations de contact disponibles.
+                </p>
+              </div>
+              <div class="coverage-content">
+                <div id="contact-coverage-chart" class="coverage-chart" role="img" aria-label="Aucune donnée de contact disponible."></div>
+                <ul class="coverage-legend">
+                  <li>
+                    <span class="coverage-dot coverage-dot--both" aria-hidden="true"></span>
+                    <div class="coverage-legend-text">
+                      <span class="coverage-name">Téléphone et e-mail</span>
+                      <span class="coverage-count" data-coverage-count="both">0 contact</span>
+                    </div>
+                    <span class="coverage-percent" data-coverage-percent="both">0 %</span>
+                  </li>
+                  <li>
+                    <span class="coverage-dot coverage-dot--phone" aria-hidden="true"></span>
+                    <div class="coverage-legend-text">
+                      <span class="coverage-name">Téléphone uniquement</span>
+                      <span class="coverage-count" data-coverage-count="phone">0 contact</span>
+                    </div>
+                    <span class="coverage-percent" data-coverage-percent="phone">0 %</span>
+                  </li>
+                  <li>
+                    <span class="coverage-dot coverage-dot--email" aria-hidden="true"></span>
+                    <div class="coverage-legend-text">
+                      <span class="coverage-name">E-mail uniquement</span>
+                      <span class="coverage-count" data-coverage-count="email">0 contact</span>
+                    </div>
+                    <span class="coverage-percent" data-coverage-percent="email">0 %</span>
+                  </li>
+                  <li>
+                    <span class="coverage-dot coverage-dot--none" aria-hidden="true"></span>
+                    <div class="coverage-legend-text">
+                      <span class="coverage-name">Aucune coordonnée</span>
+                      <span class="coverage-count" data-coverage-count="none">0 contact</span>
+                    </div>
+                    <span class="coverage-percent" data-coverage-percent="none">0 %</span>
+                  </li>
+                </ul>
+              </div>
+            </section>
+          </section>
+
           <section id="categories" class="page" aria-labelledby="categories-title">
             <header class="page-header">
               <div>
@@ -604,14 +697,49 @@
               </div>
               <p id="contact-save-search-feedback" class="form-feedback" aria-live="polite"></p>
               <form id="contact-advanced-search" class="contact-advanced-search" autocomplete="off">
+                <div class="advanced-option">
+                  <div class="checkbox-item">
+                    <input type="checkbox" id="search-include-all" name="search-include-all" />
+                    <label for="search-include-all">Sélectionner tous les contacts</label>
+                  </div>
+                  <p id="search-include-all-message" class="form-hint" hidden>
+                    Les filtres détaillés sont désactivés lorsque cette option est cochée.
+                  </p>
+                </div>
                 <div class="advanced-grid" id="search-category-fields" aria-live="polite"></div>
                 <p id="search-categories-empty" class="empty-state" hidden>
                   Ajoutez vos premières catégories pour filtrer vos contacts.
                 </p>
-                <div class="form-row advanced-multiselect">
-                  <label for="search-keywords">Sélectionnez mes mots clés</label>
-                  <select id="search-keywords" name="search-keywords" multiple></select>
-                </div>
+                <fieldset class="form-fieldset advanced-keywords" aria-labelledby="keyword-mode-title">
+                  <legend>Mots clés</legend>
+                  <p class="form-hint">Cochez les mots clés à activer pour ce filtre.</p>
+                  <div id="search-keywords-container" class="checkbox-grid" aria-live="polite"></div>
+                  <p id="search-keywords-empty" class="empty-state" hidden>
+                    Aucun mot clé disponible pour le moment.
+                  </p>
+                  <div class="keyword-mode-toggle" role="radiogroup" aria-label="Condition d'application des mots clés">
+                    <span id="keyword-mode-title" class="keyword-mode-label">Condition d'application</span>
+                    <label class="radio-item" for="search-keyword-mode-or">
+                      <input
+                        type="radio"
+                        id="search-keyword-mode-or"
+                        name="search-keyword-mode"
+                        value="OR"
+                        checked
+                      />
+                      <span>Au moins un mot clé (OU)</span>
+                    </label>
+                    <label class="radio-item" for="search-keyword-mode-and">
+                      <input
+                        type="radio"
+                        id="search-keyword-mode-and"
+                        name="search-keyword-mode"
+                        value="AND"
+                      />
+                      <span>Tous les mots clés (ET)</span>
+                    </label>
+                  </div>
+                </fieldset>
                 <div class="advanced-actions">
                   <button type="submit" class="primary-button">Appliquer les filtres</button>
                   <button type="reset" class="secondary-button">Réinitialiser</button>
