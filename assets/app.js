@@ -10183,6 +10183,7 @@
     ]);
 
     const messageBytes = encodeUtf8(message);
+    const bitLength = BigInt(messageBytes.length) * 8n;
     const paddedLength = (((messageBytes.length + 9 + 63) >> 6) << 6);
     const buffer = new Uint8Array(paddedLength);
     buffer.set(messageBytes);
