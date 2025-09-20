@@ -22,6 +22,7 @@
     taskCategories: [],
     tasks: [],
     teamChatMessages: [],
+    savedSearches: [],
     lastUpdated: null,
   };
 
@@ -437,6 +438,13 @@
     const searchCategoriesEmpty = document.getElementById('search-categories-empty');
     const searchKeywordsSelect = document.getElementById('search-keywords');
     const contactSearchCountEl = document.getElementById('contact-search-count');
+    const contactSaveSearchButton = document.getElementById('contact-save-search');
+    const contactSavedSearchSelect = document.getElementById('contact-saved-searches');
+    const contactSaveSearchFeedback = document.getElementById('contact-save-search-feedback');
+    const savedSearchCountEl = document.getElementById('saved-search-count');
+    const savedSearchList = document.getElementById('saved-search-list');
+    const savedSearchEmptyState = document.getElementById('saved-search-empty');
+    const campaignSavedSearchSelect = document.getElementById('campaign-saved-search-select');
     const contactSelectAllButton = document.getElementById('contact-select-all');
     const contactDeleteSelectedButton = document.getElementById('contact-delete-selected');
     const contactBulkKeywordSelect = document.getElementById('contact-bulk-keyword');
@@ -607,11 +615,16 @@
       maximumFractionDigits: 1,
       minimumFractionDigits: 0,
     });
+    const savedSearchDateFormatter = new Intl.DateTimeFormat('fr-FR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
 
     const CONTACT_RESULTS_PER_PAGE_DEFAULT = 10;
 
     let contactSearchTerm = '';
     let advancedFilters = createEmptyAdvancedFilters();
+    let activeSavedSearchId = '';
     let contactEditReturnPage = 'contacts-search';
     let contactCurrentPage = 1;
     let contactResultsPerPage = CONTACT_RESULTS_PER_PAGE_DEFAULT;
@@ -1277,6 +1290,8 @@
       contactSearchInput.addEventListener('input', () => {
         contactSearchTerm = contactSearchInput.value;
         contactCurrentPage = 1;
+        setActiveSavedSearchId('');
+        clearContactSaveSearchFeedback();
         renderContacts();
       });
     }
@@ -1366,6 +1381,8 @@
           categories: categoryFilters,
           keywords: keywordFilters,
         };
+        setActiveSavedSearchId('');
+        clearContactSaveSearchFeedback();
         contactCurrentPage = 1;
         renderContacts();
       });
@@ -1374,9 +1391,66 @@
         window.requestAnimationFrame(() => {
           advancedFilters = createEmptyAdvancedFilters();
           renderSearchCategoryFields();
+          setActiveSavedSearchId('');
+          clearContactSaveSearchFeedback();
           contactCurrentPage = 1;
           renderContacts();
         });
+      });
+    }
+
+    if (contactSaveSearchButton instanceof HTMLButtonElement) {
+      contactSaveSearchButton.addEventListener('click', () => {
+        handleSaveCurrentSearch();
+      });
+    }
+
+    if (contactSavedSearchSelect instanceof HTMLSelectElement) {
+      contactSavedSearchSelect.addEventListener('change', () => {
+        const selectedId = contactSavedSearchSelect.value || '';
+        if (!selectedId) {
+          setActiveSavedSearchId('');
+          clearContactSaveSearchFeedback();
+          return;
+        }
+
+        const applied = applySavedSearchById(selectedId, {
+          navigateToSearchPage: false,
+          focusSearchInput: false,
+          announce: true,
+        });
+        if (!applied) {
+          contactSavedSearchSelect.value = '';
+        }
+      });
+    }
+
+    if (savedSearchList) {
+      savedSearchList.addEventListener('click', (event) => {
+        const target =
+          event.target instanceof HTMLElement ? event.target.closest('[data-action]') : null;
+        if (!(target instanceof HTMLElement)) {
+          return;
+        }
+
+        const savedSearchId = target.dataset.savedSearchId || '';
+        if (!savedSearchId) {
+          return;
+        }
+
+        if (target.dataset.action === 'apply-saved-search') {
+          const applied = applySavedSearchById(savedSearchId, {
+            navigateToSearchPage: true,
+            focusSearchInput: true,
+            announce: true,
+          });
+          if (!applied && contactSaveSearchFeedback) {
+            contactSaveSearchFeedback.textContent =
+              "Impossible d'appliquer cette recherche sauvegardée.";
+          }
+        } else if (target.dataset.action === 'delete-saved-search') {
+          deleteSavedSearch(savedSearchId);
+        }
       });
     }
 
@@ -5064,6 +5138,8 @@
         renderContactCategoryFields();
         renderSearchCategoryFields();
         renderContacts();
+        renderSavedSearchOptions();
+        renderSavedSearchList();
         return;
       }
 
@@ -5076,6 +5152,8 @@
         renderContactCategoryFields();
         renderSearchCategoryFields();
         renderContacts();
+        renderSavedSearchOptions();
+        renderSavedSearchList();
         return;
       }
 
@@ -5176,6 +5254,8 @@
       renderContactCategoryFields();
       renderSearchCategoryFields();
       renderContacts();
+      renderSavedSearchOptions();
+      renderSavedSearchList();
     }
 
     function initializeCategoryDragAndDrop() {
@@ -5329,6 +5409,8 @@
         renderSearchKeywordOptions();
         renderBulkKeywordOptions();
         renderContacts();
+        renderSavedSearchOptions();
+        renderSavedSearchList();
         return;
       }
 
@@ -5344,6 +5426,8 @@
         renderSearchKeywordOptions();
         renderBulkKeywordOptions();
         renderContacts();
+        renderSavedSearchOptions();
+        renderSavedSearchList();
         return;
       }
 
@@ -5396,6 +5480,8 @@
       renderSearchKeywordOptions();
       renderBulkKeywordOptions();
       renderContacts();
+      renderSavedSearchOptions();
+      renderSavedSearchList();
     }
 
     function renderContactCategoryFields() {
@@ -5792,9 +5878,508 @@
       const allowedValues = new Set(keywords.map((keyword) => keyword.id || ''));
       const filteredSelection = previousSelection.filter((value) => allowedValues.has(value));
 
-      if (filteredSelection.length !== previousSelection.length) {
-        advancedFilters = { ...advancedFilters, keywords: filteredSelection };
+    if (filteredSelection.length !== previousSelection.length) {
+      advancedFilters = { ...advancedFilters, keywords: filteredSelection };
+    }
+  }
+
+    function handleSaveCurrentSearch() {
+      if (!Array.isArray(data.savedSearches)) {
+        data.savedSearches = [];
       }
+
+      const activeSavedSearch = activeSavedSearchId
+        ? data.savedSearches.find((search) => search && search.id === activeSavedSearchId)
+        : null;
+      let suggestedName = activeSavedSearch && activeSavedSearch.name ? activeSavedSearch.name : '';
+
+      if (!suggestedName) {
+        const trimmedTerm = (contactSearchTerm || '').toString().trim();
+        if (trimmedTerm) {
+          suggestedName = trimmedTerm;
+        }
+      }
+
+      if (!suggestedName) {
+        suggestedName = 'Nouvelle recherche';
+      }
+
+      const enteredName = window.prompt('Nom de la recherche sauvegardée', suggestedName);
+      if (enteredName === null) {
+        return;
+      }
+
+      const normalizedName = enteredName.trim();
+      if (!normalizedName) {
+        if (contactSaveSearchFeedback) {
+          contactSaveSearchFeedback.textContent = 'Veuillez saisir un nom pour enregistrer la recherche.';
+        }
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const searchTerm = (contactSearchTerm || '').toString().trim();
+      const filtersSnapshot = cloneAdvancedFilters(advancedFilters);
+      let savedSearch = activeSavedSearch || null;
+
+      if (!savedSearch) {
+        const lowerName = normalizedName.toLowerCase();
+        savedSearch = data.savedSearches.find(
+          (item) => item && typeof item.name === 'string' && item.name.toLowerCase() === lowerName,
+        ) || null;
+      }
+
+      let feedbackMessage = '';
+      let eventType = 'updated';
+
+      if (savedSearch) {
+        savedSearch.name = normalizedName;
+        savedSearch.searchTerm = searchTerm;
+        savedSearch.advancedFilters = filtersSnapshot;
+        if (!savedSearch.createdAt) {
+          savedSearch.createdAt = now;
+        }
+        savedSearch.updatedAt = now;
+        setActiveSavedSearchId(savedSearch.id || '');
+        feedbackMessage = `Recherche « ${normalizedName} » mise à jour.`;
+      } else {
+        const newSavedSearch = {
+          id: generateId('saved-search'),
+          name: normalizedName,
+          searchTerm,
+          advancedFilters: filtersSnapshot,
+          createdAt: now,
+          updatedAt: now,
+        };
+        data.savedSearches.push(newSavedSearch);
+        setActiveSavedSearchId(newSavedSearch.id);
+        feedbackMessage = `Recherche « ${normalizedName} » enregistrée.`;
+        eventType = 'created';
+        savedSearch = newSavedSearch;
+      }
+
+      sortSavedSearchesInPlace();
+      data.lastUpdated = now;
+      saveDataForUser(currentUser, data);
+      renderSavedSearchOptions();
+      renderSavedSearchList();
+      if (contactSaveSearchFeedback) {
+        contactSaveSearchFeedback.textContent = feedbackMessage;
+      }
+      notifyDataChanged('saved-searches', {
+        type: eventType,
+        savedSearchId: savedSearch ? savedSearch.id : '',
+      });
+    }
+
+    function applySavedSearchById(savedSearchId, options = {}) {
+      if (!savedSearchId || !Array.isArray(data.savedSearches)) {
+        return false;
+      }
+
+      const savedSearch = data.savedSearches.find((item) => item && item.id === savedSearchId);
+      if (!savedSearch) {
+        return false;
+      }
+
+      return applySavedSearch(savedSearch, options);
+    }
+
+    function applySavedSearch(savedSearch, options = {}) {
+      if (!savedSearch || typeof savedSearch !== 'object') {
+        return false;
+      }
+
+      const {
+        navigateToSearchPage = false,
+        focusSearchInput = false,
+        announce = false,
+      } = options;
+
+      const clonedFilters = cloneAdvancedFilters(savedSearch.advancedFilters);
+      advancedFilters = clonedFilters;
+
+      const searchTerm = typeof savedSearch.searchTerm === 'string' ? savedSearch.searchTerm.trim() : '';
+      contactSearchTerm = searchTerm;
+
+      if (navigateToSearchPage) {
+        showPage('contacts-search');
+      }
+
+      if (contactSearchInput) {
+        contactSearchInput.value = searchTerm;
+        if (focusSearchInput && typeof contactSearchInput.focus === 'function') {
+          contactSearchInput.focus();
+        }
+      }
+
+      renderSearchCategoryFields();
+      renderSearchKeywordOptions();
+      contactCurrentPage = 1;
+      renderContacts();
+      setActiveSavedSearchId(savedSearch.id || '');
+
+      if (announce) {
+        if (contactSaveSearchFeedback) {
+          contactSaveSearchFeedback.textContent = `Recherche « ${savedSearch.name || 'sans nom'} » appliquée.`;
+        }
+      } else {
+        clearContactSaveSearchFeedback();
+      }
+
+      return true;
+    }
+
+    function deleteSavedSearch(savedSearchId) {
+      if (!savedSearchId || !Array.isArray(data.savedSearches)) {
+        return;
+      }
+
+      const index = data.savedSearches.findIndex((item) => item && item.id === savedSearchId);
+      if (index === -1) {
+        return;
+      }
+
+      const target = data.savedSearches[index];
+      const confirmationMessage = target && target.name
+        ? `Supprimer la recherche « ${target.name} » ?`
+        : 'Supprimer cette recherche sauvegardée ?';
+
+      if (!window.confirm(confirmationMessage)) {
+        return;
+      }
+
+      data.savedSearches.splice(index, 1);
+      const now = new Date().toISOString();
+      sortSavedSearchesInPlace();
+      data.lastUpdated = now;
+      saveDataForUser(currentUser, data);
+
+      if (activeSavedSearchId === savedSearchId) {
+        setActiveSavedSearchId('');
+      }
+
+      renderSavedSearchOptions();
+      renderSavedSearchList();
+      if (contactSaveSearchFeedback) {
+        contactSaveSearchFeedback.textContent = 'La recherche sauvegardée a été supprimée.';
+      }
+
+      notifyDataChanged('saved-searches', { type: 'deleted', savedSearchId });
+    }
+
+    function renderSavedSearchOptions() {
+      const savedSearches = Array.isArray(data.savedSearches) ? data.savedSearches.slice() : [];
+      savedSearches.sort((a, b) => {
+        const diff = getSavedSearchTimestamp(b) - getSavedSearchTimestamp(a);
+        if (diff !== 0) {
+          return diff;
+        }
+        const nameA = a && typeof a.name === 'string' ? a.name : '';
+        const nameB = b && typeof b.name === 'string' ? b.name : '';
+        return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+      });
+
+      if (contactSavedSearchSelect instanceof HTMLSelectElement) {
+        const previousValue = contactSavedSearchSelect.value;
+        contactSavedSearchSelect.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent =
+          savedSearches.length === 0
+            ? 'Aucune recherche disponible'
+            : 'Aucune recherche sélectionnée';
+        contactSavedSearchSelect.appendChild(placeholder);
+
+        savedSearches.forEach((savedSearch) => {
+          const option = document.createElement('option');
+          option.value = savedSearch.id || '';
+          option.textContent = savedSearch.name || 'Recherche sans nom';
+          contactSavedSearchSelect.appendChild(option);
+        });
+
+        contactSavedSearchSelect.disabled = savedSearches.length === 0;
+
+        if (!activeSavedSearchId && previousValue && previousValue !== '') {
+          const stillAvailable = savedSearches.some((search) => search.id === previousValue);
+          if (stillAvailable) {
+            contactSavedSearchSelect.value = previousValue;
+          }
+        }
+
+        updateSavedSearchSelectionUI();
+      }
+
+      if (campaignSavedSearchSelect instanceof HTMLSelectElement) {
+        const previousValue = campaignSavedSearchSelect.value;
+        campaignSavedSearchSelect.innerHTML = '';
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        const hasChoices = savedSearches.length > 0;
+        placeholder.textContent = hasChoices
+          ? 'Sélectionnez une recherche'
+          : 'Aucune recherche disponible';
+        placeholder.disabled = hasChoices;
+        placeholder.selected = true;
+        campaignSavedSearchSelect.appendChild(placeholder);
+
+        savedSearches.forEach((savedSearch) => {
+          const option = document.createElement('option');
+          option.value = savedSearch.id || '';
+          option.textContent = savedSearch.name || 'Recherche sans nom';
+          campaignSavedSearchSelect.appendChild(option);
+        });
+
+        campaignSavedSearchSelect.disabled = !hasChoices;
+
+        if (hasChoices) {
+          const stillAvailable = savedSearches.some((search) => search.id === previousValue);
+          if (stillAvailable) {
+            campaignSavedSearchSelect.value = previousValue;
+          }
+        }
+      }
+    }
+
+    function renderSavedSearchList() {
+      const savedSearches = Array.isArray(data.savedSearches) ? data.savedSearches.slice() : [];
+      savedSearches.sort((a, b) => {
+        const diff = getSavedSearchTimestamp(b) - getSavedSearchTimestamp(a);
+        if (diff !== 0) {
+          return diff;
+        }
+        const nameA = a && typeof a.name === 'string' ? a.name : '';
+        const nameB = b && typeof b.name === 'string' ? b.name : '';
+        return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+      });
+
+      if (savedSearchCountEl) {
+        savedSearchCountEl.textContent = numberFormatter.format(savedSearches.length);
+      }
+
+      if (!savedSearchList) {
+        if (savedSearchEmptyState) {
+          savedSearchEmptyState.hidden = savedSearches.length > 0;
+        }
+        return;
+      }
+
+      savedSearchList.innerHTML = '';
+
+      if (savedSearches.length === 0) {
+        if (savedSearchEmptyState) {
+          savedSearchEmptyState.hidden = false;
+        }
+        return;
+      }
+
+      if (savedSearchEmptyState) {
+        savedSearchEmptyState.hidden = true;
+      }
+
+      const fragment = document.createDocumentFragment();
+      savedSearches.forEach((savedSearch) => {
+        const listItem = document.createElement('li');
+        listItem.className = 'saved-search-item';
+        if (savedSearch.id) {
+          listItem.dataset.savedSearchId = savedSearch.id;
+        }
+
+        const header = document.createElement('div');
+        header.className = 'saved-search-header';
+
+        const title = document.createElement('h3');
+        title.className = 'saved-search-name';
+        title.textContent = savedSearch.name || 'Recherche sans nom';
+        header.appendChild(title);
+
+        const metaText = buildSavedSearchMeta(savedSearch);
+        if (metaText) {
+          const meta = document.createElement('p');
+          meta.className = 'saved-search-meta';
+          meta.textContent = metaText;
+          header.appendChild(meta);
+        }
+
+        listItem.appendChild(header);
+
+        const summaryText = formatSavedSearchSummary(savedSearch);
+        if (summaryText) {
+          const summary = document.createElement('p');
+          summary.className = 'saved-search-summary';
+          summary.textContent = summaryText;
+          listItem.appendChild(summary);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'saved-search-actions';
+
+        const applyButton = document.createElement('button');
+        applyButton.type = 'button';
+        applyButton.className = 'secondary-button';
+        applyButton.dataset.action = 'apply-saved-search';
+        applyButton.dataset.savedSearchId = savedSearch.id || '';
+        applyButton.textContent = 'Appliquer dans la recherche';
+        actions.appendChild(applyButton);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'secondary-button saved-search-delete';
+        deleteButton.dataset.action = 'delete-saved-search';
+        deleteButton.dataset.savedSearchId = savedSearch.id || '';
+        deleteButton.textContent = 'Supprimer';
+        actions.appendChild(deleteButton);
+
+        listItem.appendChild(actions);
+        fragment.appendChild(listItem);
+      });
+
+      savedSearchList.appendChild(fragment);
+    }
+
+    function buildSavedSearchMeta(savedSearch) {
+      if (!savedSearch || typeof savedSearch !== 'object') {
+        return '';
+      }
+
+      const parts = [];
+      const createdLabel = formatSavedSearchDate(savedSearch.createdAt);
+      if (createdLabel) {
+        parts.push(`Créée le ${createdLabel}`);
+      }
+
+      const updatedLabel = formatSavedSearchDate(savedSearch.updatedAt);
+      if (updatedLabel && updatedLabel !== createdLabel) {
+        parts.push(`Modifiée le ${updatedLabel}`);
+      }
+
+      return parts.join(' · ');
+    }
+
+    function formatSavedSearchDate(value) {
+      if (typeof value !== 'string' || !value) {
+        return '';
+      }
+      const parsed = Date.parse(value);
+      if (Number.isNaN(parsed)) {
+        return '';
+      }
+      return savedSearchDateFormatter.format(new Date(parsed));
+    }
+
+    function formatSavedSearchSummary(savedSearch) {
+      if (!savedSearch || typeof savedSearch !== 'object') {
+        return '';
+      }
+
+      const parts = [];
+      const searchTerm = typeof savedSearch.searchTerm === 'string' ? savedSearch.searchTerm.trim() : '';
+      if (searchTerm) {
+        parts.push(`Terme libre : « ${searchTerm} »`);
+      }
+
+      const categoriesSummary = [];
+      const categoriesById = buildCategoryMap();
+      const categoryFilters =
+        savedSearch.advancedFilters && savedSearch.advancedFilters.categories
+          ? savedSearch.advancedFilters.categories
+          : {};
+
+      Object.entries(categoryFilters).forEach(([categoryId, filter]) => {
+        if (!filter || typeof filter !== 'object') {
+          return;
+        }
+
+        const category = categoriesById.get(categoryId);
+        const label = category ? category.name : 'Catégorie supprimée';
+        const rawValue = filter.rawValue != null ? filter.rawValue.toString() : '';
+        if (!rawValue) {
+          return;
+        }
+        categoriesSummary.push(`${label} = ${rawValue}`);
+      });
+
+      if (categoriesSummary.length > 0) {
+        parts.push(`Catégories : ${categoriesSummary.join(', ')}`);
+      }
+
+      const keywordIds =
+        savedSearch.advancedFilters && Array.isArray(savedSearch.advancedFilters.keywords)
+          ? savedSearch.advancedFilters.keywords
+          : [];
+      if (keywordIds.length > 0) {
+        const keywordsById = new Map(
+          Array.isArray(data.keywords) ? data.keywords.map((keyword) => [keyword.id, keyword]) : [],
+        );
+        const keywordNames = keywordIds
+          .map((keywordId) => {
+            const keyword = keywordsById.get(keywordId);
+            return keyword ? keyword.name : 'Mot clé supprimé';
+          })
+          .filter((value) => Boolean(value));
+
+        if (keywordNames.length > 0) {
+          parts.push(`Mots clés : ${keywordNames.join(', ')}`);
+        }
+      }
+
+      if (parts.length === 0) {
+        return 'Aucun filtre spécifique. Tous les contacts seront affichés.';
+      }
+
+      return parts.join(' · ');
+    }
+
+    function setActiveSavedSearchId(nextId) {
+      const normalized = typeof nextId === 'string' ? nextId : '';
+      if (activeSavedSearchId === normalized) {
+        updateSavedSearchSelectionUI();
+        return;
+      }
+      activeSavedSearchId = normalized;
+      updateSavedSearchSelectionUI();
+    }
+
+    function updateSavedSearchSelectionUI() {
+      if (!(contactSavedSearchSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      if (!activeSavedSearchId) {
+        contactSavedSearchSelect.value = '';
+        return;
+      }
+
+      const hasOption = Array.from(contactSavedSearchSelect.options).some(
+        (option) => option.value === activeSavedSearchId,
+      );
+
+      contactSavedSearchSelect.value = hasOption ? activeSavedSearchId : '';
+    }
+
+    function clearContactSaveSearchFeedback() {
+      if (contactSaveSearchFeedback) {
+        contactSaveSearchFeedback.textContent = '';
+      }
+    }
+
+    function sortSavedSearchesInPlace() {
+      if (!Array.isArray(data.savedSearches)) {
+        data.savedSearches = [];
+        return;
+      }
+
+      data.savedSearches.sort((a, b) => {
+        const diff = getSavedSearchTimestamp(b) - getSavedSearchTimestamp(a);
+        if (diff !== 0) {
+          return diff;
+        }
+        const nameA = a && typeof a.name === 'string' ? a.name : '';
+        const nameB = b && typeof b.name === 'string' ? b.name : '';
+        return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+      });
     }
 
     function renderBulkKeywordOptions() {
@@ -7876,6 +8461,39 @@
 
       const categoriesById = buildCategoryMap(base);
 
+      if (!Array.isArray(base.savedSearches)) {
+        base.savedSearches = [];
+      } else {
+        const normalizedSavedSearches = [];
+        const seenIds = new Set();
+
+        base.savedSearches.forEach((item) => {
+          const normalized = normalizeSavedSearch(item, categoriesById);
+          if (!normalized) {
+            return;
+          }
+
+          let identifier = normalized.id;
+          while (!identifier || seenIds.has(identifier)) {
+            identifier = generateId('saved-search');
+            normalized.id = identifier;
+          }
+
+          seenIds.add(identifier);
+          normalizedSavedSearches.push(normalized);
+        });
+
+        normalizedSavedSearches.sort((a, b) => {
+          const diff = getSavedSearchTimestamp(b) - getSavedSearchTimestamp(a);
+          if (diff !== 0) {
+            return diff;
+          }
+          return a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' });
+        });
+
+        base.savedSearches = normalizedSavedSearches;
+      }
+
       base.contacts.forEach((contact) => {
         if (!contact || typeof contact !== 'object') {
           return;
@@ -7962,6 +8580,151 @@
         categories: {},
         keywords: [],
       };
+    }
+
+    function cloneAdvancedFilters(source) {
+      const result = createEmptyAdvancedFilters();
+      if (!source || typeof source !== 'object') {
+        return result;
+      }
+
+      const rawCategories =
+        source.categories && typeof source.categories === 'object' ? source.categories : {};
+      Object.entries(rawCategories).forEach(([categoryId, filter]) => {
+        if (!categoryId || !filter || typeof filter !== 'object') {
+          return;
+        }
+
+        const type = CATEGORY_TYPES.has(filter.type) ? filter.type : 'text';
+        const rawValueSource = filter.rawValue != null ? filter.rawValue.toString() : '';
+        const rawValue = type === 'text' ? rawValueSource.trim() : rawValueSource;
+        if (!rawValue) {
+          return;
+        }
+
+        let normalizedValue = '';
+        if (typeof filter.normalizedValue === 'string' && filter.normalizedValue) {
+          normalizedValue = filter.normalizedValue;
+        } else if (type === 'text') {
+          normalizedValue = rawValue.toLowerCase();
+        } else {
+          normalizedValue = rawValue;
+        }
+
+        result.categories[categoryId] = {
+          type,
+          rawValue,
+          normalizedValue,
+        };
+      });
+
+      const rawKeywords = Array.isArray(source.keywords) ? source.keywords : [];
+      const keywordSet = new Set();
+      rawKeywords.forEach((value) => {
+        if (typeof value !== 'string') {
+          return;
+        }
+        const trimmed = value.trim();
+        if (trimmed) {
+          keywordSet.add(trimmed);
+        }
+      });
+      result.keywords = Array.from(keywordSet);
+
+      return result;
+    }
+
+    function normalizeSavedSearch(rawSavedSearch, categoriesById = buildCategoryMap()) {
+      if (!rawSavedSearch || typeof rawSavedSearch !== 'object') {
+        return null;
+      }
+
+      const normalized = {
+        id: '',
+        name: '',
+        searchTerm: '',
+        advancedFilters: createEmptyAdvancedFilters(),
+        createdAt: '',
+        updatedAt: '',
+      };
+
+      if (typeof rawSavedSearch.id === 'string' && rawSavedSearch.id.trim()) {
+        normalized.id = rawSavedSearch.id.trim();
+      } else if (typeof rawSavedSearch.identifier === 'string' && rawSavedSearch.identifier.trim()) {
+        normalized.id = rawSavedSearch.identifier.trim();
+      } else {
+        normalized.id = generateId('saved-search');
+      }
+
+      if (typeof rawSavedSearch.name === 'string' && rawSavedSearch.name.trim()) {
+        normalized.name = rawSavedSearch.name.trim();
+      } else if (typeof rawSavedSearch.label === 'string' && rawSavedSearch.label.trim()) {
+        normalized.name = rawSavedSearch.label.trim();
+      } else {
+        normalized.name = 'Recherche sans nom';
+      }
+
+      const termCandidates = [rawSavedSearch.searchTerm, rawSavedSearch.term, rawSavedSearch.query];
+      for (const candidate of termCandidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+          normalized.searchTerm = candidate.trim();
+          break;
+        }
+      }
+
+      const filtersSource =
+        rawSavedSearch.advancedFilters && typeof rawSavedSearch.advancedFilters === 'object'
+          ? rawSavedSearch.advancedFilters
+          : rawSavedSearch.filters;
+      const clonedFilters = cloneAdvancedFilters(filtersSource || {});
+
+      if (categoriesById instanceof Map) {
+        Object.keys(clonedFilters.categories).forEach((categoryId) => {
+          if (!categoriesById.has(categoryId)) {
+            delete clonedFilters.categories[categoryId];
+          }
+        });
+      }
+
+      normalized.advancedFilters = clonedFilters;
+
+      if (
+        typeof rawSavedSearch.createdAt === 'string' &&
+        !Number.isNaN(Date.parse(rawSavedSearch.createdAt))
+      ) {
+        normalized.createdAt = rawSavedSearch.createdAt;
+      } else {
+        normalized.createdAt = new Date().toISOString();
+      }
+
+      if (
+        typeof rawSavedSearch.updatedAt === 'string' &&
+        !Number.isNaN(Date.parse(rawSavedSearch.updatedAt))
+      ) {
+        normalized.updatedAt = rawSavedSearch.updatedAt;
+      } else {
+        normalized.updatedAt = normalized.createdAt;
+      }
+
+      return normalized;
+    }
+
+    function getSavedSearchTimestamp(savedSearch) {
+      if (!savedSearch || typeof savedSearch !== 'object') {
+        return 0;
+      }
+
+      const updated = Date.parse(savedSearch.updatedAt || '');
+      if (!Number.isNaN(updated)) {
+        return updated;
+      }
+
+      const created = Date.parse(savedSearch.createdAt || '');
+      if (!Number.isNaN(created)) {
+        return created;
+      }
+
+      return 0;
     }
   }
 
@@ -8076,6 +8839,9 @@
                         teamChatMessages: Array.isArray(base.teamChatMessages)
                           ? base.teamChatMessages
                           : [],
+                        savedSearches: Array.isArray(base.savedSearches)
+                          ? base.savedSearches
+                          : [],
                         lastUpdated: base.lastUpdated || null,
 
                         // si jamais ces champs n’existaient pas encore
@@ -8114,6 +8880,7 @@
                 taskCategories: [],
                 tasks: [],
                 teamChatMessages: [],
+                savedSearches: [],
                 lastUpdated: null,
                 // Nouveaux champs persistés
                 panelOwner: '',
