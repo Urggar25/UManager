@@ -23,6 +23,8 @@
     tasks: [],
     teamChatMessages: [],
     savedSearches: [],
+    emailTemplates: [],
+    emailCampaigns: [],
     lastUpdated: null,
   };
 
@@ -379,6 +381,10 @@
         { id: 'contacts-import', label: 'Importer des contacts' },
         { id: 'contacts-search', label: 'Rechercher des contacts' },
       ],
+      communication: [
+        { id: 'email-templates', label: 'Créer un modèle mail' },
+        { id: 'email-campaigns', label: 'Envoyer une campagne' },
+      ],
       team: [{ id: 'team', label: "Gestion de l'équipe" }],
     };
 
@@ -447,7 +453,36 @@
     const savedSearchCountEl = document.getElementById('saved-search-count');
     const savedSearchList = document.getElementById('saved-search-list');
     const savedSearchEmptyState = document.getElementById('saved-search-empty');
+    const campaignTemplateSelect = document.getElementById('campaign-template-select');
     const campaignSavedSearchSelect = document.getElementById('campaign-saved-search-select');
+    const emailTemplateForm = document.getElementById('email-template-form');
+    const emailTemplateNameInput = document.getElementById('email-template-name');
+    const emailTemplateSubjectInput = document.getElementById('email-template-subject');
+    const emailTemplateBlocksContainer = document.getElementById('email-template-blocks');
+    const emailTemplateFeedback = document.getElementById('email-template-feedback');
+    const emailTemplatePreviewContainer = document.getElementById('email-template-preview');
+    const emailTemplateList = document.getElementById('email-template-list');
+    const emailTemplateEmptyState = document.getElementById('email-template-empty');
+    const emailTemplateAddParagraphButton = document.getElementById('email-template-add-paragraph');
+    const emailTemplateAddImageButton = document.getElementById('email-template-add-image');
+    const emailTemplateAddButtonButton = document.getElementById('email-template-add-button');
+    const emailTemplateSubmitButton =
+      emailTemplateForm instanceof HTMLFormElement
+        ? emailTemplateForm.querySelector('button[type="submit"]')
+        : null;
+    const emailTemplatesTitle = document.getElementById('email-templates-title');
+    const emailTemplatesSubtitle = document.querySelector('#email-templates .page-subtitle');
+    const emailCampaignForm = document.getElementById('email-campaign-form');
+    const emailCampaignNameInput = document.getElementById('email-campaign-name');
+    const emailCampaignSenderNameInput = document.getElementById('email-campaign-sender-name');
+    const emailCampaignSenderEmailInput = document.getElementById('email-campaign-sender-email');
+    const emailCampaignSubjectInput = document.getElementById('email-campaign-subject');
+    const emailCampaignFeedback = document.getElementById('email-campaign-feedback');
+    const campaignSummary = document.getElementById('campaign-summary');
+    const campaignRecipientList = document.getElementById('campaign-recipient-list');
+    const campaignEmailPreview = document.getElementById('campaign-email-preview');
+    const campaignHistoryList = document.getElementById('campaign-history-list');
+    const campaignHistoryEmpty = document.getElementById('campaign-history-empty');
     const contactSelectAllButton = document.getElementById('contact-select-all');
     const contactDeleteSelectedButton = document.getElementById('contact-delete-selected');
     const contactBulkKeywordSelect = document.getElementById('contact-bulk-keyword');
@@ -523,6 +558,103 @@
       date: 'Date',
       list: 'Liste',
     };
+    const emailTemplatesTitleDefault = emailTemplatesTitle ? emailTemplatesTitle.textContent || '' : '';
+    const emailTemplatesSubtitleDefault = emailTemplatesSubtitle
+      ? emailTemplatesSubtitle.textContent || ''
+      : '';
+    const emailTemplateBlocksEmptyText = emailTemplateBlocksContainer
+      ? emailTemplateBlocksContainer.textContent.trim() ||
+        'Ajoutez un bloc pour commencer la composition du message.'
+      : 'Ajoutez un bloc pour commencer la composition du message.';
+    const emailTemplatePreviewDefaultText = emailTemplatePreviewContainer
+      ? emailTemplatePreviewContainer.textContent.trim() ||
+        'Ajoutez des blocs pour visualiser le rendu du mail.'
+      : 'Ajoutez des blocs pour visualiser le rendu du mail.';
+    const campaignSummaryDefaultText = campaignSummary
+      ? campaignSummary.textContent.trim() ||
+        'Sélectionnez une recherche sauvegardée pour afficher les contacts concernés.'
+      : 'Sélectionnez une recherche sauvegardée pour afficher les contacts concernés.';
+    const campaignEmailPreviewDefaultText = campaignEmailPreview
+      ? campaignEmailPreview.textContent.trim() || 'Choisissez un modèle pour afficher un aperçu.'
+      : 'Choisissez un modèle pour afficher un aperçu.';
+    const EMAIL_TEMPLATE_BLOCK_TYPES = {
+      paragraph: {
+        type: 'paragraph',
+        label: 'Paragraphe',
+        createInitialData: () => ({ text: '' }),
+        sanitize(data = {}) {
+          return {
+            text: typeof data.text === 'string' ? data.text.trim() : '',
+          };
+        },
+        renderEditor: createParagraphBlockEditor,
+        createPreviewNode: createParagraphPreviewNode,
+        getSummary(block) {
+          const text = block && block.data && typeof block.data.text === 'string' ? block.data.text.trim() : '';
+          return text ? truncateText(text, 180) : '';
+        },
+        validate(block) {
+          const text = block && block.data && typeof block.data.text === 'string' ? block.data.text.trim() : '';
+          return text ? null : 'Ajoutez du contenu dans le paragraphe.';
+        },
+      },
+      image: {
+        type: 'image',
+        label: 'Image',
+        createInitialData: () => ({ url: '', alt: '', caption: '', link: '' }),
+        sanitize(data = {}) {
+          return {
+            url: sanitizeUrl(data.url, { allowData: true }),
+            alt: typeof data.alt === 'string' ? data.alt.trim() : '',
+            caption: typeof data.caption === 'string' ? data.caption.trim() : '',
+            link: sanitizeUrl(data.link),
+          };
+        },
+        renderEditor: createImageBlockEditor,
+        createPreviewNode: createImagePreviewNode,
+        getSummary(block) {
+          if (!block || !block.data) {
+            return '';
+          }
+          const { alt = '', caption = '', url = '' } = block.data;
+          const primary = alt || caption || url;
+          return primary ? truncateText(`Image : ${primary}`, 160) : 'Image';
+        },
+        validate(block) {
+          const url = block && block.data && typeof block.data.url === 'string' ? block.data.url.trim() : '';
+          return url ? null : "Indiquez l'URL de l'image.";
+        },
+      },
+      button: {
+        type: 'button',
+        label: 'Bouton',
+        createInitialData: () => ({ label: 'En savoir plus', url: '' }),
+        sanitize(data = {}) {
+          return {
+            label: typeof data.label === 'string' ? data.label.trim() : '',
+            url: sanitizeUrl(data.url),
+          };
+        },
+        renderEditor: createButtonBlockEditor,
+        createPreviewNode: createButtonPreviewNode,
+        getSummary(block) {
+          const label = block && block.data && typeof block.data.label === 'string' ? block.data.label.trim() : '';
+          return label ? truncateText(`Bouton : ${label}`, 120) : 'Bouton';
+        },
+        validate(block) {
+          const label = block && block.data && typeof block.data.label === 'string' ? block.data.label.trim() : '';
+          if (!label) {
+            return 'Indiquez le texte du bouton.';
+          }
+          const url = block && block.data && typeof block.data.url === 'string' ? block.data.url.trim() : '';
+          return url ? null : 'Ajoutez le lien du bouton.';
+        },
+      },
+    };
+    const EMAIL_TEMPLATE_FORM_MODE_CREATE = 'create';
+    const EMAIL_TEMPLATE_FORM_MODE_EDIT = 'edit';
+    const EMAIL_CAMPAIGN_HISTORY_LIMIT = 50;
+    const CAMPAIGN_RECIPIENT_PREVIEW_LIMIT = 50;
     const EMAIL_KEYWORDS = ['mail', 'email', 'courriel', 'mel'];
     const PHONE_KEYWORDS = ['tel', 'telephone', 'mobile', 'portable', 'phone', 'gsm'];
     const NAME_KEYWORDS = ['nom', 'prenom', 'name', 'usage', 'family'];
@@ -651,6 +783,14 @@
     let editingTaskExistingAttachment = null;
     let removeAttachmentOnSubmit = false;
     let taskCategoryIndicatorFrame = 0;
+    let emailTemplateBlocks = [];
+    let editingEmailTemplateId = '';
+    let emailTemplatesById = new Map();
+    let campaignRecipients = [];
+    let campaignSubjectEdited = false;
+    let lastSelectedCampaignTemplateId = '';
+    let emailTemplateFeedbackShouldClearOnReset = true;
+    let emailCampaignFeedbackShouldClearOnReset = true;
 
     normalizeCategoryOrders();
     populateTaskMemberOptions();
@@ -660,6 +800,14 @@
     resetTaskFormDefaults();
     renderTasks();
     renderTeamChat();
+    renderEmailTemplateBlocks();
+    updateEmailTemplatePreview();
+    buildEmailTemplateIndex();
+    renderEmailTemplateList();
+    refreshEmailTemplateSelectOptions();
+    renderEmailCampaignHistory();
+    updateCampaignRecipientsSummary();
+    updateCampaignEmailPreview();
 
     if (currentUsernameEl) {
       currentUsernameEl.textContent = currentUser;
@@ -718,6 +866,86 @@
         }
       });
     });
+
+    if (emailTemplateAddParagraphButton) {
+      emailTemplateAddParagraphButton.addEventListener('click', () => {
+        addEmailTemplateBlock('paragraph');
+      });
+    }
+
+    if (emailTemplateAddImageButton) {
+      emailTemplateAddImageButton.addEventListener('click', () => {
+        addEmailTemplateBlock('image');
+      });
+    }
+
+    if (emailTemplateAddButtonButton) {
+      emailTemplateAddButtonButton.addEventListener('click', () => {
+        addEmailTemplateBlock('button');
+      });
+    }
+
+    if (emailTemplateBlocksContainer) {
+      emailTemplateBlocksContainer.addEventListener('click', (event) => {
+        const button =
+          event.target instanceof HTMLElement
+            ? event.target.closest('[data-block-action]')
+            : null;
+        if (!(button instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        const blockId = button.dataset.blockId || '';
+        const action = button.dataset.blockAction || '';
+        if (!blockId || !action) {
+          return;
+        }
+
+        if (action === 'move-up') {
+          moveEmailTemplateBlock(blockId, -1);
+        } else if (action === 'move-down') {
+          moveEmailTemplateBlock(blockId, 1);
+        } else if (action === 'delete') {
+          removeEmailTemplateBlock(blockId);
+        }
+      });
+    }
+
+    if (emailTemplateForm) {
+      emailTemplateForm.addEventListener('submit', handleEmailTemplateFormSubmit);
+      emailTemplateForm.addEventListener('reset', () => {
+        handleEmailTemplateFormReset();
+      });
+    }
+
+    if (emailTemplateList) {
+      emailTemplateList.addEventListener('click', handleEmailTemplateListClick);
+    }
+
+    if (campaignTemplateSelect instanceof HTMLSelectElement) {
+      campaignTemplateSelect.addEventListener('change', () => {
+        applyCampaignTemplateSelection(campaignTemplateSelect.value || '');
+      });
+    }
+
+    if (campaignSavedSearchSelect instanceof HTMLSelectElement) {
+      campaignSavedSearchSelect.addEventListener('change', () => {
+        updateCampaignRecipientsSummary();
+      });
+    }
+
+    if (emailCampaignSubjectInput instanceof HTMLInputElement) {
+      emailCampaignSubjectInput.addEventListener('input', () => {
+        campaignSubjectEdited = true;
+      });
+    }
+
+    if (emailCampaignForm) {
+      emailCampaignForm.addEventListener('submit', handleCampaignFormSubmit);
+      emailCampaignForm.addEventListener('reset', () => {
+        handleCampaignFormReset();
+      });
+    }
 
     taskStatusButtons.forEach((button) => {
       button.addEventListener('click', () => {
@@ -6203,11 +6431,11 @@
         updateSavedSearchSelectionUI();
       }
 
-      if (campaignSavedSearchSelect instanceof HTMLSelectElement) {
-        const previousValue = campaignSavedSearchSelect.value;
-        campaignSavedSearchSelect.innerHTML = '';
+    if (campaignSavedSearchSelect instanceof HTMLSelectElement) {
+      const previousValue = campaignSavedSearchSelect.value;
+      campaignSavedSearchSelect.innerHTML = '';
 
-        const placeholder = document.createElement('option');
+      const placeholder = document.createElement('option');
         placeholder.value = '';
         const hasChoices = savedSearches.length > 0;
         placeholder.textContent = hasChoices
@@ -6230,9 +6458,11 @@
           const stillAvailable = savedSearches.some((search) => search.id === previousValue);
           if (stillAvailable) {
             campaignSavedSearchSelect.value = previousValue;
-          }
-        }
       }
+    }
+
+    updateCampaignRecipientsSummary();
+  }
     }
 
     function renderSavedSearchList() {
@@ -6329,6 +6559,1378 @@
       });
 
       savedSearchList.appendChild(fragment);
+
+      updateCampaignRecipientsSummary();
+    }
+
+    function setFormFeedback(element, message, type = '') {
+      if (!element) {
+        return;
+      }
+
+      element.textContent = message || '';
+      element.classList.remove('form-feedback--error', 'form-feedback--success');
+
+      if (!message) {
+        return;
+      }
+
+      if (type === 'error') {
+        element.classList.add('form-feedback--error');
+        return;
+      }
+
+      element.classList.add('form-feedback--success');
+    }
+
+    function cloneEmailTemplateBlocks(blocks) {
+      if (!Array.isArray(blocks)) {
+        return [];
+      }
+
+      return blocks
+        .map((block) => {
+          const normalized = normalizeEmailTemplateBlock(block);
+          if (!normalized) {
+            return null;
+          }
+          return { ...normalized, data: { ...normalized.data } };
+        })
+        .filter((block) => Boolean(block));
+    }
+
+    function renderEmailPreview(container, blocks, emptyText = '') {
+      if (!container) {
+        return;
+      }
+
+      container.innerHTML = '';
+
+      const sanitizedBlocks = cloneEmailTemplateBlocks(blocks);
+      if (sanitizedBlocks.length === 0) {
+        if (emptyText) {
+          const empty = document.createElement('p');
+          empty.className = 'empty-state';
+          empty.textContent = emptyText;
+          container.appendChild(empty);
+        }
+        return;
+      }
+
+      const previewWrapper = document.createElement('div');
+      previewWrapper.className = 'email-preview';
+
+      sanitizedBlocks.forEach((block) => {
+        const definition = EMAIL_TEMPLATE_BLOCK_TYPES[block.type];
+        if (!definition || typeof definition.createPreviewNode !== 'function') {
+          return;
+        }
+        const node = definition.createPreviewNode(block);
+        if (node) {
+          previewWrapper.appendChild(node);
+        }
+      });
+
+      if (previewWrapper.childElementCount === 0) {
+        const fallback = document.createElement('p');
+        fallback.textContent = 'Aucun contenu à afficher pour ce modèle.';
+        previewWrapper.appendChild(fallback);
+      }
+
+      container.appendChild(previewWrapper);
+    }
+
+    function createParagraphBlockEditor(block, helpers) {
+      const container = document.createElement('div');
+      container.className = 'email-template-block-body';
+
+      const row = document.createElement('div');
+      row.className = 'form-row';
+
+      const label = document.createElement('label');
+      const fieldId = `email-block-${block.id}-text`;
+      label.setAttribute('for', fieldId);
+      label.textContent = 'Contenu du paragraphe *';
+
+      const textarea = document.createElement('textarea');
+      textarea.id = fieldId;
+      textarea.value = block.data.text || '';
+      textarea.required = true;
+      textarea.rows = 5;
+      textarea.dataset.emailBlockFocus = block.id;
+      textarea.addEventListener('input', () => {
+        helpers.update({ text: textarea.value });
+      });
+
+      row.append(label, textarea);
+      container.appendChild(row);
+
+      return container;
+    }
+
+    function createImageBlockEditor(block, helpers) {
+      const container = document.createElement('div');
+      container.className = 'email-template-block-body';
+
+      const urlRow = document.createElement('div');
+      urlRow.className = 'form-row';
+      const urlLabel = document.createElement('label');
+      const urlId = `email-block-${block.id}-url`;
+      urlLabel.setAttribute('for', urlId);
+      urlLabel.textContent = "URL de l'image *";
+      const urlInput = document.createElement('input');
+      urlInput.type = 'url';
+      urlInput.id = urlId;
+      urlInput.value = block.data.url || '';
+      urlInput.required = true;
+      urlInput.placeholder = 'https://...';
+      urlInput.dataset.emailBlockFocus = block.id;
+      urlInput.addEventListener('input', () => {
+        helpers.update({ url: urlInput.value });
+      });
+      urlRow.append(urlLabel, urlInput);
+      container.appendChild(urlRow);
+
+      const altRow = document.createElement('div');
+      altRow.className = 'form-row';
+      const altLabel = document.createElement('label');
+      const altId = `email-block-${block.id}-alt`;
+      altLabel.setAttribute('for', altId);
+      altLabel.textContent = 'Texte alternatif';
+      const altInput = document.createElement('input');
+      altInput.type = 'text';
+      altInput.id = altId;
+      altInput.value = block.data.alt || '';
+      altInput.placeholder = "Décrivez brièvement l'image";
+      altInput.addEventListener('input', () => {
+        helpers.update({ alt: altInput.value });
+      });
+      altRow.append(altLabel, altInput);
+      container.appendChild(altRow);
+
+      const captionRow = document.createElement('div');
+      captionRow.className = 'form-row';
+      const captionLabel = document.createElement('label');
+      const captionId = `email-block-${block.id}-caption`;
+      captionLabel.setAttribute('for', captionId);
+      captionLabel.textContent = 'Légende (optionnel)';
+      const captionInput = document.createElement('input');
+      captionInput.type = 'text';
+      captionInput.id = captionId;
+      captionInput.value = block.data.caption || '';
+      captionInput.addEventListener('input', () => {
+        helpers.update({ caption: captionInput.value });
+      });
+      captionRow.append(captionLabel, captionInput);
+      container.appendChild(captionRow);
+
+      const linkRow = document.createElement('div');
+      linkRow.className = 'form-row';
+      const linkLabel = document.createElement('label');
+      const linkId = `email-block-${block.id}-link`;
+      linkLabel.setAttribute('for', linkId);
+      linkLabel.textContent = "Lien sur l'image";
+      const linkInput = document.createElement('input');
+      linkInput.type = 'url';
+      linkInput.id = linkId;
+      linkInput.value = block.data.link || '';
+      linkInput.placeholder = 'https://...';
+      linkInput.addEventListener('input', () => {
+        helpers.update({ link: linkInput.value });
+      });
+      linkRow.append(linkLabel, linkInput);
+      const linkHint = document.createElement('p');
+      linkHint.className = 'form-hint';
+      linkHint.textContent = "Laissez vide si l'image ne doit pas rediriger.";
+      linkRow.appendChild(linkHint);
+      container.appendChild(linkRow);
+
+      return container;
+    }
+
+    function createButtonBlockEditor(block, helpers) {
+      const container = document.createElement('div');
+      container.className = 'email-template-block-body';
+
+      const labelRow = document.createElement('div');
+      labelRow.className = 'form-row';
+      const labelEl = document.createElement('label');
+      const labelId = `email-block-${block.id}-label`;
+      labelEl.setAttribute('for', labelId);
+      labelEl.textContent = 'Texte du bouton *';
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.id = labelId;
+      labelInput.value = block.data.label || '';
+      labelInput.required = true;
+      labelInput.dataset.emailBlockFocus = block.id;
+      labelInput.addEventListener('input', () => {
+        helpers.update({ label: labelInput.value });
+      });
+      labelRow.append(labelEl, labelInput);
+      container.appendChild(labelRow);
+
+      const urlRow = document.createElement('div');
+      urlRow.className = 'form-row';
+      const urlLabel = document.createElement('label');
+      const urlId = `email-block-${block.id}-button-url`;
+      urlLabel.setAttribute('for', urlId);
+      urlLabel.textContent = 'Lien du bouton *';
+      const urlInput = document.createElement('input');
+      urlInput.type = 'url';
+      urlInput.id = urlId;
+      urlInput.value = block.data.url || '';
+      urlInput.required = true;
+      urlInput.placeholder = 'https://...';
+      urlInput.addEventListener('input', () => {
+        helpers.update({ url: urlInput.value });
+      });
+      urlRow.append(urlLabel, urlInput);
+      container.appendChild(urlRow);
+
+      return container;
+    }
+
+    function createParagraphPreviewNode(block) {
+      const text = block && block.data && typeof block.data.text === 'string' ? block.data.text.trim() : '';
+      if (!text) {
+        return null;
+      }
+
+      const paragraph = document.createElement('p');
+      const lines = text.split(/\n/);
+      lines.forEach((line, index) => {
+        if (index > 0) {
+          paragraph.appendChild(document.createElement('br'));
+        }
+        paragraph.appendChild(document.createTextNode(line));
+      });
+      return paragraph;
+    }
+
+    function createImagePreviewNode(block) {
+      if (!block || !block.data) {
+        return null;
+      }
+
+      const url = sanitizeUrl(block.data.url, { allowData: true });
+      if (!url) {
+        return null;
+      }
+
+      const figure = document.createElement('figure');
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = block.data.alt || '';
+
+      const link = sanitizeUrl(block.data.link);
+      if (link) {
+        const anchor = document.createElement('a');
+        anchor.href = link;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.appendChild(image);
+        figure.appendChild(anchor);
+      } else {
+        figure.appendChild(image);
+      }
+
+      if (block.data.caption) {
+        const caption = document.createElement('figcaption');
+        caption.textContent = block.data.caption;
+        figure.appendChild(caption);
+      }
+
+      return figure;
+    }
+
+    function createButtonPreviewNode(block) {
+      const label = block && block.data && typeof block.data.label === 'string' ? block.data.label.trim() : '';
+      const url = block && block.data && typeof block.data.url === 'string' ? block.data.url.trim() : '';
+
+      const button = document.createElement('a');
+      button.className = 'email-preview-button';
+      button.textContent = label || 'En savoir plus';
+
+      const sanitizedUrl = sanitizeUrl(url);
+      if (sanitizedUrl) {
+        button.href = sanitizedUrl;
+        if (!sanitizedUrl.startsWith('mailto:')) {
+          button.target = '_blank';
+          button.rel = 'noopener noreferrer';
+        }
+      } else {
+        button.href = '#';
+        button.setAttribute('role', 'button');
+      }
+
+      return button;
+    }
+
+    function addEmailTemplateBlock(type) {
+      const definition = EMAIL_TEMPLATE_BLOCK_TYPES[type];
+      if (!definition) {
+        return;
+      }
+
+      const initialData =
+        typeof definition.createInitialData === 'function' ? definition.createInitialData() : {};
+      const sanitizedData =
+        typeof definition.sanitize === 'function'
+          ? definition.sanitize(initialData)
+          : { ...initialData };
+
+      const block = {
+        id: generateId('email-block'),
+        type,
+        data: sanitizedData,
+      };
+
+      emailTemplateBlocks.push(block);
+      renderEmailTemplateBlocks();
+      updateEmailTemplatePreview();
+
+      window.requestAnimationFrame(() => {
+        focusEmailTemplateBlock(block.id);
+      });
+    }
+
+    function renderEmailTemplateBlocks() {
+      if (!emailTemplateBlocksContainer) {
+        return;
+      }
+
+      emailTemplateBlocksContainer.innerHTML = '';
+
+      if (emailTemplateBlocks.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'empty-state';
+        empty.textContent = emailTemplateBlocksEmptyText;
+        emailTemplateBlocksContainer.appendChild(empty);
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      emailTemplateBlocks.forEach((block, index) => {
+        const definition = EMAIL_TEMPLATE_BLOCK_TYPES[block.type];
+        if (!definition) {
+          return;
+        }
+
+        const element = document.createElement('article');
+        element.className = 'email-template-block';
+        element.dataset.blockId = block.id;
+
+        const header = document.createElement('div');
+        header.className = 'email-template-block-header';
+
+        const title = document.createElement('h3');
+        const label = definition.label || 'Bloc';
+        title.textContent = emailTemplateBlocks.length > 1 ? `${label} ${index + 1}` : label;
+        header.appendChild(title);
+
+        const controls = document.createElement('div');
+        controls.className = 'email-template-block-controls';
+
+        const moveUp = document.createElement('button');
+        moveUp.type = 'button';
+        moveUp.className = 'secondary-button';
+        moveUp.dataset.blockAction = 'move-up';
+        moveUp.dataset.blockId = block.id;
+        moveUp.textContent = 'Monter';
+        moveUp.disabled = index === 0;
+        controls.appendChild(moveUp);
+
+        const moveDown = document.createElement('button');
+        moveDown.type = 'button';
+        moveDown.className = 'secondary-button';
+        moveDown.dataset.blockAction = 'move-down';
+        moveDown.dataset.blockId = block.id;
+        moveDown.textContent = 'Descendre';
+        moveDown.disabled = index === emailTemplateBlocks.length - 1;
+        controls.appendChild(moveDown);
+
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'secondary-button';
+        removeButton.dataset.blockAction = 'delete';
+        removeButton.dataset.blockId = block.id;
+        removeButton.textContent = 'Supprimer';
+        controls.appendChild(removeButton);
+
+        header.appendChild(controls);
+        element.appendChild(header);
+
+        const helpers = {
+          update(partial) {
+            if (!partial || typeof partial !== 'object') {
+              return;
+            }
+            block.data = { ...block.data, ...partial };
+            updateEmailTemplatePreview();
+          },
+        };
+
+        if (typeof definition.renderEditor === 'function') {
+          const editor = definition.renderEditor(block, helpers);
+          if (editor) {
+            element.appendChild(editor);
+          }
+        }
+
+        fragment.appendChild(element);
+      });
+
+      emailTemplateBlocksContainer.appendChild(fragment);
+    }
+
+    function focusEmailTemplateBlock(blockId) {
+      if (!emailTemplateBlocksContainer) {
+        return;
+      }
+
+      const focusTarget = emailTemplateBlocksContainer.querySelector(
+        `[data-email-block-focus="${blockId}"]`,
+      );
+      if (focusTarget && typeof focusTarget.focus === 'function') {
+        focusTarget.focus();
+      }
+    }
+
+    function moveEmailTemplateBlock(blockId, offset) {
+      const currentIndex = emailTemplateBlocks.findIndex((block) => block && block.id === blockId);
+      if (currentIndex === -1) {
+        return;
+      }
+
+      const nextIndex = currentIndex + offset;
+      if (nextIndex < 0 || nextIndex >= emailTemplateBlocks.length) {
+        return;
+      }
+
+      const [block] = emailTemplateBlocks.splice(currentIndex, 1);
+      emailTemplateBlocks.splice(nextIndex, 0, block);
+      renderEmailTemplateBlocks();
+      updateEmailTemplatePreview();
+
+      window.requestAnimationFrame(() => {
+        focusEmailTemplateBlock(blockId);
+      });
+    }
+
+    function removeEmailTemplateBlock(blockId) {
+      const index = emailTemplateBlocks.findIndex((block) => block && block.id === blockId);
+      if (index === -1) {
+        return;
+      }
+
+      emailTemplateBlocks.splice(index, 1);
+      renderEmailTemplateBlocks();
+      updateEmailTemplatePreview();
+    }
+
+    function updateEmailTemplatePreview() {
+      renderEmailPreview(
+        emailTemplatePreviewContainer,
+        emailTemplateBlocks,
+        emailTemplatePreviewDefaultText,
+      );
+    }
+
+    function validateEmailTemplateBlocks(blocks) {
+      if (!Array.isArray(blocks) || blocks.length === 0) {
+        return 'Ajoutez au moins un bloc au modèle.';
+      }
+
+      for (const block of blocks) {
+        const definition = EMAIL_TEMPLATE_BLOCK_TYPES[block.type];
+        if (!definition) {
+          return 'Un bloc utilise un type de contenu non pris en charge.';
+        }
+        if (typeof definition.validate === 'function') {
+          const error = definition.validate(block);
+          if (error) {
+            return error;
+          }
+        }
+      }
+
+      return null;
+    }
+
+    function setEmailTemplateFormMode(mode, template = null) {
+      if (mode === EMAIL_TEMPLATE_FORM_MODE_EDIT && template) {
+        if (emailTemplatesTitle) {
+          emailTemplatesTitle.textContent = `Modifier « ${template.name || 'modèle'} »`;
+        }
+        if (emailTemplatesSubtitle) {
+          emailTemplatesSubtitle.textContent =
+            'Apportez vos changements puis enregistrez pour mettre à jour le modèle.';
+        }
+        if (emailTemplateSubmitButton instanceof HTMLButtonElement) {
+          emailTemplateSubmitButton.textContent = 'Mettre à jour le modèle';
+        }
+        return;
+      }
+
+      if (emailTemplatesTitle) {
+        emailTemplatesTitle.textContent = emailTemplatesTitleDefault;
+      }
+      if (emailTemplatesSubtitle) {
+        emailTemplatesSubtitle.textContent = emailTemplatesSubtitleDefault;
+      }
+      if (emailTemplateSubmitButton instanceof HTMLButtonElement) {
+        emailTemplateSubmitButton.textContent = 'Enregistrer le modèle';
+      }
+    }
+
+    function buildEmailTemplateIndex() {
+      emailTemplatesById = new Map();
+      if (!Array.isArray(data.emailTemplates)) {
+        data.emailTemplates = [];
+        return;
+      }
+
+      data.emailTemplates.forEach((template) => {
+        if (template && template.id) {
+          emailTemplatesById.set(template.id, template);
+        }
+      });
+    }
+
+    function renderEmailTemplateList() {
+      if (!Array.isArray(data.emailTemplates)) {
+        data.emailTemplates = [];
+      }
+
+      sortEmailTemplatesInPlace();
+      buildEmailTemplateIndex();
+
+      if (!emailTemplateList) {
+        if (emailTemplateEmptyState) {
+          emailTemplateEmptyState.hidden = data.emailTemplates.length > 0;
+        }
+        return;
+      }
+
+      emailTemplateList.innerHTML = '';
+
+      if (data.emailTemplates.length === 0) {
+        if (emailTemplateEmptyState) {
+          emailTemplateEmptyState.hidden = false;
+        }
+        return;
+      }
+
+      if (emailTemplateEmptyState) {
+        emailTemplateEmptyState.hidden = true;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      data.emailTemplates.forEach((template) => {
+        const item = document.createElement('li');
+        item.className = 'email-template-card';
+
+        const header = document.createElement('div');
+        header.className = 'email-template-card-header';
+
+        const title = document.createElement('h3');
+        title.textContent = template.name || 'Modèle sans nom';
+        header.appendChild(title);
+
+        const meta = document.createElement('p');
+        meta.className = 'email-template-card-meta';
+        meta.textContent = formatEmailTemplateMeta(template);
+        header.appendChild(meta);
+
+        item.appendChild(header);
+
+        const preview = document.createElement('div');
+        preview.className = 'email-template-card-preview';
+        const summary = getEmailTemplateSummary(template);
+        preview.textContent = summary || 'Ajoutez du contenu pour prévisualiser le modèle.';
+        item.appendChild(preview);
+
+        const actions = document.createElement('div');
+        actions.className = 'email-template-card-actions';
+
+        const useButton = document.createElement('button');
+        useButton.type = 'button';
+        useButton.className = 'secondary-button';
+        useButton.dataset.templateAction = 'use';
+        useButton.dataset.templateId = template.id || '';
+        useButton.textContent = 'Utiliser en campagne';
+        actions.appendChild(useButton);
+
+        const editButton = document.createElement('button');
+        editButton.type = 'button';
+        editButton.className = 'secondary-button';
+        editButton.dataset.templateAction = 'edit';
+        editButton.dataset.templateId = template.id || '';
+        editButton.textContent = 'Modifier';
+        actions.appendChild(editButton);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'secondary-button';
+        deleteButton.dataset.templateAction = 'delete';
+        deleteButton.dataset.templateId = template.id || '';
+        deleteButton.textContent = 'Supprimer';
+        actions.appendChild(deleteButton);
+
+        item.appendChild(actions);
+        fragment.appendChild(item);
+      });
+
+      emailTemplateList.appendChild(fragment);
+    }
+
+    function formatEmailTemplateMeta(template) {
+      const parts = [];
+
+      if (template && typeof template.subject === 'string' && template.subject.trim()) {
+        parts.push(`Objet : ${template.subject.trim()}`);
+      }
+
+      if (Array.isArray(template.blocks)) {
+        const count = template.blocks.length;
+        if (count > 0) {
+          parts.push(`${count} bloc${count > 1 ? 's' : ''}`);
+        }
+      }
+
+      const timestamp = template.updatedAt || template.createdAt;
+      if (timestamp) {
+        const parsed = Date.parse(timestamp);
+        if (!Number.isNaN(parsed)) {
+          parts.push(`Mis à jour le ${savedSearchDateFormatter.format(new Date(parsed))}`);
+        }
+      }
+
+      return parts.join(' · ');
+    }
+
+    function getEmailTemplateSummary(template) {
+      const blocks = cloneEmailTemplateBlocks(template && template.blocks);
+      if (blocks.length === 0) {
+        return '';
+      }
+
+      const summaries = [];
+      blocks.forEach((block) => {
+        const definition = EMAIL_TEMPLATE_BLOCK_TYPES[block.type];
+        if (!definition || typeof definition.getSummary !== 'function') {
+          return;
+        }
+        const summary = definition.getSummary(block);
+        if (summary) {
+          summaries.push(summary);
+        }
+      });
+
+      if (summaries.length === 0) {
+        return '';
+      }
+
+      return truncateText(summaries.join(' · '), 220);
+    }
+
+    function handleEmailTemplateFormSubmit(event) {
+      event.preventDefault();
+
+      if (!emailTemplateForm) {
+        return;
+      }
+
+      const name = emailTemplateNameInput ? emailTemplateNameInput.value.trim() : '';
+      const subject = emailTemplateSubjectInput ? emailTemplateSubjectInput.value.trim() : '';
+      const sanitizedBlocks = cloneEmailTemplateBlocks(emailTemplateBlocks);
+
+      if (!name) {
+        setFormFeedback(emailTemplateFeedback, 'Indiquez un nom pour le modèle.', 'error');
+        return;
+      }
+
+      if (!subject) {
+        setFormFeedback(emailTemplateFeedback, "Renseignez l'objet du mail.", 'error');
+        return;
+      }
+
+      const blockError = validateEmailTemplateBlocks(sanitizedBlocks);
+      if (blockError) {
+        setFormFeedback(emailTemplateFeedback, blockError, 'error');
+        return;
+      }
+
+      const now = new Date().toISOString();
+      let templateId = editingEmailTemplateId;
+      let existingTemplate = templateId ? emailTemplatesById.get(templateId) : null;
+
+      if (!existingTemplate) {
+        templateId = generateId('email-template');
+      }
+
+      const normalizedTemplate = normalizeEmailTemplate({
+        id: templateId,
+        name,
+        subject,
+        blocks: sanitizedBlocks,
+        createdAt: existingTemplate && existingTemplate.createdAt ? existingTemplate.createdAt : now,
+        updatedAt: now,
+      });
+
+      if (!normalizedTemplate) {
+        setFormFeedback(emailTemplateFeedback, 'Impossible de sauvegarder ce modèle.', 'error');
+        return;
+      }
+
+      if (!Array.isArray(data.emailTemplates)) {
+        data.emailTemplates = [];
+      }
+
+      const index = data.emailTemplates.findIndex((item) => item && item.id === templateId);
+      if (index === -1) {
+        data.emailTemplates.push(normalizedTemplate);
+      } else {
+        data.emailTemplates[index] = normalizedTemplate;
+      }
+
+      sortEmailTemplatesInPlace();
+      buildEmailTemplateIndex();
+
+      data.lastUpdated = now;
+      saveDataForUser(currentUser, data);
+
+      renderEmailTemplateList();
+      refreshEmailTemplateSelectOptions();
+      applyCampaignTemplateSelection(
+        campaignTemplateSelect instanceof HTMLSelectElement ? campaignTemplateSelect.value : '',
+      );
+      renderEmailCampaignHistory();
+      renderMetrics();
+
+      const successMessage = existingTemplate
+        ? `Modèle « ${normalizedTemplate.name} » mis à jour.`
+        : `Modèle « ${normalizedTemplate.name} » enregistré.`;
+      setFormFeedback(emailTemplateFeedback, successMessage, 'success');
+
+      notifyDataChanged('email-templates', {
+        type: existingTemplate ? 'updated' : 'created',
+        templateId: normalizedTemplate.id,
+      });
+
+      emailTemplateFeedbackShouldClearOnReset = false;
+      editingEmailTemplateId = '';
+      emailTemplateForm.reset();
+    }
+
+    function handleEmailTemplateFormReset() {
+      window.requestAnimationFrame(() => {
+        emailTemplateBlocks = [];
+        editingEmailTemplateId = '';
+        setEmailTemplateFormMode(EMAIL_TEMPLATE_FORM_MODE_CREATE);
+        renderEmailTemplateBlocks();
+        updateEmailTemplatePreview();
+        if (emailTemplateFeedbackShouldClearOnReset) {
+          setFormFeedback(emailTemplateFeedback, '', '');
+        }
+        emailTemplateFeedbackShouldClearOnReset = true;
+        if (emailTemplateNameInput) {
+          emailTemplateNameInput.focus();
+        }
+      });
+    }
+
+    function handleEmailTemplateListClick(event) {
+      const button =
+        event.target instanceof HTMLElement
+          ? event.target.closest('[data-template-action]')
+          : null;
+      if (!(button instanceof HTMLButtonElement)) {
+        return;
+      }
+
+      const templateId = button.dataset.templateId || '';
+      const action = button.dataset.templateAction || '';
+      if (!templateId || !action) {
+        return;
+      }
+
+      if (action === 'edit') {
+        const template = emailTemplatesById.get(templateId);
+        if (!template) {
+          setFormFeedback(emailTemplateFeedback, 'Ce modèle est introuvable.', 'error');
+          return;
+        }
+
+        editingEmailTemplateId = templateId;
+        emailTemplateBlocks = cloneEmailTemplateBlocks(template.blocks);
+        if (emailTemplateNameInput) {
+          emailTemplateNameInput.value = template.name || '';
+        }
+        if (emailTemplateSubjectInput) {
+          emailTemplateSubjectInput.value = template.subject || '';
+        }
+
+        setEmailTemplateFormMode(EMAIL_TEMPLATE_FORM_MODE_EDIT, template);
+        renderEmailTemplateBlocks();
+        updateEmailTemplatePreview();
+
+        setFormFeedback(
+          emailTemplateFeedback,
+          'Modification du modèle en cours. Enregistrez pour appliquer vos changements.',
+          'success',
+        );
+
+        window.requestAnimationFrame(() => {
+          if (emailTemplateNameInput) {
+            emailTemplateNameInput.focus();
+          }
+        });
+
+        activateModule('communication', 'email-templates');
+        return;
+      }
+
+      if (action === 'delete') {
+        const template = emailTemplatesById.get(templateId);
+        if (!template) {
+          return;
+        }
+
+        const confirmed = window.confirm(
+          `Supprimer le modèle « ${template.name || 'sans nom'} » ?`,
+        );
+        if (!confirmed) {
+          return;
+        }
+
+        const index = data.emailTemplates.findIndex((item) => item && item.id === templateId);
+        if (index === -1) {
+          return;
+        }
+
+        data.emailTemplates.splice(index, 1);
+        sortEmailTemplatesInPlace();
+        buildEmailTemplateIndex();
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+
+        renderEmailTemplateList();
+        refreshEmailTemplateSelectOptions();
+        if (
+          campaignTemplateSelect instanceof HTMLSelectElement &&
+          campaignTemplateSelect.value === templateId
+        ) {
+          campaignTemplateSelect.value = '';
+          applyCampaignTemplateSelection('');
+        }
+
+        if (editingEmailTemplateId === templateId) {
+          emailTemplateForm.reset();
+        }
+
+        setFormFeedback(emailTemplateFeedback, 'Modèle supprimé.', 'success');
+        renderEmailCampaignHistory();
+        renderMetrics();
+        notifyDataChanged('email-templates', { type: 'deleted', templateId });
+        return;
+      }
+
+      if (action === 'use') {
+        if (!(campaignTemplateSelect instanceof HTMLSelectElement)) {
+          return;
+        }
+
+        if (!emailTemplatesById.has(templateId)) {
+          setFormFeedback(emailTemplateFeedback, 'Ce modèle est introuvable.', 'error');
+          return;
+        }
+
+        campaignTemplateSelect.value = templateId;
+        applyCampaignTemplateSelection(templateId);
+        campaignSubjectEdited = false;
+        activateModule('communication', 'email-campaigns');
+        campaignTemplateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+
+    function refreshEmailTemplateSelectOptions() {
+      if (!(campaignTemplateSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      const templates = Array.isArray(data.emailTemplates) ? data.emailTemplates.slice() : [];
+      const previousValue = campaignTemplateSelect.value || '';
+
+      campaignTemplateSelect.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      const hasChoices = templates.length > 0;
+      placeholder.textContent = hasChoices
+        ? 'Sélectionnez un modèle'
+        : 'Aucun modèle disponible';
+      placeholder.disabled = hasChoices;
+      placeholder.selected = true;
+      campaignTemplateSelect.appendChild(placeholder);
+
+      templates.forEach((template) => {
+        const option = document.createElement('option');
+        option.value = template.id || '';
+        option.textContent = template.name || 'Modèle sans nom';
+        campaignTemplateSelect.appendChild(option);
+      });
+
+      campaignTemplateSelect.disabled = !hasChoices;
+
+      if (hasChoices && previousValue && templates.some((template) => template.id === previousValue)) {
+        campaignTemplateSelect.value = previousValue;
+        placeholder.selected = false;
+      }
+    }
+
+    function applyCampaignTemplateSelection(templateId) {
+      const template = templateId ? emailTemplatesById.get(templateId) : null;
+
+      if (emailCampaignSubjectInput instanceof HTMLInputElement) {
+        if (template) {
+          if (!campaignSubjectEdited || lastSelectedCampaignTemplateId !== templateId) {
+            emailCampaignSubjectInput.value = template.subject || '';
+            campaignSubjectEdited = false;
+          }
+        } else if (!campaignSubjectEdited) {
+          emailCampaignSubjectInput.value = '';
+        }
+      }
+
+      lastSelectedCampaignTemplateId = templateId;
+      updateCampaignEmailPreview();
+    }
+
+    function updateCampaignEmailPreview() {
+      if (!campaignEmailPreview) {
+        return;
+      }
+
+      const templateId =
+        campaignTemplateSelect instanceof HTMLSelectElement ? campaignTemplateSelect.value : '';
+      const template = templateId ? emailTemplatesById.get(templateId) : null;
+
+      if (!template) {
+        campaignEmailPreview.innerHTML = '';
+        if (campaignEmailPreviewDefaultText) {
+          const empty = document.createElement('p');
+          empty.className = 'empty-state';
+          empty.textContent = campaignEmailPreviewDefaultText;
+          campaignEmailPreview.appendChild(empty);
+        }
+        return;
+      }
+
+      renderEmailPreview(
+        campaignEmailPreview,
+        template.blocks,
+        campaignEmailPreviewDefaultText,
+      );
+    }
+
+    function buildCampaignRecipientsFromSavedSearch(savedSearchId) {
+      if (!savedSearchId) {
+        return { recipients: [], savedSearch: null };
+      }
+
+      const savedSearch = Array.isArray(data.savedSearches)
+        ? data.savedSearches.find((item) => item && item.id === savedSearchId)
+        : null;
+      if (!savedSearch) {
+        return { recipients: [], savedSearch: null };
+      }
+
+      const contacts = Array.isArray(data.contacts) ? data.contacts.slice() : [];
+      const { contacts: filteredContacts, categoriesById } = computeFilteredContacts(
+        contacts,
+        savedSearch.searchTerm || '',
+        savedSearch.advancedFilters || {},
+      );
+
+      const recipients = [];
+      const seenEmails = new Set();
+
+      filteredContacts.forEach((contact) => {
+        const channels = computeContactChannels(contact, categoriesById);
+        const displayName = getContactDisplayName(contact, categoriesById);
+        channels.emails.forEach((email) => {
+          const trimmed = email.trim();
+          if (!trimmed) {
+            return;
+          }
+          const normalized = trimmed.toLowerCase();
+          if (!isValidEmail(trimmed) || seenEmails.has(normalized)) {
+            return;
+          }
+          seenEmails.add(normalized);
+          recipients.push({
+            email: trimmed,
+            contactId: contact.id || '',
+            contactName: displayName || 'Contact sans nom',
+          });
+        });
+      });
+
+      return { recipients, savedSearch };
+    }
+
+    function updateCampaignRecipientsSummary() {
+      if (!campaignSummary || !campaignRecipientList) {
+        return;
+      }
+
+      const savedSearchId =
+        campaignSavedSearchSelect instanceof HTMLSelectElement ? campaignSavedSearchSelect.value : '';
+
+      if (!savedSearchId) {
+        campaignRecipients = [];
+        campaignSummary.textContent = campaignSummaryDefaultText;
+        campaignRecipientList.innerHTML = '';
+        return;
+      }
+
+      const { recipients, savedSearch } = buildCampaignRecipientsFromSavedSearch(savedSearchId);
+      campaignRecipients = recipients;
+      campaignRecipientList.innerHTML = '';
+
+      if (!savedSearch) {
+        campaignSummary.textContent = 'La recherche sélectionnée est introuvable.';
+        return;
+      }
+
+      if (recipients.length === 0) {
+        campaignSummary.textContent = `La recherche « ${savedSearch.name || 'sans nom'} » ne contient aucun contact avec adresse mail.`;
+        return;
+      }
+
+      const suffix = recipients.length > 1 ? 'destinataires' : 'destinataire';
+      campaignSummary.textContent = `${recipients.length} ${suffix} recevront ce message via la recherche « ${savedSearch.name || 'sans nom'} ». `;
+      renderCampaignRecipientList(recipients);
+    }
+
+    function renderCampaignRecipientList(recipients) {
+      if (!campaignRecipientList) {
+        return;
+      }
+
+      campaignRecipientList.innerHTML = '';
+
+      if (!Array.isArray(recipients) || recipients.length === 0) {
+        return;
+      }
+
+      const fragment = document.createDocumentFragment();
+      const preview = recipients.slice(0, CAMPAIGN_RECIPIENT_PREVIEW_LIMIT);
+
+      preview.forEach((recipient) => {
+        const item = document.createElement('li');
+        item.className = 'campaign-recipient-item';
+
+        const emailEl = document.createElement('p');
+        emailEl.className = 'campaign-recipient-email';
+        emailEl.textContent = recipient.email;
+        item.appendChild(emailEl);
+
+        if (recipient.contactName) {
+          const nameEl = document.createElement('p');
+          nameEl.className = 'campaign-recipient-name';
+          nameEl.textContent = recipient.contactName;
+          item.appendChild(nameEl);
+        }
+
+        fragment.appendChild(item);
+      });
+
+      if (recipients.length > preview.length) {
+        const remaining = recipients.length - preview.length;
+        const moreItem = document.createElement('li');
+        moreItem.className = 'campaign-recipient-item';
+        const moreText = document.createElement('p');
+        moreText.className = 'campaign-recipient-name';
+        moreText.textContent = `+ ${remaining} destinataire${remaining > 1 ? 's' : ''} supplémentaires`;
+        moreItem.appendChild(moreText);
+        fragment.appendChild(moreItem);
+      }
+
+      campaignRecipientList.appendChild(fragment);
+    }
+
+    function handleCampaignFormSubmit(event) {
+      event.preventDefault();
+
+      if (!emailCampaignForm) {
+        return;
+      }
+
+      const name = emailCampaignNameInput ? emailCampaignNameInput.value.trim() : '';
+      const senderName = emailCampaignSenderNameInput ? emailCampaignSenderNameInput.value.trim() : '';
+      const senderEmail = emailCampaignSenderEmailInput ? emailCampaignSenderEmailInput.value.trim() : '';
+      const templateId =
+        campaignTemplateSelect instanceof HTMLSelectElement ? campaignTemplateSelect.value : '';
+      const savedSearchId =
+        campaignSavedSearchSelect instanceof HTMLSelectElement ? campaignSavedSearchSelect.value : '';
+      const subject = emailCampaignSubjectInput ? emailCampaignSubjectInput.value.trim() : '';
+
+      if (!name) {
+        setFormFeedback(emailCampaignFeedback, 'Donnez un nom à la campagne.', 'error');
+        return;
+      }
+
+      const template = templateId ? emailTemplatesById.get(templateId) : null;
+      if (!template) {
+        setFormFeedback(emailCampaignFeedback, 'Sélectionnez un modèle de mail.', 'error');
+        return;
+      }
+
+      const savedSearch = savedSearchId
+        ? Array.isArray(data.savedSearches)
+          ? data.savedSearches.find((item) => item && item.id === savedSearchId)
+          : null
+        : null;
+      if (!savedSearch) {
+        setFormFeedback(emailCampaignFeedback, 'Choisissez une recherche sauvegardée.', 'error');
+        return;
+      }
+
+      if (!subject) {
+        setFormFeedback(emailCampaignFeedback, "Renseignez l'objet de la campagne.", 'error');
+        return;
+      }
+
+      if (!senderEmail || !isValidEmail(senderEmail)) {
+        setFormFeedback(emailCampaignFeedback, "L'adresse d'expédition doit être valide.", 'error');
+        return;
+      }
+
+      if (campaignRecipients.length === 0) {
+        setFormFeedback(
+          emailCampaignFeedback,
+          'La recherche sélectionnée ne contient aucun contact avec adresse mail.',
+          'error',
+        );
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const campaign = normalizeEmailCampaign({
+        id: generateId('email-campaign'),
+        name,
+        subject,
+        senderName,
+        senderEmail,
+        templateId: template.id,
+        templateName: template.name,
+        savedSearchId: savedSearch.id || '',
+        savedSearchName: savedSearch.name || '',
+        createdAt: now,
+        recipients: campaignRecipients.map((recipient) => ({ ...recipient })),
+        templateSnapshot: {
+          subject: template.subject,
+          blocks: cloneEmailTemplateBlocks(template.blocks),
+        },
+      });
+
+      if (!campaign) {
+        setFormFeedback(emailCampaignFeedback, 'Impossible de créer la campagne.', 'error');
+        return;
+      }
+
+      if (!Array.isArray(data.emailCampaigns)) {
+        data.emailCampaigns = [];
+      }
+
+      data.emailCampaigns.push(campaign);
+      sortEmailCampaignsInPlace();
+      if (data.emailCampaigns.length > EMAIL_CAMPAIGN_HISTORY_LIMIT) {
+        data.emailCampaigns = data.emailCampaigns.slice(0, EMAIL_CAMPAIGN_HISTORY_LIMIT);
+      }
+
+      data.lastUpdated = now;
+      saveDataForUser(currentUser, data);
+
+      renderEmailCampaignHistory();
+      renderMetrics();
+
+      const successSuffix = campaign.recipientCount > 1 ? 'destinataires' : 'destinataire';
+      setFormFeedback(
+        emailCampaignFeedback,
+        `Campagne « ${campaign.name} » enregistrée pour ${campaign.recipientCount} ${successSuffix}.`,
+        'success',
+      );
+
+      notifyDataChanged('email-campaigns', { type: 'created', campaignId: campaign.id });
+
+      emailCampaignFeedbackShouldClearOnReset = false;
+      emailCampaignForm.reset();
+    }
+
+    function handleCampaignFormReset() {
+      window.requestAnimationFrame(() => {
+        campaignRecipients = [];
+        campaignSubjectEdited = false;
+        lastSelectedCampaignTemplateId = '';
+        if (campaignTemplateSelect instanceof HTMLSelectElement) {
+          campaignTemplateSelect.value = '';
+        }
+        if (emailCampaignSubjectInput) {
+          emailCampaignSubjectInput.value = '';
+        }
+        updateCampaignEmailPreview();
+        updateCampaignRecipientsSummary();
+        if (emailCampaignFeedbackShouldClearOnReset) {
+          setFormFeedback(emailCampaignFeedback, '', '');
+        }
+        emailCampaignFeedbackShouldClearOnReset = true;
+      });
+    }
+
+    function renderEmailCampaignHistory() {
+      if (!campaignHistoryList) {
+        if (campaignHistoryEmpty) {
+          const hasHistory = Array.isArray(data.emailCampaigns) && data.emailCampaigns.length > 0;
+          campaignHistoryEmpty.hidden = hasHistory;
+        }
+        return;
+      }
+
+      const history = Array.isArray(data.emailCampaigns) ? data.emailCampaigns.slice() : [];
+
+      campaignHistoryList.innerHTML = '';
+
+      if (history.length === 0) {
+        if (campaignHistoryEmpty) {
+          campaignHistoryEmpty.hidden = false;
+        }
+        return;
+      }
+
+      if (campaignHistoryEmpty) {
+        campaignHistoryEmpty.hidden = true;
+      }
+
+      const fragment = document.createDocumentFragment();
+
+      history.forEach((campaign) => {
+        const item = document.createElement('li');
+        item.className = 'campaign-history-item';
+
+        const title = document.createElement('h3');
+        title.className = 'campaign-history-title';
+        title.textContent = campaign.name || 'Campagne sans nom';
+        item.appendChild(title);
+
+        const meta = document.createElement('p');
+        meta.className = 'campaign-history-meta';
+        meta.textContent = formatCampaignHistoryMeta(campaign);
+        item.appendChild(meta);
+
+        if (campaign.subject) {
+          const subjectLine = document.createElement('p');
+          subjectLine.className = 'campaign-history-summary';
+          subjectLine.textContent = `Objet : ${campaign.subject}`;
+          item.appendChild(subjectLine);
+        }
+
+        const recipientsLine = document.createElement('p');
+        recipientsLine.className = 'campaign-history-summary';
+        const count = Number(campaign.recipientCount) || 0;
+        const suffix = count > 1 ? 'destinataires' : 'destinataire';
+        recipientsLine.textContent = count
+          ? `${count} ${suffix}`
+          : 'Aucun destinataire éligible';
+        item.appendChild(recipientsLine);
+
+        fragment.appendChild(item);
+      });
+
+      campaignHistoryList.appendChild(fragment);
+    }
+
+    function formatCampaignHistoryMeta(campaign) {
+      const parts = [];
+
+      if (campaign && campaign.createdAt) {
+        const parsed = Date.parse(campaign.createdAt);
+        if (!Number.isNaN(parsed)) {
+          parts.push(`Envoyée le ${savedSearchDateFormatter.format(new Date(parsed))}`);
+        }
+      }
+
+      if (campaign && campaign.senderEmail) {
+        const senderLabel = campaign.senderName
+          ? `${campaign.senderName} <${campaign.senderEmail}>`
+          : campaign.senderEmail;
+        parts.push(`Expéditeur : ${senderLabel}`);
+      }
+
+      if (campaign && campaign.templateName) {
+        parts.push(`Modèle : ${campaign.templateName}`);
+      }
+
+      if (campaign && campaign.savedSearchName) {
+        parts.push(`Recherche : ${campaign.savedSearchName}`);
+      }
+
+      return parts.join(' · ');
+    }
+
+    function compareEmailTemplates(a, b) {
+      if (!a || !b) {
+        return 0;
+      }
+
+      const timeA = Date.parse(a.updatedAt || a.createdAt || '') || 0;
+      const timeB = Date.parse(b.updatedAt || b.createdAt || '') || 0;
+      if (timeA !== timeB) {
+        return timeB - timeA;
+      }
+
+      const nameA = typeof a.name === 'string' ? a.name : '';
+      const nameB = typeof b.name === 'string' ? b.name : '';
+      return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+    }
+
+    function compareEmailCampaigns(a, b) {
+      if (!a || !b) {
+        return 0;
+      }
+
+      const timeA = Date.parse(a.createdAt || '') || 0;
+      const timeB = Date.parse(b.createdAt || '') || 0;
+      if (timeA !== timeB) {
+        return timeB - timeA;
+      }
+
+      const nameA = typeof a.name === 'string' ? a.name : '';
+      const nameB = typeof b.name === 'string' ? b.name : '';
+      return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
+    }
+
+    function sortEmailTemplatesInPlace() {
+      if (!Array.isArray(data.emailTemplates)) {
+        data.emailTemplates = [];
+        return;
+      }
+
+      data.emailTemplates.sort(compareEmailTemplates);
+    }
+
+    function sortEmailCampaignsInPlace() {
+      if (!Array.isArray(data.emailCampaigns)) {
+        data.emailCampaigns = [];
+        return;
+      }
+
+      data.emailCampaigns.sort(compareEmailCampaigns);
     }
 
     function buildSavedSearchMeta(savedSearch) {
@@ -6572,58 +8174,24 @@
       });
     }
 
-    function renderContacts() {
-      const contacts = Array.isArray(data.contacts) ? data.contacts.slice() : [];
-
-      if (contactSearchCountEl) {
-        contactSearchCountEl.textContent = '0';
-      }
-
-      if (!contactList || !contactEmptyState) {
-        return;
-      }
-
-      contactList.innerHTML = '';
-
-      const validContactIds = new Set(
-        contacts
-          .map((contact) => (contact && contact.id ? contact.id : ''))
-          .filter((id) => Boolean(id)),
-      );
-      let selectionChanged = false;
-      selectedContactIds.forEach((id) => {
-        if (!validContactIds.has(id)) {
-          selectedContactIds.delete(id);
-          selectionChanged = true;
-        }
-      });
-      if (selectionChanged) {
-        updateSelectedContactsUI();
-      }
-
-      const normalizedTerm = contactSearchTerm.trim().toLowerCase();
+    function computeFilteredContacts(allContacts, searchTerm, rawFilters) {
+      const contacts = Array.isArray(allContacts) ? allContacts : [];
+      const filters = cloneAdvancedFilters(rawFilters);
+      const normalizedTerm = typeof searchTerm === 'string' ? searchTerm.trim().toLowerCase() : '';
       const categoriesById = buildCategoryMap();
       const keywordsById = new Map(
-        Array.isArray(data.keywords)
-          ? data.keywords.map((keyword) => [keyword.id, keyword])
-          : [],
+        Array.isArray(data.keywords) ? data.keywords.map((keyword) => [keyword.id, keyword]) : [],
       );
 
-      const categoryFilterEntries =
-        advancedFilters &&
-        advancedFilters.categories &&
-        typeof advancedFilters.categories === 'object'
-          ? Object.entries(advancedFilters.categories)
-          : [];
-
-      const keywordFilters = Array.isArray(advancedFilters.keywords)
-        ? advancedFilters.keywords.filter((value) => Boolean(value))
+      const categoryFilterEntries = Object.entries(
+        filters.categories && typeof filters.categories === 'object' ? filters.categories : {},
+      );
+      const keywordFilters = Array.isArray(filters.keywords)
+        ? filters.keywords.filter((value) => Boolean(value))
         : [];
-      const keywordMode =
-        advancedFilters.keywordMode === KEYWORD_FILTER_MODE_ANY
-          ? KEYWORD_FILTER_MODE_ANY
-          : KEYWORD_FILTER_MODE_ALL;
-
+      const keywordMode = filters.keywordMode === KEYWORD_FILTER_MODE_ANY
+        ? KEYWORD_FILTER_MODE_ANY
+        : KEYWORD_FILTER_MODE_ALL;
       const hasAdvancedFilters = categoryFilterEntries.length > 0 || keywordFilters.length > 0;
 
       const filteredContacts = contacts
@@ -6633,19 +8201,19 @@
               ? contact.categoryValues
               : {};
           const keywords = Array.isArray(contact.keywords) ? contact.keywords : [];
+
           for (const [categoryId, filter] of categoryFilterEntries) {
             if (!filter || typeof filter !== 'object') {
               continue;
             }
             const rawValue = categoryValues[categoryId];
-            const valueString =
-              rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+            const valueString = rawValue == null ? '' : rawValue.toString().trim();
             if (!valueString) {
               return false;
             }
 
             if (filter.type === 'text') {
-              const normalizedFilter = (filter.normalizedValue || '').toString();
+              const normalizedFilter = typeof filter.normalizedValue === 'string' ? filter.normalizedValue : '';
               if (!valueString.toLowerCase().includes(normalizedFilter)) {
                 return false;
               }
@@ -6656,12 +8224,10 @@
 
           if (keywordFilters.length > 0) {
             const keywordSet = new Set(keywords);
-            let matchesKeywords = false;
-            if (keywordMode === KEYWORD_FILTER_MODE_ANY) {
-              matchesKeywords = keywordFilters.some((keywordId) => keywordSet.has(keywordId));
-            } else {
-              matchesKeywords = keywordFilters.every((keywordId) => keywordSet.has(keywordId));
-            }
+            const matchesKeywords =
+              keywordMode === KEYWORD_FILTER_MODE_ANY
+                ? keywordFilters.some((keywordId) => keywordSet.has(keywordId))
+                : keywordFilters.every((keywordId) => keywordSet.has(keywordId));
             if (!matchesKeywords) {
               return false;
             }
@@ -6683,8 +8249,7 @@
               if (!category) {
                 return null;
               }
-              const value =
-                rawValue === undefined || rawValue === null ? '' : rawValue.toString().trim();
+              const value = rawValue == null ? '' : rawValue.toString().trim();
               return value ? { name: category.name, value } : null;
             })
             .filter((entry) => Boolean(entry));
@@ -6722,6 +8287,41 @@
           const nameB = getContactDisplayName(b, categoriesById).toString();
           return nameA.localeCompare(nameB, 'fr', { sensitivity: 'base' });
         });
+
+      return { contacts: filteredContacts, categoriesById, normalizedTerm, hasAdvancedFilters };
+    }
+
+    function renderContacts() {
+      const contacts = Array.isArray(data.contacts) ? data.contacts.slice() : [];
+
+      if (contactSearchCountEl) {
+        contactSearchCountEl.textContent = '0';
+      }
+
+      if (!contactList || !contactEmptyState) {
+        return;
+      }
+
+      contactList.innerHTML = '';
+
+      const validContactIds = new Set(
+        contacts
+          .map((contact) => (contact && contact.id ? contact.id : ''))
+          .filter((id) => Boolean(id)),
+      );
+      let selectionChanged = false;
+      selectedContactIds.forEach((id) => {
+        if (!validContactIds.has(id)) {
+          selectedContactIds.delete(id);
+          selectionChanged = true;
+        }
+      });
+      if (selectionChanged) {
+        updateSelectedContactsUI();
+      }
+
+      const { contacts: filteredContacts, categoriesById, normalizedTerm, hasAdvancedFilters } =
+        computeFilteredContacts(contacts, contactSearchTerm, advancedFilters);
 
       lastContactSearchResultIds = filteredContacts
         .map((contact) => (contact && contact.id ? contact.id : ''))
@@ -8215,6 +9815,223 @@
       };
     }
 
+    function sanitizeUrl(rawValue, options = {}) {
+      if (typeof rawValue !== 'string') {
+        return '';
+      }
+
+      const normalizedOptions = options && typeof options === 'object' ? options : {};
+      const { allowRelative = false, allowData = false } = normalizedOptions;
+      const value = rawValue.trim();
+      if (!value) {
+        return '';
+      }
+
+      if (
+        allowData &&
+        /^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);base64,[a-z0-9+/=]+$/i.test(value)
+      ) {
+        return value;
+      }
+
+      if (/^(https?|mailto|tel):/i.test(value)) {
+        return value;
+      }
+
+      if (/^[a-z][a-z0-9+\-.]*:/i.test(value)) {
+        return '';
+      }
+
+      if (allowRelative) {
+        if (value.startsWith('/')) {
+          return value;
+        }
+
+        if (value.startsWith('./') || value.startsWith('../')) {
+          return value;
+        }
+      }
+
+      return '';
+    }
+
+    function truncateText(rawText, maxLength, options = {}) {
+      if (typeof rawText !== 'string') {
+        return '';
+      }
+
+      const normalized = rawText.replace(/\s+/g, ' ').trim();
+      const limit = Number.isFinite(maxLength) && maxLength > 0 ? Math.floor(maxLength) : 0;
+      if (!limit || normalized.length <= limit) {
+        return normalized;
+      }
+
+      const settings = options && typeof options === 'object' ? options : {};
+      const ellipsis = typeof settings.ellipsis === 'string' ? settings.ellipsis : '…';
+      const sliceLength = Math.max(0, limit - ellipsis.length);
+      const truncated = normalized.slice(0, sliceLength).trimEnd();
+      return `${truncated}${ellipsis}`;
+    }
+
+    function normalizeEmailTemplateBlock(rawBlock) {
+      const base = rawBlock && typeof rawBlock === 'object' ? rawBlock : {};
+      const type = typeof base.type === 'string' ? base.type : '';
+      const definition = EMAIL_TEMPLATE_BLOCK_TYPES[type];
+      if (!definition) {
+        return null;
+      }
+
+      const id =
+        typeof base.id === 'string' && base.id.trim()
+          ? base.id.trim()
+          : generateId('email-block');
+
+      const sanitizedData =
+        typeof definition.sanitize === 'function'
+          ? definition.sanitize(base.data || {})
+          : typeof base.data === 'object' && base.data
+          ? { ...base.data }
+          : {};
+
+      return { id, type, data: sanitizedData };
+    }
+
+    function normalizeEmailTemplate(rawTemplate) {
+      if (!rawTemplate || typeof rawTemplate !== 'object') {
+        return null;
+      }
+
+      const name = typeof rawTemplate.name === 'string' ? rawTemplate.name.trim() : '';
+      const subject = typeof rawTemplate.subject === 'string' ? rawTemplate.subject.trim() : '';
+      const blocks = cloneEmailTemplateBlocks(rawTemplate.blocks);
+
+      if (!name || !subject || blocks.length === 0) {
+        return null;
+      }
+
+      let id = typeof rawTemplate.id === 'string' && rawTemplate.id.trim() ? rawTemplate.id.trim() : '';
+      if (!id) {
+        id = generateId('email-template');
+      }
+
+      let createdAt = typeof rawTemplate.createdAt === 'string' ? rawTemplate.createdAt : '';
+      if (!createdAt || Number.isNaN(Date.parse(createdAt))) {
+        createdAt = new Date().toISOString();
+      }
+
+      let updatedAt = typeof rawTemplate.updatedAt === 'string' ? rawTemplate.updatedAt : '';
+      if (!updatedAt || Number.isNaN(Date.parse(updatedAt))) {
+        updatedAt = createdAt;
+      }
+
+      return {
+        id,
+        name,
+        subject,
+        blocks,
+        createdAt: new Date(createdAt).toISOString(),
+        updatedAt: new Date(updatedAt).toISOString(),
+      };
+    }
+
+    function normalizeCampaignRecipient(rawRecipient) {
+      if (!rawRecipient || typeof rawRecipient !== 'object') {
+        return null;
+      }
+
+      const email = typeof rawRecipient.email === 'string' ? rawRecipient.email.trim() : '';
+      if (!email || !isValidEmail(email)) {
+        return null;
+      }
+
+      const contactId = typeof rawRecipient.contactId === 'string' ? rawRecipient.contactId.trim() : '';
+      const contactName = typeof rawRecipient.contactName === 'string' ? rawRecipient.contactName.trim() : '';
+
+      return {
+        email,
+        contactId,
+        contactName,
+      };
+    }
+
+    function normalizeCampaignTemplateSnapshot(rawSnapshot, fallback = {}) {
+      const baseSnapshot = rawSnapshot && typeof rawSnapshot === 'object' ? rawSnapshot : {};
+      let snapshotSubject =
+        typeof baseSnapshot.subject === 'string' && baseSnapshot.subject.trim()
+          ? baseSnapshot.subject.trim()
+          : '';
+      if (!snapshotSubject && typeof fallback.subject === 'string') {
+        snapshotSubject = fallback.subject.trim();
+      }
+
+      const blocksSource = Array.isArray(baseSnapshot.blocks) && baseSnapshot.blocks.length > 0
+        ? baseSnapshot.blocks
+        : fallback.blocks;
+      const blocks = cloneEmailTemplateBlocks(blocksSource);
+
+      return {
+        subject: snapshotSubject,
+        blocks,
+      };
+    }
+
+    function normalizeEmailCampaign(rawCampaign) {
+      if (!rawCampaign || typeof rawCampaign !== 'object') {
+        return null;
+      }
+
+      const subject = typeof rawCampaign.subject === 'string' ? rawCampaign.subject.trim() : '';
+      const senderEmail = typeof rawCampaign.senderEmail === 'string' ? rawCampaign.senderEmail.trim() : '';
+      if (!subject || !senderEmail || !isValidEmail(senderEmail)) {
+        return null;
+      }
+
+      const recipients = Array.isArray(rawCampaign.recipients)
+        ? rawCampaign.recipients.map((recipient) => normalizeCampaignRecipient(recipient)).filter(Boolean)
+        : [];
+      if (recipients.length === 0) {
+        return null;
+      }
+
+      const name = typeof rawCampaign.name === 'string' ? rawCampaign.name.trim() : '';
+      const senderName = typeof rawCampaign.senderName === 'string' ? rawCampaign.senderName.trim() : '';
+      const templateId = typeof rawCampaign.templateId === 'string' ? rawCampaign.templateId.trim() : '';
+      const templateName = typeof rawCampaign.templateName === 'string' ? rawCampaign.templateName.trim() : '';
+      const savedSearchId = typeof rawCampaign.savedSearchId === 'string' ? rawCampaign.savedSearchId.trim() : '';
+      const savedSearchName = typeof rawCampaign.savedSearchName === 'string' ? rawCampaign.savedSearchName.trim() : '';
+
+      const templateSnapshot = normalizeCampaignTemplateSnapshot(rawCampaign.templateSnapshot, {
+        subject: rawCampaign.templateSnapshot && rawCampaign.templateSnapshot.subject,
+        blocks: rawCampaign.templateSnapshot && rawCampaign.templateSnapshot.blocks,
+      });
+
+      const id =
+        typeof rawCampaign.id === 'string' && rawCampaign.id.trim()
+          ? rawCampaign.id.trim()
+          : generateId('email-campaign');
+
+      let createdAt = typeof rawCampaign.createdAt === 'string' ? rawCampaign.createdAt : '';
+      if (!createdAt || Number.isNaN(Date.parse(createdAt))) {
+        createdAt = new Date().toISOString();
+      }
+
+      return {
+        id,
+        name: name || 'Campagne',
+        subject,
+        senderName,
+        senderEmail,
+        templateId,
+        templateName,
+        savedSearchId,
+        savedSearchName,
+        recipients,
+        recipientCount: recipients.length,
+        createdAt: new Date(createdAt).toISOString(),
+        templateSnapshot,
+      };
+    }
+
     function normalizeTaskCategory(rawCategory) {
       const baseCategory = rawCategory && typeof rawCategory === 'object' ? rawCategory : {};
 
@@ -8415,22 +10232,25 @@
 
     function upgradeDataStructure(rawData) {
       const base = rawData && typeof rawData === 'object' ? rawData : {};
-	  // -- PRÉSERVER / NORMALISER LE FONDATEUR ET L'ÉQUIPE -------------------------
-	  base.panelOwner = (typeof base.panelOwner === 'string' && base.panelOwner.trim())
-	    ? base.panelOwner.trim()
-	    : (base.panelOwner || ''); // ne crée pas ici, juste préserve si présent
 
-	  if (Array.isArray(base.teamMembers)) {
-		base.teamMembers = Array.from(new Set(
-		  base.teamMembers
-		    .filter(u => typeof u === 'string')
-		    .map(u => u.trim())
-		    .filter(Boolean)
-		));
-	  } else {
-		base.teamMembers = [];
-	  }
-		// ---------------------------------------------------------------------------
+      if (typeof base.panelOwner === 'string') {
+        base.panelOwner = base.panelOwner.trim();
+      } else {
+        base.panelOwner = '';
+      }
+
+      if (Array.isArray(base.teamMembers)) {
+        base.teamMembers = Array.from(
+          new Set(
+            base.teamMembers
+              .filter((member) => typeof member === 'string')
+              .map((member) => member.trim())
+              .filter(Boolean),
+          ),
+        );
+      } else {
+        base.teamMembers = [];
+      }
 
 
       if (!base.metrics || typeof base.metrics !== 'object') {
@@ -8597,6 +10417,67 @@
         });
 
         base.savedSearches = normalizedSavedSearches;
+      }
+
+      if (!Array.isArray(base.emailTemplates)) {
+        base.emailTemplates = [];
+      } else {
+        const templatesById = new Map();
+
+        base.emailTemplates.forEach((item) => {
+          const normalized = normalizeEmailTemplate(item);
+          if (!normalized) {
+            return;
+          }
+
+          const existing = templatesById.get(normalized.id);
+          if (!existing) {
+            templatesById.set(normalized.id, normalized);
+            return;
+          }
+
+          const existingTime =
+            Date.parse(existing.updatedAt || existing.createdAt || '') || 0;
+          const candidateTime =
+            Date.parse(normalized.updatedAt || normalized.createdAt || '') || 0;
+
+          if (candidateTime > existingTime) {
+            templatesById.set(normalized.id, normalized);
+          }
+        });
+
+        base.emailTemplates = Array.from(templatesById.values());
+        base.emailTemplates.sort(compareEmailTemplates);
+      }
+
+      if (!Array.isArray(base.emailCampaigns)) {
+        base.emailCampaigns = [];
+      } else {
+        const campaignsById = new Map();
+
+        base.emailCampaigns.forEach((item) => {
+          const normalized = normalizeEmailCampaign(item);
+          if (!normalized) {
+            return;
+          }
+
+          const existing = campaignsById.get(normalized.id);
+          if (!existing) {
+            campaignsById.set(normalized.id, normalized);
+            return;
+          }
+
+          const existingTime = Date.parse(existing.createdAt || '') || 0;
+          const candidateTime = Date.parse(normalized.createdAt || '') || 0;
+
+          if (candidateTime > existingTime) {
+            campaignsById.set(normalized.id, normalized);
+          }
+        });
+
+        base.emailCampaigns = Array.from(campaignsById.values());
+        base.emailCampaigns.sort(compareEmailCampaigns);
+        base.emailCampaigns = base.emailCampaigns.slice(0, EMAIL_CAMPAIGN_HISTORY_LIMIT);
       }
 
       base.contacts.forEach((contact) => {
@@ -8952,6 +10833,12 @@
                         savedSearches: Array.isArray(base.savedSearches)
                           ? base.savedSearches
                           : [],
+                        emailTemplates: Array.isArray(base.emailTemplates)
+                          ? base.emailTemplates
+                          : [],
+                        emailCampaigns: Array.isArray(base.emailCampaigns)
+                          ? base.emailCampaigns
+                          : [],
                         lastUpdated: base.lastUpdated || null,
 
                         // si jamais ces champs n’existaient pas encore
@@ -8981,8 +10868,8 @@
   }
 
   function cloneDefaultData() {
-	  return {
-		metrics: { ...defaultData.metrics },
+          return {
+                metrics: { ...defaultData.metrics },
                 categories: [],
                 keywords: [],
                 contacts: [],
@@ -8991,12 +10878,14 @@
                 tasks: [],
                 teamChatMessages: [],
                 savedSearches: [],
+                emailTemplates: [],
+                emailCampaigns: [],
                 lastUpdated: null,
                 // Nouveaux champs persistés
                 panelOwner: '',
                 teamMembers: [],
           };
-	}
+        }
 
 
   async function hashPassword(password) {
