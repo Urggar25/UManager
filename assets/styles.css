@@ -807,6 +807,10 @@ button {
   gap: 12px;
 }
 
+.task-list-actions {
+  margin-bottom: 16px;
+}
+
 .task-list-controls {
   display: flex;
   flex-wrap: wrap;
@@ -889,6 +893,8 @@ button {
 }
 
 .task-item--assigned-me {
+  --task-color: #dc2626;
+  --task-color-soft: rgba(220, 38, 38, 0.12);
   animation: task-assigned-me 2.4s ease-in-out 2;
 }
 
@@ -900,13 +906,13 @@ button {
 
 @keyframes task-assigned-me {
   0% {
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.35);
   }
   50% {
-    box-shadow: 0 0 0 14px rgba(37, 99, 235, 0);
+    box-shadow: 0 0 0 14px rgba(220, 38, 38, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
   }
 }
 
@@ -1709,6 +1715,13 @@ button {
   gap: 4px;
 }
 
+.contact-header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .contact-select {
   display: inline-flex;
   align-items: center;
@@ -1730,6 +1743,37 @@ button {
 .contact-name {
   margin: 0;
   font-size: 1.2rem;
+}
+
+.contact-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.contact-type-badge--person {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.contact-type-badge--company {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.contact-type-badge--association {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.contact-type-badge--institution {
+  background: #ede9fe;
+  color: #6d28d9;
 }
 
 .contact-created {
