@@ -331,7 +331,47 @@
     const currentUsernameEl = document.getElementById('current-username');
     const logoutButton = document.getElementById('logout-button');
     const pages = Array.from(document.querySelectorAll('.page'));
-    const navButtons = Array.from(document.querySelectorAll('.nav-button'));
+    const topbarButtons = Array.from(document.querySelectorAll('.topbar-button'));
+    const contextNav = document.getElementById('context-nav');
+    const contextNavList = document.getElementById('context-nav-list');
+    const contextEmptyState = document.getElementById('context-empty-state');
+    const contextEmptyDefaultText = contextEmptyState
+      ? contextEmptyState.textContent || ''
+      : '';
+    const summaryNavigateButtons = Array.from(document.querySelectorAll('[data-navigate]'));
+    const taskSummaryActiveEl = document.getElementById('task-summary-active');
+    const taskSummaryArchivedEl = document.getElementById('task-summary-archived');
+    const taskStatusButtons = Array.from(document.querySelectorAll('.task-status-button'));
+    const taskStatusCountEls = {
+      active: document.querySelector('[data-task-status-count="active"]'),
+      archived: document.querySelector('[data-task-status-count="archived"]'),
+    };
+
+    const MODULE_CONFIG = {
+      tasks: [
+        { id: 'tasks-summary', label: 'Page de récapitulatif' },
+        { id: 'tasks-organization', label: 'Organisation des tâches' },
+        { id: 'tasks-list', label: 'Liste de tâches' },
+      ],
+      directory: [
+        { id: 'categories', label: 'Catégorie' },
+        { id: 'keywords', label: 'Mots clés' },
+        { id: 'contacts-add', label: 'Ajouter des contacts' },
+        { id: 'contacts-import', label: 'Importer des contacts' },
+        { id: 'contacts-search', label: 'Rechercher des contacts' },
+      ],
+      team: [{ id: 'team', label: "Gestion de l'équipe" }],
+    };
+
+    const pageModuleMap = new Map();
+    Object.entries(MODULE_CONFIG).forEach(([moduleId, entries]) => {
+      entries.forEach((entry) => {
+        if (entry && entry.id) {
+          pageModuleMap.set(entry.id, moduleId);
+        }
+      });
+    });
+    const TASK_STATUS_VALUES = new Set(['active', 'archived']);
     const metricValues = Array.from(document.querySelectorAll('[data-metric]'));
     const metricShares = Array.from(document.querySelectorAll('[data-metric-share]'));
     const coverageChartEl = document.getElementById('contact-coverage-chart');
@@ -397,10 +437,6 @@
     const contactsAddSubtitle = document.querySelector('#contacts-add .page-subtitle');
     const contactsAddTitleDefault = contactsAddTitle ? contactsAddTitle.textContent : '';
     const contactsAddSubtitleDefault = contactsAddSubtitle ? contactsAddSubtitle.textContent : '';
-    const dashboardCalendarButton = document.getElementById('dashboard-calendar-button');
-    const dashboardShortcutButtons = Array.from(
-      document.querySelectorAll('[data-shortcut-target]'),
-    );
     const calendarOverlay = document.getElementById('calendar-overlay');
     const calendarCloseButton = document.getElementById('calendar-close-button');
     const calendarGridEl = document.getElementById('calendar-grid');
@@ -416,8 +452,6 @@
     const calendarEventNotesInput = document.getElementById('calendar-event-notes');
     const calendarViewButtons = Array.from(document.querySelectorAll('[data-calendar-view]'));
     const calendarNavButtons = Array.from(document.querySelectorAll('[data-calendar-nav]'));
-    const taskToggleButton = document.getElementById('dashboard-tasklist-button');
-    const taskPanel = document.getElementById('dashboard-task-panel');
     const taskPanelDescription = document.getElementById('task-panel-description');
     const taskForm = document.getElementById('task-form');
     const taskList = document.getElementById('task-list');
@@ -519,23 +553,20 @@
 	  saveDataForUser(currentUser, data);
 	}
 	
-	const navTeamBtn = document.getElementById('nav-team');
-	const isOwner = currentUser === data.panelOwner;
+        const topbarTeamButton = document.getElementById('topbar-team');
+        const isOwner = currentUser === data.panelOwner;
 
-	if (navTeamBtn instanceof HTMLElement) {
-	  if (!isOwner) {
-		navTeamBtn.remove(); // on supprime l’entrée du menu
-	  }
-	}
-
-	const originalShowPage = showPage;
-	showPage = function(pageId) {
-	  if (pageId === 'team' && !isOwner) {
-		originalShowPage('dashboard');
-		return;
-	  }
-	  originalShowPage(pageId);
-	};
+        if (!isOwner) {
+          if (topbarTeamButton instanceof HTMLElement && topbarTeamButton.parentElement) {
+            topbarTeamButton.parentElement.removeChild(topbarTeamButton);
+          }
+          delete MODULE_CONFIG.team;
+          pageModuleMap.delete('team');
+          const teamIndex = topbarButtons.indexOf(topbarTeamButton);
+          if (teamIndex >= 0) {
+            topbarButtons.splice(teamIndex, 1);
+          }
+        }
 
 
 	
@@ -571,8 +602,11 @@
     let calendarHasBeenOpened = false;
     let teamMembers = loadTeamMembers();
     let teamMembersById = new Map(teamMembers.map((member) => [member.username, member]));
+    let currentModuleId = '';
+    let currentPageId = '';
     let taskCategoriesById = new Map();
     let taskCategoryFilter = TASK_CATEGORY_FILTER_ALL;
+    let taskStatusFilter = 'active';
     let editingTaskExistingAttachment = null;
     let removeAttachmentOnSubmit = false;
     let taskCategoryIndicatorFrame = 0;
@@ -608,31 +642,49 @@
       });
     }
 
-    navButtons.forEach((button) => {
+    topbarButtons.forEach((button) => {
       button.addEventListener('click', () => {
-        const target = button.dataset.target;
-        if (target) {
-          showPage(target);
+        const moduleId = button.dataset.topTarget || '';
+        if (!moduleId) {
+          return;
+        }
+        activateModule(moduleId);
+      });
+    });
+
+    if (contextNavList) {
+      contextNavList.addEventListener('click', (event) => {
+        const target =
+          event.target instanceof HTMLElement
+            ? event.target.closest('.context-button')
+            : null;
+        if (!(target instanceof HTMLButtonElement)) {
+          return;
+        }
+        const pageId = target.dataset.contextTarget || '';
+        if (pageId) {
+          activatePage(pageId);
+        }
+      });
+    }
+
+    summaryNavigateButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const targetPage = button.dataset.navigate || '';
+        if (targetPage) {
+          showPage(targetPage);
         }
       });
     });
 
-    if (dashboardCalendarButton) {
-      dashboardCalendarButton.addEventListener('click', () => {
-        openCalendar();
+    taskStatusButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const status = button.dataset.taskStatus || '';
+        setTaskStatusFilter(status);
       });
-    }
+    });
 
-    if (dashboardShortcutButtons.length > 0) {
-      dashboardShortcutButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-          const target = button.dataset.shortcutTarget;
-          if (target) {
-            showPage(target);
-          }
-        });
-      });
-    }
+    updateTaskStatusButtons();
 
     if (calendarCloseButton) {
       calendarCloseButton.addEventListener('click', () => {
@@ -645,16 +697,6 @@
         if (event.target === calendarOverlay) {
           closeCalendar();
         }
-      });
-    }
-
-    if (taskToggleButton && taskPanel) {
-      taskToggleButton.addEventListener('click', () => {
-        if (isTaskPanelOpen()) {
-          closeTaskPanel();
-          return;
-        }
-        openTaskPanel();
       });
     }
 
@@ -755,21 +797,41 @@
 
     if (taskList) {
       taskList.addEventListener('click', (event) => {
-        const target = event.target;
+        const target =
+          event.target instanceof HTMLElement
+            ? event.target.closest('[data-action]')
+            : null;
         if (!(target instanceof HTMLElement)) {
           return;
         }
-        if (target.dataset.action === 'delete-task') {
-          const taskId = target.dataset.taskId || '';
-          if (taskId) {
-            deleteTask(taskId);
-          }
+
+        const action = target.dataset.action || '';
+        const taskId = target.dataset.taskId || '';
+
+        switch (action) {
+          case 'delete-task':
+            if (taskId) {
+              deleteTask(taskId);
+            }
+            break;
+          case 'edit-task':
+            if (taskId) {
+              startEditTask(taskId);
+            }
+            break;
+          case 'archive-task':
+            if (taskId) {
+              archiveTask(taskId);
+            }
+            break;
+          case 'restore-task':
+            if (taskId) {
+              restoreTask(taskId);
+            }
+            break;
+          default:
+            break;
         }
-		if (target.dataset.action === 'edit-task') {
-		  const taskId = target.dataset.taskId || '';
-		  if (taskId) startEditTask(taskId);
-		  return;
-		}
       });
 
       taskList.addEventListener('submit', (event) => {
@@ -797,16 +859,6 @@
         addCommentToTask(taskId, content);
       });
     }
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && isTaskPanelOpen()) {
-        event.preventDefault();
-        closeTaskPanel();
-        if (taskToggleButton) {
-          taskToggleButton.focus();
-        }
-      }
-    });
 
     calendarViewButtons.forEach((button) => {
       button.addEventListener('click', () => {
@@ -1334,7 +1386,7 @@
     window.UManager = window.UManager || {};
     window.UManager.importApi = importApi;
 
-    showPage('dashboard');
+    activateModule('tasks', 'tasks-summary');
     renderMetrics();
     renderCategories();
     renderKeywords();
@@ -1378,9 +1430,14 @@
         calendarOverlay.setAttribute('hidden', '');
       }
       document.removeEventListener('keydown', handleCalendarKeydown, true);
+      const moduleToRestore =
+        currentModuleId && currentModuleId !== 'calendar' ? currentModuleId : 'tasks';
+      renderContextNavigationForModule(moduleToRestore);
+      setActiveTopbar(moduleToRestore);
       if (calendarLastFocusedElement && typeof calendarLastFocusedElement.focus === 'function') {
         calendarLastFocusedElement.focus();
       }
+      calendarLastFocusedElement = null;
     }
 
     function handleCalendarKeydown(event) {
@@ -1974,21 +2031,185 @@
       return a.title.localeCompare(b.title);
     }
 
-    function showPage(target) {
-      if (target !== 'dashboard') {
-        closeCalendar();
+    function setActiveTopbar(moduleId) {
+      topbarButtons.forEach((button) => {
+        const isActive = button.dataset.topTarget === moduleId;
+        button.classList.toggle('active', isActive);
+        if (isActive) {
+          button.setAttribute('aria-current', 'page');
+        } else {
+          button.removeAttribute('aria-current');
+        }
+      });
+    }
+
+    function renderContextNavigationForModule(moduleId) {
+      if (!contextNavList) {
+        return;
       }
-      navButtons.forEach((button) => {
-        button.classList.toggle('active', button.dataset.target === target);
+
+      contextNavList.innerHTML = '';
+      const entries = MODULE_CONFIG[moduleId] || [];
+
+      if (entries.length === 0) {
+        if (contextNav) {
+          contextNav.hidden = true;
+          if (!contextNav.hasAttribute('hidden')) {
+            contextNav.setAttribute('hidden', '');
+          }
+        }
+        if (contextEmptyState) {
+          contextEmptyState.hidden = false;
+          contextEmptyState.removeAttribute('hidden');
+          contextEmptyState.textContent =
+            contextEmptyDefaultText || 'Aucune option disponible pour ce module.';
+        }
+        return;
+      }
+
+      if (contextNav) {
+        contextNav.hidden = false;
+        contextNav.removeAttribute('hidden');
+      }
+      if (contextEmptyState) {
+        contextEmptyState.hidden = true;
+        if (!contextEmptyState.hasAttribute('hidden')) {
+          contextEmptyState.setAttribute('hidden', '');
+        }
+        contextEmptyState.textContent = contextEmptyDefaultText;
+      }
+
+      const fragment = document.createDocumentFragment();
+      entries.forEach((entry) => {
+        if (!entry || !entry.id) {
+          return;
+        }
+        const listItem = document.createElement('li');
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'context-button';
+        button.dataset.contextTarget = entry.id;
+        button.textContent = entry.label;
+        listItem.appendChild(button);
+        fragment.appendChild(listItem);
       });
+      contextNavList.appendChild(fragment);
+      setActiveContextButton(currentPageId);
+    }
+
+    function setActiveContextButton(pageId) {
+      if (!contextNavList) {
+        return;
+      }
+      const buttons = Array.from(contextNavList.querySelectorAll('.context-button'));
+      buttons.forEach((button) => {
+        const isActive =
+          button instanceof HTMLButtonElement && button.dataset.contextTarget === pageId;
+        button.classList.toggle('active', isActive);
+        if (isActive) {
+          button.setAttribute('aria-current', 'page');
+        } else {
+          button.removeAttribute('aria-current');
+        }
+      });
+    }
+
+    function activateModule(moduleId, requestedPageId) {
+      if (!moduleId) {
+        return;
+      }
+
+      if (moduleId === 'calendar') {
+        setActiveTopbar(moduleId);
+        if (contextNav) {
+          contextNav.hidden = true;
+          if (!contextNav.hasAttribute('hidden')) {
+            contextNav.setAttribute('hidden', '');
+          }
+        }
+        if (contextEmptyState) {
+          contextEmptyState.hidden = false;
+          contextEmptyState.textContent = 'Le calendrier ne propose pas de menu dédié.';
+        }
+        openCalendar();
+        return;
+      }
+
+      if (moduleId === 'team' && !isOwner) {
+        activateModule('tasks', 'tasks-summary');
+        return;
+      }
+
+      closeCalendar();
+
+      if (moduleId !== currentModuleId) {
+        currentModuleId = moduleId;
+        renderContextNavigationForModule(moduleId);
+      } else if (!contextNavList || contextNavList.childElementCount === 0) {
+        renderContextNavigationForModule(moduleId);
+      }
+
+      setActiveTopbar(moduleId);
+
+      const entries = MODULE_CONFIG[moduleId] || [];
+      const defaultPageId = entries.length > 0 ? entries[0].id : '';
+      const nextPageId =
+        requestedPageId && pageModuleMap.get(requestedPageId) === moduleId
+          ? requestedPageId
+          : defaultPageId;
+
+      if (nextPageId) {
+        activatePage(nextPageId);
+        return;
+      }
+
+      pages.forEach((page) => page.classList.remove('active'));
+      currentPageId = '';
+      setActiveContextButton('');
+    }
+
+    function activatePage(pageId) {
+      if (!pageId) {
+        return;
+      }
+
+      if (pageId === 'team' && !isOwner) {
+        activateModule('tasks', 'tasks-summary');
+        return;
+      }
+
+      closeCalendar();
+
+      const moduleId = pageModuleMap.get(pageId);
+      if (moduleId && moduleId !== currentModuleId) {
+        activateModule(moduleId, pageId);
+        return;
+      }
+
+      let hasMatch = false;
       pages.forEach((page) => {
-        page.classList.toggle('active', page.id === target);
+        const isActive = page.id === pageId;
+        if (isActive) {
+          hasMatch = true;
+        }
+        page.classList.toggle('active', isActive);
       });
+
+      if (!hasMatch) {
+        return;
+      }
+
+      currentPageId = pageId;
+      setActiveContextButton(pageId);
       document.dispatchEvent(
         new CustomEvent('umanager:page-changed', {
-          detail: { pageId: target },
+          detail: { pageId },
         }),
       );
+    }
+
+    function showPage(target) {
+      activatePage(target);
     }
 
     function loadTeamMembers() {
@@ -2217,7 +2438,9 @@
       const indicator = taskCategoryIndicator;
       taskCategoryNav.innerHTML = '';
 
-      const counts = buildTaskCounts(Array.isArray(data.tasks) ? data.tasks : []);
+      const counts = buildTaskCounts(
+        filterTasksByStatus(Array.isArray(data.tasks) ? data.tasks : []),
+      );
 
       const navItems = [
         { id: TASK_CATEGORY_FILTER_ALL, label: 'Toutes', icon: '✨' },
@@ -2403,6 +2626,28 @@
       taskCategoryIndicatorFrame = window.requestAnimationFrame(() => {
         taskCategoryIndicatorFrame = 0;
         updateTaskCategoryIndicatorPosition();
+      });
+    }
+
+    function setTaskStatusFilter(rawValue) {
+      const normalized =
+        typeof rawValue === 'string' ? rawValue.trim().toLowerCase() : '';
+      const nextStatus = TASK_STATUS_VALUES.has(normalized) ? normalized : 'active';
+      if (nextStatus === taskStatusFilter) {
+        return;
+      }
+
+      taskStatusFilter = nextStatus;
+      updateTaskStatusButtons();
+      renderTasks();
+    }
+
+    function updateTaskStatusButtons() {
+      taskStatusButtons.forEach((button) => {
+        const status = button.dataset.taskStatus || '';
+        const isActive = status === taskStatusFilter;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
       });
     }
 
@@ -2840,47 +3085,6 @@
       });
     }
 
-    function isTaskPanelOpen() {
-      return Boolean(taskPanel && !taskPanel.hidden);
-    }
-
-    function openTaskPanel() {
-      if (!taskPanel) {
-        return;
-      }
-
-      taskPanel.hidden = false;
-      taskPanel.removeAttribute('hidden');
-      if (taskToggleButton) {
-        taskToggleButton.setAttribute('aria-expanded', 'true');
-      }
-
-      window.requestAnimationFrame(() => {
-        if (taskTitleInput instanceof HTMLInputElement) {
-          taskTitleInput.focus();
-        }
-      });
-    }
-
-    function closeTaskPanel() {
-      if (!taskPanel) {
-        return;
-      }
-
-      taskPanel.hidden = true;
-      if (!taskPanel.hasAttribute('hidden')) {
-        taskPanel.setAttribute('hidden', '');
-      }
-      if (taskToggleButton) {
-        taskToggleButton.setAttribute('aria-expanded', 'false');
-      }
-
-      if (taskForm) {
-        taskForm.reset();
-      }
-      resetTaskFormDefaults();
-    }
-
     async function createTaskFromForm() {
       if (!taskForm || !(taskTitleInput instanceof HTMLInputElement)) {
         return;
@@ -2964,6 +3168,7 @@
         comments: [],
         categoryId,
         attachment,
+        isArchived: false,
       });
 
           if (newTask.dueDate) {
@@ -2999,6 +3204,22 @@
       });
     }
 
+    function filterTasksByStatus(tasks, status = taskStatusFilter) {
+      const normalized = TASK_STATUS_VALUES.has(status) ? status : 'active';
+      if (!Array.isArray(tasks)) {
+        return [];
+      }
+
+      return tasks.filter((task) => {
+        if (!task || typeof task !== 'object') {
+          return false;
+        }
+
+        const archived = Boolean(task.isArchived);
+        return normalized === 'archived' ? archived : !archived;
+      });
+    }
+
     function renderTasks() {
       if (!taskList) {
         return;
@@ -3010,10 +3231,11 @@
         data.tasks = tasks.slice();
       }
 
-      const counts = buildTaskCounts(tasks);
+      const tasksForStatus = filterTasksByStatus(tasks);
+      const counts = buildTaskCounts(tasksForStatus);
       updateTaskCategoryCountBadges(counts);
 
-      const filteredTasks = tasks.filter((task) => {
+      const filteredTasks = tasksForStatus.filter((task) => {
         if (!task || typeof task !== 'object') {
           return false;
         }
@@ -3037,22 +3259,35 @@
         if (filteredTasks.length === 0) {
           taskEmptyState.hidden = false;
           taskEmptyState.removeAttribute('hidden');
-          taskEmptyState.textContent = isFilteredView
-            ? 'Aucune tâche dans cette catégorie pour le moment.'
-            : taskEmptyStateDefaultText ||
+          if (taskStatusFilter === 'archived') {
+            taskEmptyState.textContent = isFilteredView
+              ? 'Aucune tâche archivée pour cette catégorie.'
+              : 'Aucune tâche archivée pour le moment.';
+          } else {
+            const defaultMessage =
+              taskEmptyStateDefaultText ||
               'Aucune tâche planifiée pour le moment. Ajoutez votre première action ci-dessus.';
+            taskEmptyState.textContent = isFilteredView
+              ? 'Aucune tâche dans cette catégorie pour le moment.'
+              : defaultMessage;
+          }
         } else {
           taskEmptyState.hidden = true;
           if (!taskEmptyState.hasAttribute('hidden')) {
             taskEmptyState.setAttribute('hidden', '');
           }
-          taskEmptyState.textContent = taskEmptyStateDefaultText;
+          taskEmptyState.textContent =
+            taskStatusFilter === 'archived'
+              ? 'Aucune tâche archivée pour le moment.'
+              : taskEmptyStateDefaultText;
         }
       }
 
-      updateTaskCountDisplay(tasks.length, filteredTasks.length);
+      updateTaskCountDisplay(tasksForStatus.length, filteredTasks.length);
 
       if (filteredTasks.length === 0) {
+        updateTaskSummaryCounts();
+        scheduleTaskCategoryIndicatorUpdate();
         return;
       }
 
@@ -3072,9 +3307,14 @@
         listItem.style.setProperty('--task-color', taskColor);
         listItem.style.setProperty('--task-color-soft', hexToRgba(taskColor, 0.12));
 
-        if (
-          Array.isArray(task.assignedMembers) && task.assignedMembers.includes(currentUser)
-        ) {
+        const isArchived = Boolean(task.isArchived);
+        if (isArchived) {
+          listItem.classList.add('task-item--archived');
+        }
+
+        const isAssignedToMe =
+          Array.isArray(task.assignedMembers) && task.assignedMembers.includes(currentUser);
+        if (isAssignedToMe) {
           listItem.classList.add('task-item--assigned-me');
         }
 
@@ -3083,10 +3323,30 @@
 
         const titleEl = document.createElement('h3');
         titleEl.className = 'task-title';
-        titleEl.textContent = task.title || 'Nouvelle tâche';
+
+        if (isAssignedToMe) {
+          const assignedBadge = document.createElement('span');
+          assignedBadge.className = 'task-assigned-badge';
+          assignedBadge.setAttribute('title', 'Tâche qui vous est attribuée');
+          assignedBadge.setAttribute('aria-label', 'Tâche qui vous est attribuée');
+          assignedBadge.textContent = '⭐';
+          titleEl.appendChild(assignedBadge);
+        }
+
+        const titleText = document.createElement('span');
+        titleText.className = 'task-title-text';
+        titleText.textContent = task.title || 'Nouvelle tâche';
+        titleEl.appendChild(titleText);
 
         const metaContainer = document.createElement('div');
         metaContainer.className = 'task-meta';
+
+        if (isArchived) {
+          const statusBadge = document.createElement('span');
+          statusBadge.className = 'task-status-badge';
+          statusBadge.textContent = 'Archivée';
+          metaContainer.appendChild(statusBadge);
+        }
 
         const category =
           typeof task.categoryId === 'string' && task.categoryId
@@ -3113,7 +3373,7 @@
               : task.dueDate;
           dueDateEl.textContent = `Échéance : ${formattedDueDate}`;
 
-          if (dueDate && dueDate.getTime() < startOfDay(new Date()).getTime()) {
+          if (dueDate && dueDate.getTime() < startOfDay(new Date()).getTime() && !isArchived) {
             dueDateEl.classList.add('task-due-date--overdue');
           }
 
@@ -3148,6 +3408,14 @@
         editButton.dataset.taskId = task.id || '';
         editButton.textContent = 'Modifier';
         actions.appendChild(editButton);
+
+        const archiveButton = document.createElement('button');
+        archiveButton.type = 'button';
+        archiveButton.className = 'task-action-button';
+        archiveButton.dataset.action = isArchived ? 'restore-task' : 'archive-task';
+        archiveButton.dataset.taskId = task.id || '';
+        archiveButton.textContent = isArchived ? 'Restaurer' : 'Archiver';
+        actions.appendChild(archiveButton);
 
         const deleteButton = document.createElement('button');
         deleteButton.type = 'button';
@@ -3302,6 +3570,8 @@
       });
 
       taskList.appendChild(fragment);
+      updateTaskSummaryCounts();
+      scheduleTaskCategoryIndicatorUpdate();
     }
 	
 	function renderTeamPage() {
@@ -3432,20 +3702,73 @@
         taskCountBadge.textContent = badgeLabel;
       }
 
-      if (taskToggleButton) {
-        const ariaLabel =
-          visibleCount !== totalCount
-            ? `Liste des tâches (${numberFormatter.format(visibleCount)} sur ${numberFormatter.format(
-                totalCount,
-              )})`
-            : `Liste des tâches (${badgeLabel})`;
-        taskToggleButton.setAttribute('aria-label', ariaLabel);
-        taskToggleButton.title = ariaLabel;
+    }
+
+    function updateTaskSummaryCounts() {
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      let activeCount = 0;
+      let archivedCount = 0;
+
+      tasks.forEach((task) => {
+        if (!task || typeof task !== 'object') {
+          return;
+        }
+
+        if (task.isArchived) {
+          archivedCount += 1;
+        } else {
+          activeCount += 1;
+        }
+      });
+
+      if (taskSummaryActiveEl) {
+        taskSummaryActiveEl.textContent = numberFormatter.format(activeCount);
+      }
+      if (taskSummaryArchivedEl) {
+        taskSummaryArchivedEl.textContent = numberFormatter.format(archivedCount);
+      }
+      if (taskStatusCountEls.active instanceof HTMLElement) {
+        taskStatusCountEls.active.textContent = numberFormatter.format(activeCount);
+      }
+      if (taskStatusCountEls.archived instanceof HTMLElement) {
+        taskStatusCountEls.archived.textContent = numberFormatter.format(archivedCount);
       }
     }
 
+    function archiveTask(taskId) {
+      if (!taskId || !Array.isArray(data.tasks)) {
+        return;
+      }
+
+      const task = data.tasks.find((item) => item && item.id === taskId);
+      if (!task || task.isArchived) {
+        return;
+      }
+
+      task.isArchived = true;
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderTasks();
+    }
+
+    function restoreTask(taskId) {
+      if (!taskId || !Array.isArray(data.tasks)) {
+        return;
+      }
+
+      const task = data.tasks.find((item) => item && item.id === taskId);
+      if (!task || !task.isArchived) {
+        return;
+      }
+
+      task.isArchived = false;
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderTasks();
+    }
+
     function deleteTask(taskId) {
-	  if (!taskId) return;
+          if (!taskId) return;
 
 	  // Chercher la tâche pour savoir si elle a un évènement lié
 	  const existingTask = Array.isArray(data.tasks)
@@ -3493,8 +3816,8 @@
 	  const t = data.tasks.find((x) => x && x.id === taskId);
 	  if (!t) return;
 
-	  // Ouvre la page "Tâches" si besoin
-	  showPage && showPage('tasks');
+          // Ouvre la page « Liste de tâches » si besoin
+          showPage && showPage('tasks-list');
 
 	  // Remplit le formulaire
 	  if (taskTitleInput instanceof HTMLInputElement) taskTitleInput.value = t.title || '';
@@ -6712,6 +7035,13 @@
         calendarEventId = baseTask.calendarEventId.trim();
       }
 
+      let isArchived = false;
+      if (typeof baseTask.isArchived === 'boolean') {
+        isArchived = baseTask.isArchived;
+      } else if (typeof baseTask.status === 'string') {
+        isArchived = baseTask.status.trim().toLowerCase() === 'archived';
+      }
+
       return {
         id,
         title,
@@ -6725,6 +7055,7 @@
         categoryId,
         attachment,
         calendarEventId,
+        isArchived,
       };
     }
 
@@ -7081,6 +7412,8 @@
           if (typeof task.categoryId !== 'string' || !taskCategoryIdSet.has(task.categoryId)) {
             task.categoryId = '';
           }
+
+          task.isArchived = Boolean(task.isArchived);
 
           if (!task.attachment || typeof task.attachment !== 'object') {
             task.attachment = null;

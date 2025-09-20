@@ -12,574 +12,77 @@
   </head>
   <body>
     <div class="app">
-      <aside class="sidebar" aria-label="Navigation principale">
-        <div class="brand">
+      <header class="topbar" aria-label="Navigation principale">
+        <div class="topbar-brand">
           <span class="brand-logo" aria-hidden="true">📊</span>
           <span class="brand-name">UManager</span>
         </div>
-        <nav class="sidebar-nav">
-          <button class="nav-button active" data-target="dashboard" type="button">
-            Accueil
+        <nav class="topbar-nav" aria-label="Modules">
+          <button class="topbar-button" type="button" data-top-target="calendar">
+            Calendrier
           </button>
-          <button class="nav-button" data-target="categories" type="button">
-            Catégories
-          </button>
-          <button class="nav-button" data-target="keywords" type="button">
-            Mots clés
-          </button>
-          <button class="nav-button" data-target="contacts-add" type="button">
-            Ajouter des contacts
-          </button>
-          <button class="nav-button" data-target="contacts-import" type="button">
-            Importer des contacts
-          </button>
-          <button class="nav-button" data-target="contacts-search" type="button">
-            Recherche de contact
-          </button>
-          <!-- Nouvelle entrée Tâches -->
-          <button class="nav-button" data-target="tasks" type="button">
+          <button class="topbar-button active" type="button" data-top-target="tasks">
             Tâches
           </button>
-		  <button class="nav-button" data-target="team" id="nav-team" type="button">
-		    Équipe
-		  </button>
+          <button class="topbar-button" type="button" data-top-target="directory">
+            Répertoire
+          </button>
+          <button class="topbar-button" type="button" data-top-target="team" id="topbar-team">
+            Équipe
+          </button>
         </nav>
-        <div class="sidebar-footer">
-          <div class="sidebar-user" aria-live="polite">
-            <span class="sidebar-user-label">Connecté :</span>
-            <strong id="current-username">—</strong>
-          </div>
+        <div class="topbar-user" aria-live="polite">
+          <span class="topbar-user-label">Connecté&nbsp;:</span>
+          <strong id="current-username">—</strong>
           <button id="logout-button" class="logout-button" type="button">Se déconnecter</button>
-          <p class="sidebar-tagline">
-            Gérez vos données professionnelles, associations et structures en toute
-            simplicité.
-          </p>
         </div>
-      </aside>
-      <main class="content">
-        <!-- Tableau de bord -->
-        <section id="dashboard" class="page active" aria-labelledby="dashboard-title">
-          <div
-            class="dashboard-toolbar"
-            role="toolbar"
-            aria-label="Actions rapides du tableau de bord"
-          >
-            <button
-              id="dashboard-calendar-button"
-              class="dashboard-toolbar-button dashboard-toolbar-button--primary"
-              type="button"
-            >
-              <span class="dashboard-toolbar-icon" aria-hidden="true">📅</span>
-              <span>Calendrier</span>
-            </button>
-            <button
-              id="dashboard-shortcut-contacts"
-              class="dashboard-toolbar-button"
-              type="button"
-              data-shortcut-target="contacts-add"
-            >
-              <span class="dashboard-toolbar-icon" aria-hidden="true">➕</span>
-              <span>Ajouter un contact</span>
-            </button>
-            <button
-              id="dashboard-shortcut-categories"
-              class="dashboard-toolbar-button"
-              type="button"
-              data-shortcut-target="categories"
-            >
-              <span class="dashboard-toolbar-icon" aria-hidden="true">🗂️</span>
-              <span>Gérer les catégories</span>
-            </button>
-            <!-- Bouton redirigeant vers la page Tâches -->
-            <button
-              id="dashboard-tasklist-button"
-              class="dashboard-toolbar-button"
-              type="button"
-              data-shortcut-target="tasks"
-            >
-              <span class="dashboard-toolbar-icon" aria-hidden="true">✅</span>
-              <span>Liste des tâches</span>
-            </button>
-          </div>
-
-          <header class="page-header">
-            <div>
-              <h1 id="dashboard-title">Tableau de bord</h1>
-              <p class="page-subtitle">
-                Visualisez en un clin d'œil les indicateurs clés de votre base de données.
-              </p>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Dernière mise à jour</span>
-              <time id="last-updated" class="insight-value">—</time>
-            </div>
-          </header>
-          <div class="metrics-grid" role="list">
-            <article class="metric-card" role="listitem">
-              <header>
-                <h2>Personnes enregistrées</h2>
-                <p class="metric-caption">Nombre total de profils actifs dans votre base.</p>
-              </header>
-              <p class="metric-value" data-metric="peopleCount">0</p>
-            </article>
-            <article class="metric-card" role="listitem">
-              <header>
-                <h2>Téléphones recensés</h2>
-                <p class="metric-caption">
-                  Total des numéros de téléphone collectés et vérifiés.
-                </p>
-              </header>
-              <p class="metric-value" data-metric="phoneCount">0</p>
-              <p class="metric-subtext" data-metric-share="phone">0 % des contacts</p>
-            </article>
-            <article class="metric-card" role="listitem">
-              <header>
-                <h2>Adresses mail collectées</h2>
-                <p class="metric-caption">Total des courriels valides en base.</p>
-              </header>
-              <p class="metric-value" data-metric="emailCount">0</p>
-              <p class="metric-subtext" data-metric-share="email">0 % des contacts</p>
-            </article>
-          </div>
-          <section class="metrics-coverage" aria-labelledby="metrics-coverage-title">
-            <h2 id="metrics-coverage-title">Répartition des coordonnées collectées</h2>
-            <div class="coverage-content">
-              <div
-                id="contact-coverage-chart"
-                class="coverage-chart"
-                role="img"
-                aria-live="polite"
-                aria-label="Aucune donnée de contact disponible."
-              ></div>
-              <ul class="coverage-legend">
-                <li>
-                  <span class="coverage-dot coverage-dot--both" aria-hidden="true"></span>
-                  <div class="coverage-legend-text">
-                    <span class="coverage-name">Téléphone + e-mail</span>
-                    <span class="coverage-count" data-coverage-count="both">0 contact</span>
-                  </div>
-                  <span class="coverage-percent" data-coverage-percent="both">0 %</span>
-                </li>
-                <li>
-                  <span class="coverage-dot coverage-dot--phone" aria-hidden="true"></span>
-                  <div class="coverage-legend-text">
-                    <span class="coverage-name">Téléphone uniquement</span>
-                    <span class="coverage-count" data-coverage-count="phone">0 contact</span>
-                  </div>
-                  <span class="coverage-percent" data-coverage-percent="phone">0 %</span>
-                </li>
-                <li>
-                  <span class="coverage-dot coverage-dot--email" aria-hidden="true"></span>
-                  <div class="coverage-legend-text">
-                    <span class="coverage-name">E-mail uniquement</span>
-                    <span class="coverage-count" data-coverage-count="email">0 contact</span>
-                  </div>
-                  <span class="coverage-percent" data-coverage-percent="email">0 %</span>
-                </li>
-                <li>
-                  <span class="coverage-dot coverage-dot--none" aria-hidden="true"></span>
-                  <div class="coverage-legend-text">
-                    <span class="coverage-name">Aucune coordonnée</span>
-                    <span class="coverage-count" data-coverage-count="none">0 contact</span>
-                  </div>
-                  <span class="coverage-percent" data-coverage-percent="none">0 %</span>
-                </li>
-              </ul>
-            </div>
-          </section>
-          <section class="summary" aria-labelledby="summary-title">
-            <h2 id="summary-title">Synthèse</h2>
-            <div class="summary-grid">
-              <div class="summary-item">
-                <span class="summary-label">Données totales suivies</span>
-                <span class="summary-value" id="total-datasets">0</span>
-              </div>
-              <div class="summary-item">
-                <span class="summary-label">Catégories configurées</span>
-                <span class="summary-value" id="categories-count">0</span>
-              </div>
-              <div class="summary-item">
-                <span class="summary-label">Mots clés enregistrés</span>
-                <span class="summary-value" id="keywords-count">0</span>
-              </div>
-            </div>
-            <p class="summary-note">
-              Ajustez vos indicateurs ci-dessus pour refléter la réalité de votre base. Les
-              catégories personnalisées vous aident à structurer précisément vos données, tandis
-              que les mots clés facilitent les recherches ciblées.
-            </p>
-          </section>
-        </section>
-        <section id="categories" class="page" aria-labelledby="categories-title">
-          <header class="page-header">
-            <div>
-              <h1 id="categories-title">Gestion des catégories</h1>
-              <p class="page-subtitle">
-                Créez, modifiez et supprimez les catégories qui structurent vos données.
-              </p>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Catégories actives</span>
-              <span class="insight-value" id="categories-active-count">0</span>
-            </div>
-          </header>
-          <form id="category-form" class="category-form" autocomplete="off">
-            <div class="form-row">
-              <label for="category-name">Nom de la catégorie *</label>
-              <input
-                id="category-name"
-                name="category-name"
-                type="text"
-                required
-                maxlength="80"
-                placeholder="Ex. Donateurs, Bénévoles, Prospects"
-              />
-            </div>
-            <div class="form-row">
-              <label for="category-description">Description</label>
-              <textarea
-                id="category-description"
-                name="category-description"
-                maxlength="240"
-                placeholder="Décrivez la catégorie pour vos équipes (optionnel)."
-                rows="3"
-              ></textarea>
-            </div>
-            <div class="form-row">
-              <label for="category-type">Type de valeur *</label>
-              <select id="category-type" name="category-type" required>
-                <option value="text" selected>Texte</option>
-                <option value="number">Nombre</option>
-                <option value="date">Date</option>
-                <option value="list">Liste</option>
-              </select>
-            </div>
-            <div class="form-row" id="category-options-row" hidden>
-              <label for="category-options">Liste de valeurs</label>
-              <textarea
-                id="category-options"
-                name="category-options"
-                rows="3"
-                maxlength="500"
-                placeholder="Saisissez une valeur par ligne"
-              ></textarea>
-              <p class="form-hint">Ces valeurs seront proposées lors de la saisie du contact.</p>
-            </div>
-            <button type="submit" class="primary-button">Ajouter la catégorie</button>
-          </form>
-          <div class="category-list-wrapper">
-            <ul id="category-list" class="category-list" aria-live="polite"></ul>
-            <p id="category-empty-state" class="empty-state">
-              Ajoutez vos premières catégories pour organiser vos données professionnelles.
-            </p>
-          </div>
-        </section>
-        <section id="keywords" class="page" aria-labelledby="keywords-title">
-          <header class="page-header">
-            <div>
-              <h1 id="keywords-title">Gestion des mots clés</h1>
-              <p class="page-subtitle">
-                Créez des mots clés libres pour affiner vos recherches avancées.
-              </p>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Mots clés actifs</span>
-              <span class="insight-value" id="keywords-active-count">0</span>
-            </div>
-          </header>
-          <form id="keyword-form" class="keyword-form" autocomplete="off">
-            <div class="form-row">
-              <label for="keyword-name">Nom du mot clé *</label>
-              <input
-                id="keyword-name"
-                name="keyword-name"
-                type="text"
-                required
-                maxlength="80"
-                placeholder="Ex. Mécène, Relance, Association locale"
-              />
-            </div>
-            <div class="form-row">
-              <label for="keyword-description">Description</label>
-              <textarea
-                id="keyword-description"
-                name="keyword-description"
-                maxlength="240"
-                placeholder="Précisez l'usage du mot clé pour vos équipes (optionnel)."
-                rows="3"
-              ></textarea>
-            </div>
-            <button type="submit" class="primary-button">Ajouter le mot clé</button>
-          </form>
-          <div class="keyword-list-wrapper">
-            <ul id="keyword-list" class="keyword-list" aria-live="polite"></ul>
-            <p id="keyword-empty-state" class="empty-state">
-              Ajoutez vos premiers mots clés pour affiner vos filtres de recherche.
-            </p>
-          </div>
-        </section>
-        <section id="contacts-add" class="page" aria-labelledby="contacts-add-title">
-          <header class="page-header">
-            <div>
-              <h1 id="contacts-add-title">Ajouter un contact</h1>
-              <p class="page-subtitle">
-                Créez un contact manuellement et associez-le aux catégories et mots clés pertinents.
-              </p>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Contacts enregistrés</span>
-              <span class="insight-value" id="contacts-count">0</span>
-            </div>
-          </header>
-          <form id="contact-form" class="contact-form" autocomplete="off">
-            <fieldset id="contact-categories-fieldset" class="form-fieldset">
-              <legend>Données personnalisées</legend>
-              <p class="form-hint">
-                Renseignez les valeurs associées à chaque catégorie créée dans l’onglet «&nbsp;Catégories&nbsp;».
-              </p>
-              <div id="contact-category-fields" class="form-grid" aria-live="polite"></div>
-              <p id="contact-categories-empty" class="empty-state" hidden>
-                Aucune catégorie disponible pour le moment. Ajoutez vos catégories dans l’onglet «&nbsp;Catégories&nbsp;».
-              </p>
-            </fieldset>
-            <fieldset id="contact-keywords-fieldset" class="form-fieldset">
-              <legend>Mots clés associés</legend>
-              <p class="form-hint">
-                Sélectionnez les mots clés pertinents créés dans l’onglet «&nbsp;Mots clés&nbsp;».
-              </p>
-              <div id="contact-keywords-container" class="checkbox-grid" aria-live="polite"></div>
-              <p id="contact-keywords-empty" class="empty-state" hidden>
-                Aucun mot clé disponible pour le moment. Ajoutez vos mots clés dans l’onglet «&nbsp;Mots clés&nbsp;».
-              </p>
-            </fieldset>
-            <div class="form-row">
-              <label for="contact-notes">Notes</label>
-              <textarea
-                id="contact-notes"
-                name="contact-notes"
-                rows="3"
-                maxlength="500"
-                placeholder="Informations complémentaires (optionnel)."
-              ></textarea>
-            </div>
-            <div class="form-actions">
-              <button type="submit" class="primary-button" id="contact-submit-button">
-                Ajouter le contact
-              </button>
-              <button type="button" class="secondary-button" id="contact-back-to-search" hidden>
-                Retour à la recherche
-              </button>
-              <button type="button" class="secondary-button" id="contact-cancel-edit" hidden>
-                Annuler la modification
-              </button>
-            </div>
-          </form>
-        </section>
-        <section id="contacts-import" class="page" aria-labelledby="contacts-import-title">
-          <header class="page-header">
-            <div>
-              <h1 id="contacts-import-title">Importer des contacts</h1>
-              <p class="page-subtitle">
-                Téléchargez un fichier Excel puis associez ses colonnes à vos catégories personnalisées.
-              </p>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Contacts détectés</span>
-              <span class="insight-value" id="contact-import-summary-count">—</span>
-            </div>
-          </header>
-          <form id="contact-import-form" class="import-form" autocomplete="off">
-            <div class="form-row">
-              <label for="contact-import-file">Fichier Excel à importer</label>
-              <input id="contact-import-file" type="file" accept=".xlsx,.xls,.csv" />
-              <p class="form-hint">
-                Le traitement s’effectue entièrement dans votre navigateur&nbsp;: aucun fichier n’est envoyé sur un
-                serveur externe.
-              </p>
-            </div>
-            <div id="contact-import-file-summary" class="import-file-summary" hidden></div>
-            <div id="contact-import-options" class="import-options" hidden>
-              <label class="import-header-toggle" for="contact-import-has-header">
-                <input type="checkbox" id="contact-import-has-header" checked />
-                Ignorer la première ligne (en-têtes)
-              </label>
-              <label class="import-header-toggle" for="contact-import-auto-merge">
-                <input type="checkbox" id="contact-import-auto-merge" />
-                Activer la fusion automatique des doublons détectés
-              </label>
-              <p class="form-hint import-auto-merge-hint">
-                En cas de doublon, la dernière version des données importées sera appliquée aux
-                contacts existants lorsque cette option est activée.
-              </p>
-              <p class="form-hint">
-                Sélectionnez pour chaque catégorie la colonne du fichier correspondante.
-              </p>
-              <div id="contact-import-mapping" class="import-mapping" aria-live="polite"></div>
-              <p id="contact-import-mapping-empty" class="empty-state" hidden>
-                Chargez un fichier Excel et assurez-vous d’avoir défini des catégories pour configurer l’import.
-              </p>
-            </div>
-            <div id="contact-import-feedback" class="import-feedback" role="status" aria-live="polite"></div>
-            <div class="form-actions import-actions">
-              <button type="button" class="primary-button" id="contact-import-submit" disabled>
-                Importer les contacts
-              </button>
-              <button type="button" class="secondary-button" id="contact-import-reset" disabled>
-                Réinitialiser
-              </button>
-            </div>
-          </form>
-          <section id="contact-import-preview" class="import-preview" hidden aria-live="polite">
-            <h2 class="import-preview-title">Aperçu des premières lignes</h2>
-            <div class="import-preview-table-wrapper">
-              <table class="import-preview-table">
-                <thead></thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </section>
-        </section>
-        <section id="contacts-search" class="page" aria-labelledby="contacts-search-title">
-          <header class="page-header">
-            <div>
-              <h1 id="contacts-search-title">Recherche de contact</h1>
-              <p class="page-subtitle">
-                Parcourez les contacts enregistrés et filtrez-les grâce aux catégories, mots clés et
-                critères avancés.
-              </p>
-            </div>
-            <div class="insight-card">
-              <span class="insight-label">Résultats affichés</span>
-              <span class="insight-value" id="contact-search-count">0</span>
-            </div>
-          </header>
-          <div class="contact-search-panel">
-            <div class="contact-search-controls">
-              <label class="sr-only" for="contact-search-input">Rechercher un contact</label>
-              <input
-                id="contact-search-input"
-                type="search"
-                placeholder="Rechercher par valeur de catégorie, note ou mot clé"
-                autocomplete="off"
-              />
-            </div>
-            <form id="contact-advanced-search" class="contact-advanced-search" autocomplete="off">
-              <div class="advanced-grid" id="search-category-fields" aria-live="polite"></div>
-              <p id="search-categories-empty" class="empty-state" hidden>
-                Ajoutez vos premières catégories pour filtrer vos contacts.
-              </p>
-              <div class="form-row advanced-multiselect">
-                <label for="search-keywords">Sélectionnez mes mots clés</label>
-                <select id="search-keywords" name="search-keywords" multiple></select>
-              </div>
-              <div class="advanced-actions">
-                <button type="submit" class="primary-button">Appliquer les filtres</button>
-                <button type="reset" class="secondary-button">Réinitialiser</button>
-              </div>
-            </form>
-          </div>
-          <div class="contact-bulk-actions">
-            <p
-              id="contact-selected-count"
-              class="contact-bulk-counter"
-              aria-live="polite"
-            >
-              Aucun contact sélectionné
-            </p>
-            <div class="contact-bulk-controls">
-              <button type="button" class="secondary-button" id="contact-select-all" disabled>
-                Sélectionner tous les résultats
-              </button>
-              <button
-                type="button"
-                class="secondary-button contact-bulk-delete"
-                id="contact-delete-selected"
-                disabled
-              >
-                Supprimer la sélection
-              </button>
-              <div class="contact-bulk-keyword">
-                <label for="contact-bulk-keyword" class="sr-only">Mot clé à ajouter</label>
-                <select id="contact-bulk-keyword" disabled>
-                  <option value="">Choisir un mot clé</option>
-                </select>
-                <button type="button" class="secondary-button" id="contact-add-keyword" disabled>
-                  Ajouter le mot clé
-                </button>
-              </div>
-            </div>
-          </div>
-          <ul id="contact-list" class="contact-list" aria-live="polite"></ul>
-          <p id="contact-empty-state" class="empty-state" hidden>
-            Ajoutez vos premiers contacts pour les retrouver ici.
-          </p>
-          <nav
-            id="contact-pagination"
-            class="contact-pagination"
-            aria-label="Pagination des contacts"
-            hidden
-          >
-            <div class="contact-pagination-info">
-              <span id="contact-pagination-summary">Affichage 0 sur 0 contacts</span>
-              <span id="contact-pagination-page">Page 1 / 1</span>
-            </div>
-            <div class="contact-pagination-controls">
-              <button
-                id="contact-pagination-prev"
-                type="button"
-                class="contact-pagination-button"
-                aria-label="Page précédente"
-              >
-                Précédent
-              </button>
-              <button
-                id="contact-pagination-next"
-                type="button"
-                class="contact-pagination-button"
-                aria-label="Page suivante"
-              >
-                Suivant
-              </button>
-            </div>
-            <label class="contact-pagination-size" for="contact-results-per-page">
-              <span>Résultats par page</span>
-              <select id="contact-results-per-page" name="contact-results-per-page">
-                <option value="10" selected>10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-              </select>
-            </label>
-          </nav>
-        </section>
-		<section id="tasks" class="page" aria-labelledby="tasks-title">
-          <header class="page-header">
-            <div>
-              <h1 id="tasks-title">Tâches</h1>
-              <p class="page-subtitle">Centralisez vos actions et attribuez-les aux membres.</p>
-            </div>
-            <span id="task-count-badge" class="task-count-badge" aria-live="polite">0 tâche</span>
-          </header>
-
-          <section class="task-panel" aria-labelledby="task-panel-title">
-            <header class="task-panel-header">
+      </header>
+      <div class="app-shell">
+        <main class="content" aria-live="polite">
+          <section id="tasks-summary" class="page active" aria-labelledby="tasks-summary-title">
+            <header class="page-header">
               <div>
-                <h2 id="task-panel-title">Liste des tâches</h2>
-                <p id="task-panel-description" class="task-panel-subtitle">
-                  Centralisez vos actions et attribuez-les aux membres de l'équipe.
+                <h1 id="tasks-summary-title">Récapitulatif des tâches</h1>
+                <p class="page-subtitle">
+                  Visualisez la charge de travail en cours et l'historique des actions archivées.
+                </p>
+              </div>
+            </header>
+            <div class="task-summary-grid" role="list">
+              <article class="task-summary-card" role="listitem">
+                <h2>Tâches en cours</h2>
+                <p id="task-summary-active" class="task-summary-value">0</p>
+                <p class="task-summary-caption">Tâches actives assignées à l'équipe.</p>
+              </article>
+              <article class="task-summary-card" role="listitem">
+                <h2>Tâches archivées</h2>
+                <p id="task-summary-archived" class="task-summary-value">0</p>
+                <p class="task-summary-caption">Historique des tâches terminées ou clôturées.</p>
+              </article>
+            </div>
+            <div class="task-summary-actions">
+              <button class="primary-button" type="button" data-navigate="tasks-list">
+                Consulter la liste des tâches
+              </button>
+            </div>
+          </section>
+
+          <section id="tasks-organization" class="page" aria-labelledby="tasks-organization-title">
+            <header class="page-header">
+              <div>
+                <h1 id="tasks-organization-title">Organisation des tâches</h1>
+                <p class="page-subtitle">
+                  Créez et classez vos catégories afin de structurer la répartition du travail.
                 </p>
               </div>
             </header>
 
-            <section
-              class="task-category-manager"
-              aria-labelledby="task-category-manager-title"
-            >
+            <section class="task-category-manager" aria-labelledby="task-category-manager-title">
               <header class="task-category-manager-header">
                 <div>
                   <h2 id="task-category-manager-title">Organiser par catégories</h2>
                   <p class="task-category-manager-subtitle">
-                    Créez des catégories personnalisées pour classer vos tâches et
-                    naviguez facilement entre elles.
+                    Créez des catégories personnalisées pour classer vos tâches et naviguez facilement entre elles.
                   </p>
                 </div>
               </header>
@@ -607,10 +110,55 @@
                   </div>
                   <div class="task-category-form-actions">
                     <button type="submit" class="task-category-submit">Créer la catégorie</button>
-                    <button type="reset" class="task-category-reset" aria-label="Réinitialiser le formulaire des catégories">↺</button>
+                    <button
+                      type="reset"
+                      class="task-category-reset"
+                      aria-label="Réinitialiser le formulaire des catégories"
+                    >
+                      ↺
+                    </button>
                   </div>
                 </div>
               </form>
+              <ul id="task-category-list" class="task-category-list" aria-live="polite"></ul>
+              <p id="task-category-empty" class="task-category-empty">
+                Aucune catégorie de tâche pour le moment. Utilisez le formulaire ci-dessus pour en ajouter.
+              </p>
+            </section>
+          </section>
+
+          <section id="tasks-list" class="page" aria-labelledby="tasks-list-title">
+            <header class="page-header">
+              <div>
+                <h1 id="tasks-list-title">Liste de tâches</h1>
+                <p id="task-panel-description" class="page-subtitle">
+                  Centralisez vos actions et attribuez-les aux membres de l'équipe.
+                </p>
+              </div>
+              <span id="task-count-badge" class="task-count-badge" aria-live="polite">0 tâche</span>
+            </header>
+
+            <div class="task-list-controls">
+              <div class="task-status-filter" role="group" aria-label="Filtrer les tâches par statut">
+                <button
+                  type="button"
+                  class="task-status-button active"
+                  data-task-status="active"
+                  aria-pressed="true"
+                >
+                  En cours
+                  <span class="task-status-count" data-task-status-count="active">0</span>
+                </button>
+                <button
+                  type="button"
+                  class="task-status-button"
+                  data-task-status="archived"
+                  aria-pressed="false"
+                >
+                  Archivées
+                  <span class="task-status-count" data-task-status-count="archived">0</span>
+                </button>
+              </div>
               <div class="task-category-nav-wrapper">
                 <div
                   id="task-category-nav"
@@ -618,18 +166,10 @@
                   role="tablist"
                   aria-label="Filtrer les tâches par catégorie"
                 >
-                  <span
-                    id="task-category-indicator"
-                    class="task-category-indicator"
-                    aria-hidden="true"
-                  ></span>
+                  <span id="task-category-indicator" class="task-category-indicator" aria-hidden="true"></span>
                 </div>
               </div>
-              <ul id="task-category-list" class="task-category-list" aria-live="polite"></ul>
-              <p id="task-category-empty" class="task-category-empty">
-                Aucune catégorie de tâche pour le moment. Utilisez le formulaire ci-dessus pour en ajouter.
-              </p>
-            </section>
+            </div>
 
             <form id="task-form" class="task-form" autocomplete="off">
               <div class="task-form-grid">
@@ -709,11 +249,7 @@
                     >
                       Ouvrir
                     </a>
-                    <button
-                      id="task-attachment-remove"
-                      type="button"
-                      class="task-attachment-preview-remove"
-                    >
+                    <button id="task-attachment-remove" type="button" class="task-attachment-preview-remove">
                       Retirer
                     </button>
                   </div>
@@ -734,184 +270,519 @@
               </p>
             </div>
           </section>
-        </section>
-		
-		<section id="team" class="page" aria-labelledby="team-title">
-		  <header class="page-header">
-			<div>
-			  <h1 id="team-title">Équipe</h1>
-			  <p class="page-subtitle">
-				Gérez qui peut accéder au panel et se voir attribuer des tâches.
-			  </p>
-			</div>
-		  </header>
 
-		  <!-- Infos fondateur -->
-		  <section class="summary" aria-labelledby="team-owner-title">
-			<h2 id="team-owner-title">Fondateur du panel</h2>
-			<div class="summary-grid">
-			  <div class="summary-item">
-				<span class="summary-label">Propriétaire</span>
-				<span class="summary-value" id="team-owner-name">—</span>
-			  </div>
-			  <div class="summary-item">
-				<span class="summary-label">Membres actuels</span>
-				<span class="summary-value" id="team-count">0</span>
-			  </div>
-			</div>
-			<p class="summary-note">
-			  Seul le fondateur peut accéder à cette page et modifier la composition de l’équipe.
-			</p>
-		  </section>
-
-		  <!-- Ajouter un membre -->
-		  <section class="category-form" aria-labelledby="team-add-title">
-			<h2 id="team-add-title">Ajouter un membre</h2>
-			<form id="team-add-form" class="form-grid" autocomplete="off">
-			  <div class="form-row">
-				<label for="team-user-select">Utilisateur</label>
-				<select id="team-user-select" name="username" required></select>
-			  </div>
-			  <div class="form-actions">
-				<button type="submit" class="primary-button">Ajouter à l'équipe</button>
-			  </div>
-			</form>
-			<p class="form-hint">
-			  La liste propose uniquement les utilisateurs existants qui ne sont pas déjà membres.
-			</p>
-		  </section>
-
-		  <!-- Liste des membres -->
-		  <section class="category-list-wrapper" aria-labelledby="team-list-title">
-			<h2 id="team-list-title">Membres de l'équipe</h2>
-			<ul id="team-list" class="category-list" aria-live="polite"></ul>
-			<p id="team-empty" class="empty-state" hidden>Aucun membre pour l’instant.</p>
-		  </section>
-		</section>
-		
-        <div
-          id="calendar-overlay"
-          class="calendar-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="calendar-dialog-title"
-          aria-hidden="true"
-          hidden
-        >
-          <div class="calendar-dialog">
-            <header class="calendar-header">
+          <section id="categories" class="page" aria-labelledby="categories-title">
+            <header class="page-header">
               <div>
-                <h2 id="calendar-dialog-title">Calendrier des évènements</h2>
-                <p class="calendar-subtitle">
-                  Planifiez vos actions et notez vos rendez-vous importants.
+                <h1 id="categories-title">Gestion des catégories</h1>
+                <p class="page-subtitle">
+                  Créez, modifiez et supprimez les catégories qui structurent vos données.
                 </p>
               </div>
-              <button
-                id="calendar-close-button"
-                class="calendar-close-button"
-                type="button"
-                aria-label="Fermer le calendrier"
-              >
-                ✕
-              </button>
+              <div class="insight-card">
+                <span class="insight-label">Catégories actives</span>
+                <span class="insight-value" id="categories-active-count">0</span>
+              </div>
             </header>
-            <div class="calendar-toolbar">
-              <div
-                class="calendar-view-toggle"
-                role="group"
-                aria-label="Changer la vue du calendrier"
-              >
-                <button
-                  type="button"
-                  class="calendar-view-button"
-                  data-calendar-view="week"
-                  aria-pressed="false"
-                >
-                  Semaine
+            <form id="category-form" class="category-form" autocomplete="off">
+              <div class="form-row">
+                <label for="category-name">Nom de la catégorie *</label>
+                <input
+                  id="category-name"
+                  name="category-name"
+                  type="text"
+                  required
+                  maxlength="80"
+                  placeholder="Ex. Donateurs, Bénévoles, Prospects"
+                />
+              </div>
+              <div class="form-row">
+                <label for="category-description">Description</label>
+                <textarea
+                  id="category-description"
+                  name="category-description"
+                  maxlength="240"
+                  placeholder="Décrivez la catégorie pour vos équipes (optionnel)."
+                  rows="3"
+                ></textarea>
+              </div>
+              <div class="form-row">
+                <label for="category-type">Type de valeur *</label>
+                <select id="category-type" name="category-type" required>
+                  <option value="text" selected>Texte</option>
+                  <option value="number">Nombre</option>
+                  <option value="date">Date</option>
+                  <option value="list">Liste</option>
+                </select>
+              </div>
+              <div class="form-row" id="category-options-row" hidden>
+                <label for="category-options">Liste de valeurs</label>
+                <textarea
+                  id="category-options"
+                  name="category-options"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="Saisissez une valeur par ligne"
+                ></textarea>
+                <p class="form-hint">Ces valeurs seront proposées lors de la saisie du contact.</p>
+              </div>
+              <button type="submit" class="primary-button">Ajouter la catégorie</button>
+            </form>
+            <div class="category-list-wrapper">
+              <ul id="category-list" class="category-list" aria-live="polite"></ul>
+              <p id="category-empty-state" class="empty-state">
+                Ajoutez vos premières catégories pour organiser vos données professionnelles.
+              </p>
+            </div>
+          </section>
+
+          <section id="keywords" class="page" aria-labelledby="keywords-title">
+            <header class="page-header">
+              <div>
+                <h1 id="keywords-title">Gestion des mots clés</h1>
+                <p class="page-subtitle">
+                  Créez des mots clés libres pour affiner vos recherches avancées.
+                </p>
+              </div>
+              <div class="insight-card">
+                <span class="insight-label">Mots clés actifs</span>
+                <span class="insight-value" id="keywords-active-count">0</span>
+              </div>
+            </header>
+            <form id="keyword-form" class="keyword-form" autocomplete="off">
+              <div class="form-row">
+                <label for="keyword-name">Nom du mot clé *</label>
+                <input
+                  id="keyword-name"
+                  name="keyword-name"
+                  type="text"
+                  required
+                  maxlength="80"
+                  placeholder="Ex. Mécène, Relance, Association locale"
+                />
+              </div>
+              <div class="form-row">
+                <label for="keyword-description">Description</label>
+                <textarea
+                  id="keyword-description"
+                  name="keyword-description"
+                  maxlength="240"
+                  placeholder="Précisez l'usage du mot clé pour vos équipes (optionnel)."
+                  rows="3"
+                ></textarea>
+              </div>
+              <button type="submit" class="primary-button">Ajouter le mot clé</button>
+            </form>
+            <div class="keyword-list-wrapper">
+              <ul id="keyword-list" class="keyword-list" aria-live="polite"></ul>
+              <p id="keyword-empty-state" class="empty-state">
+                Ajoutez vos premiers mots clés pour affiner vos filtres de recherche.
+              </p>
+            </div>
+          </section>
+
+          <section id="contacts-add" class="page" aria-labelledby="contacts-add-title">
+            <header class="page-header">
+              <div>
+                <h1 id="contacts-add-title">Ajouter un contact</h1>
+                <p class="page-subtitle">
+                  Créez un contact manuellement et associez-le aux catégories et mots clés pertinents.
+                </p>
+              </div>
+              <div class="insight-card">
+                <span class="insight-label">Contacts enregistrés</span>
+                <span class="insight-value" id="contacts-count">0</span>
+              </div>
+            </header>
+            <form id="contact-form" class="contact-form" autocomplete="off">
+              <fieldset id="contact-categories-fieldset" class="form-fieldset">
+                <legend>Données personnalisées</legend>
+                <p class="form-hint">
+                  Renseignez les valeurs associées à chaque catégorie créée dans l’onglet «&nbsp;Catégories&nbsp;».
+                </p>
+                <div id="contact-category-fields" class="form-grid" aria-live="polite"></div>
+                <p id="contact-categories-empty" class="empty-state" hidden>
+                  Aucune catégorie disponible pour le moment. Ajoutez vos catégories dans l’onglet «&nbsp;Catégories&nbsp;».
+                </p>
+              </fieldset>
+              <fieldset id="contact-keywords-fieldset" class="form-fieldset">
+                <legend>Mots clés associés</legend>
+                <p class="form-hint">
+                  Sélectionnez les mots clés pertinents créés dans l’onglet «&nbsp;Mots clés&nbsp;».
+                </p>
+                <div id="contact-keywords-container" class="checkbox-grid" aria-live="polite"></div>
+                <p id="contact-keywords-empty" class="empty-state" hidden>
+                  Aucun mot clé disponible pour le moment. Ajoutez vos mots clés dans l’onglet «&nbsp;Mots clés&nbsp;».
+                </p>
+              </fieldset>
+              <div class="form-row">
+                <label for="contact-notes">Notes</label>
+                <textarea
+                  id="contact-notes"
+                  name="contact-notes"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="Informations complémentaires (optionnel)."
+                ></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="primary-button" id="contact-submit-button">Ajouter le contact</button>
+                <button type="button" class="secondary-button" id="contact-back-to-search" hidden>
+                  Retour à la recherche
                 </button>
-                <button
-                  type="button"
-                  class="calendar-view-button active"
-                  data-calendar-view="month"
-                  aria-pressed="true"
-                >
-                  Mois
+                <button type="button" class="secondary-button" id="contact-cancel-edit" hidden>
+                  Annuler la modification
                 </button>
               </div>
-              <div class="calendar-navigation">
+            </form>
+          </section>
+
+          <section id="contacts-import" class="page" aria-labelledby="contacts-import-title">
+            <header class="page-header">
+              <div>
+                <h1 id="contacts-import-title">Importer des contacts</h1>
+                <p class="page-subtitle">
+                  Téléchargez un fichier Excel puis associez ses colonnes à vos catégories personnalisées.
+                </p>
+              </div>
+              <div class="insight-card">
+                <span class="insight-label">Contacts détectés</span>
+                <span class="insight-value" id="contact-import-summary-count">—</span>
+              </div>
+            </header>
+            <form id="contact-import-form" class="import-form" autocomplete="off">
+              <div class="form-row">
+                <label for="contact-import-file">Fichier Excel à importer</label>
+                <input id="contact-import-file" type="file" accept=".xlsx,.xls,.csv" />
+                <p class="form-hint">
+                  Le traitement s’effectue entièrement dans votre navigateur&nbsp;: aucun fichier n’est envoyé sur un serveur externe.
+                </p>
+              </div>
+              <div id="contact-import-file-summary" class="import-file-summary" hidden></div>
+              <div id="contact-import-options" class="import-options" hidden>
+                <label class="import-header-toggle" for="contact-import-has-header">
+                  <input type="checkbox" id="contact-import-has-header" checked />
+                  Ignorer la première ligne (en-têtes)
+                </label>
+                <label class="import-header-toggle" for="contact-import-auto-merge">
+                  <input type="checkbox" id="contact-import-auto-merge" />
+                  Activer la fusion automatique des doublons détectés
+                </label>
+                <p class="form-hint import-auto-merge-hint">
+                  En cas de doublon, la dernière version des données importées sera appliquée aux contacts existants lorsque cette option est activée.
+                </p>
+                <p class="form-hint">
+                  Sélectionnez pour chaque catégorie la colonne du fichier correspondante.
+                </p>
+                <div id="contact-import-mapping" class="import-mapping" aria-live="polite"></div>
+                <p id="contact-import-mapping-empty" class="empty-state" hidden>
+                  Chargez un fichier Excel et assurez-vous d’avoir défini des catégories pour configurer l’import.
+                </p>
+              </div>
+              <div id="contact-import-feedback" class="import-feedback" role="status" aria-live="polite"></div>
+              <div class="form-actions import-actions">
+                <button type="button" class="primary-button" id="contact-import-submit" disabled>
+                  Importer les contacts
+                </button>
+                <button type="button" class="secondary-button" id="contact-import-reset" disabled>
+                  Réinitialiser
+                </button>
+              </div>
+            </form>
+            <section id="contact-import-preview" class="import-preview" hidden aria-live="polite">
+              <h2 class="import-preview-title">Aperçu des premières lignes</h2>
+              <div class="import-preview-table-wrapper">
+                <table class="import-preview-table">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </section>
+          </section>
+
+          <section id="contacts-search" class="page" aria-labelledby="contacts-search-title">
+            <header class="page-header">
+              <div>
+                <h1 id="contacts-search-title">Recherche de contact</h1>
+                <p class="page-subtitle">
+                  Parcourez les contacts enregistrés et filtrez-les grâce aux catégories, mots clés et critères avancés.
+                </p>
+              </div>
+              <div class="insight-card">
+                <span class="insight-label">Résultats affichés</span>
+                <span class="insight-value" id="contact-search-count">0</span>
+              </div>
+            </header>
+            <div class="contact-search-panel">
+              <div class="contact-search-controls">
+                <label class="sr-only" for="contact-search-input">Rechercher un contact</label>
+                <input
+                  id="contact-search-input"
+                  type="search"
+                  placeholder="Rechercher par valeur de catégorie, note ou mot clé"
+                  autocomplete="off"
+                />
+              </div>
+              <form id="contact-advanced-search" class="contact-advanced-search" autocomplete="off">
+                <div class="advanced-grid" id="search-category-fields" aria-live="polite"></div>
+                <p id="search-categories-empty" class="empty-state" hidden>
+                  Ajoutez vos premières catégories pour filtrer vos contacts.
+                </p>
+                <div class="form-row advanced-multiselect">
+                  <label for="search-keywords">Sélectionnez mes mots clés</label>
+                  <select id="search-keywords" name="search-keywords" multiple></select>
+                </div>
+                <div class="advanced-actions">
+                  <button type="submit" class="primary-button">Appliquer les filtres</button>
+                  <button type="reset" class="secondary-button">Réinitialiser</button>
+                </div>
+              </form>
+            </div>
+            <div class="contact-bulk-actions">
+              <p id="contact-selected-count" class="contact-bulk-counter" aria-live="polite">
+                Aucun contact sélectionné
+              </p>
+              <div class="contact-bulk-controls">
+                <button type="button" class="secondary-button" id="contact-select-all" disabled>
+                  Sélectionner tous les résultats
+                </button>
                 <button
                   type="button"
-                  class="calendar-nav-button"
-                  data-calendar-nav="prev"
-                  aria-label="Période précédente"
+                  class="secondary-button contact-bulk-delete"
+                  id="contact-delete-selected"
+                  disabled
                 >
-                  ◀
+                  Supprimer la sélection
                 </button>
-                <span id="calendar-current-period" class="calendar-current-period">—</span>
-                <button
-                  type="button"
-                  class="calendar-nav-button"
-                  data-calendar-nav="next"
-                  aria-label="Période suivante"
-                >
-                  ▶
-                </button>
+                <div class="contact-bulk-keyword">
+                  <label for="contact-bulk-keyword" class="sr-only">Mot clé à ajouter</label>
+                  <select id="contact-bulk-keyword" disabled>
+                    <option value="">Choisir un mot clé</option>
+                  </select>
+                  <button type="button" class="secondary-button" id="contact-add-keyword" disabled>
+                    Ajouter le mot clé
+                  </button>
+                </div>
               </div>
             </div>
-            <div class="calendar-layout">
-              <div class="calendar-main">
-                <div id="calendar-grid" class="calendar-grid" role="grid" aria-live="polite"></div>
+            <ul id="contact-list" class="contact-list" aria-live="polite"></ul>
+            <p id="contact-empty-state" class="empty-state" hidden>
+              Ajoutez vos premiers contacts pour les retrouver ici.
+            </p>
+            <nav id="contact-pagination" class="contact-pagination" aria-label="Pagination des contacts" hidden>
+              <div class="contact-pagination-info">
+                <span id="contact-pagination-summary">Affichage 0 sur 0 contacts</span>
+                <span id="contact-pagination-page">Page 1 / 1</span>
               </div>
-              <aside class="calendar-side">
-                <div class="calendar-selected-date">
-                  <h3 id="calendar-selected-date-label">—</h3>
-                  <p id="calendar-selected-date-summary" class="calendar-selected-date-summary">
-                    Choisissez un jour pour afficher les détails.
-                  </p>
+              <div class="contact-pagination-controls">
+                <button
+                  id="contact-pagination-prev"
+                  type="button"
+                  class="contact-pagination-button"
+                  aria-label="Page précédente"
+                >
+                  Précédent
+                </button>
+                <button
+                  id="contact-pagination-next"
+                  type="button"
+                  class="contact-pagination-button"
+                  aria-label="Page suivante"
+                >
+                  Suivant
+                </button>
+              </div>
+              <label class="contact-pagination-size" for="contact-results-per-page">
+                <span>Résultats par page</span>
+                <select id="contact-results-per-page" name="contact-results-per-page">
+                  <option value="10" selected>10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+              </label>
+            </nav>
+          </section>
+
+          <section id="team" class="page" aria-labelledby="team-title">
+            <header class="page-header">
+              <div>
+                <h1 id="team-title">Équipe</h1>
+                <p class="page-subtitle">
+                  Gérez qui peut accéder au panel et se voir attribuer des tâches.
+                </p>
+              </div>
+            </header>
+            <section class="summary" aria-labelledby="team-owner-title">
+              <h2 id="team-owner-title">Fondateur du panel</h2>
+              <div class="summary-grid">
+                <div class="summary-item">
+                  <span class="summary-label">Propriétaire</span>
+                  <span class="summary-value" id="team-owner-name">—</span>
                 </div>
-                <form id="calendar-event-form" class="calendar-event-form">
-                  <h3 class="calendar-form-title">Nouvel évènement</h3>
-                  <div class="form-row">
-                    <label for="calendar-event-title">Titre *</label>
-                    <input id="calendar-event-title" name="title" type="text" required maxlength="120" />
-                  </div>
-                  <div class="calendar-form-row">
-                    <div class="form-row">
-                      <label for="calendar-event-date">Date *</label>
-                      <input id="calendar-event-date" name="date" type="date" required />
-                    </div>
-                    <div class="form-row">
-                      <label for="calendar-event-time">Heure</label>
-                      <input id="calendar-event-time" name="time" type="time" />
-                    </div>
-                  </div>
-                  <div class="form-row">
-                    <label for="calendar-event-notes">Notes</label>
-                    <textarea
-                      id="calendar-event-notes"
-                      name="notes"
-                      rows="3"
-                      placeholder="Ajoutez des détails ou des objectifs."
-                    ></textarea>
-                  </div>
-                  <div class="calendar-form-actions">
-                    <button type="reset" class="secondary-button">Réinitialiser</button>
-                    <button type="submit" class="primary-button">Ajouter</button>
-                  </div>
-                </form>
-                <div class="calendar-events-wrapper">
-                  <h3 class="calendar-events-title">Évènements du jour</h3>
-                  <p id="calendar-event-empty" class="calendar-empty-state">
-                    Aucun évènement enregistré pour cette date.
-                  </p>
-                  <ul id="calendar-event-list" class="calendar-event-list"></ul>
+                <div class="summary-item">
+                  <span class="summary-label">Membres actuels</span>
+                  <span class="summary-value" id="team-count">0</span>
                 </div>
-              </aside>
-            </div>
+              </div>
+              <p class="summary-note">
+                Seul le fondateur peut accéder à cette page et modifier la composition de l’équipe.
+              </p>
+            </section>
+            <section class="category-form" aria-labelledby="team-add-title">
+              <h2 id="team-add-title">Ajouter un membre</h2>
+              <form id="team-add-form" class="form-grid" autocomplete="off">
+                <div class="form-row">
+                  <label for="team-user-select">Utilisateur</label>
+                  <select id="team-user-select" name="username" required></select>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="primary-button">Ajouter à l'équipe</button>
+                </div>
+              </form>
+              <p class="form-hint">
+                La liste propose uniquement les utilisateurs existants qui ne sont pas déjà membres.
+              </p>
+            </section>
+            <section class="category-list-wrapper" aria-labelledby="team-list-title">
+              <h2 id="team-list-title">Membres de l'équipe</h2>
+              <ul id="team-list" class="category-list" aria-live="polite"></ul>
+              <p id="team-empty" class="empty-state" hidden>Aucun membre pour l’instant.</p>
+            </section>
+          </section>
+        </main>
+        <aside class="context-panel" aria-label="Options du module">
+          <h2 class="sr-only" id="context-nav-title">Options du module</h2>
+          <nav id="context-nav" class="context-nav" aria-labelledby="context-nav-title">
+            <ul id="context-nav-list" class="context-nav-list"></ul>
+          </nav>
+          <p id="context-empty-state" class="context-empty-state" hidden>
+            Sélectionnez un module pour afficher les options disponibles.
+          </p>
+          <p class="context-tagline">
+            Gérez vos données professionnelles, associations et structures en toute simplicité.
+          </p>
+        </aside>
+      </div>
+    </div>
+
+    <div
+      id="calendar-overlay"
+      class="calendar-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="calendar-dialog-title"
+      aria-hidden="true"
+      hidden
+    >
+      <div class="calendar-dialog">
+        <header class="calendar-header">
+          <div>
+            <h2 id="calendar-dialog-title">Calendrier des évènements</h2>
+            <p class="calendar-subtitle">
+              Planifiez vos actions et notez vos rendez-vous importants.
+            </p>
+          </div>
+          <button
+            id="calendar-close-button"
+            class="calendar-close-button"
+            type="button"
+            aria-label="Fermer le calendrier"
+          >
+            ✕
+          </button>
+        </header>
+        <div class="calendar-toolbar">
+          <div class="calendar-view-toggle" role="group" aria-label="Changer la vue du calendrier">
+            <button
+              type="button"
+              class="calendar-view-button"
+              data-calendar-view="week"
+              aria-pressed="false"
+            >
+              Semaine
+            </button>
+            <button
+              type="button"
+              class="calendar-view-button active"
+              data-calendar-view="month"
+              aria-pressed="true"
+            >
+              Mois
+            </button>
+          </div>
+          <div class="calendar-navigation">
+            <button
+              type="button"
+              class="calendar-nav-button"
+              data-calendar-nav="prev"
+              aria-label="Période précédente"
+            >
+              ◀
+            </button>
+            <span id="calendar-current-period" class="calendar-current-period">—</span>
+            <button
+              type="button"
+              class="calendar-nav-button"
+              data-calendar-nav="next"
+              aria-label="Période suivante"
+            >
+              ▶
+            </button>
           </div>
         </div>
-      </main>
+        <div class="calendar-layout">
+          <div class="calendar-main">
+            <div id="calendar-grid" class="calendar-grid" role="grid" aria-live="polite"></div>
+          </div>
+          <aside class="calendar-side">
+            <div class="calendar-selected-date">
+              <h3 id="calendar-selected-date-label">—</h3>
+              <p id="calendar-selected-date-summary" class="calendar-selected-date-summary">
+                Choisissez un jour pour afficher les détails.
+              </p>
+            </div>
+            <form id="calendar-event-form" class="calendar-event-form">
+              <h3 class="calendar-form-title">Nouvel évènement</h3>
+              <div class="form-row">
+                <label for="calendar-event-title">Titre *</label>
+                <input id="calendar-event-title" name="title" type="text" required maxlength="120" />
+              </div>
+              <div class="calendar-form-row">
+                <div class="form-row">
+                  <label for="calendar-event-date">Date *</label>
+                  <input id="calendar-event-date" name="date" type="date" required />
+                </div>
+                <div class="form-row">
+                  <label for="calendar-event-time">Heure</label>
+                  <input id="calendar-event-time" name="time" type="time" />
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="calendar-event-notes">Notes</label>
+                <textarea
+                  id="calendar-event-notes"
+                  name="notes"
+                  rows="3"
+                  placeholder="Ajoutez des détails ou des objectifs."
+                ></textarea>
+              </div>
+              <div class="calendar-form-actions">
+                <button type="reset" class="secondary-button">Réinitialiser</button>
+                <button type="submit" class="primary-button">Ajouter</button>
+              </div>
+            </form>
+            <div class="calendar-events-wrapper">
+              <h3 class="calendar-events-title">Évènements du jour</h3>
+              <p id="calendar-event-empty" class="calendar-empty-state">
+                Aucun évènement enregistré pour cette date.
+              </p>
+              <ul id="calendar-event-list" class="calendar-event-list"></ul>
+            </div>
+          </aside>
+        </div>
+      </div>
     </div>
+
     <template id="contact-item-template">
       <li class="contact-item">
         <div class="contact-header">
