@@ -10185,16 +10185,15 @@
     const messageBytes = encodeUtf8(message);
     const bitLength = BigInt(messageBytes.length) * 8n;
     const paddedLength = (((messageBytes.length + 9 + 63) >> 6) << 6);
-
     const buffer = new Uint8Array(paddedLength);
     buffer.set(messageBytes);
     buffer[messageBytes.length] = 0x80;
 
     const view = new DataView(buffer.buffer);
-    const highBits = Number((bitLength >> 32n) & 0xffffffffn);
-    const lowBits = Number(bitLength & 0xffffffffn);
-    view.setUint32(paddedLength - 8, highBits);
-    view.setUint32(paddedLength - 4, lowBits);
+    const bitLenHi = Math.floor(messageBytes.length / 0x20000000);
+    const bitLenLo = (messageBytes.length << 3) >>> 0;
+    view.setUint32(paddedLength - 8, bitLenHi);
+    view.setUint32(paddedLength - 4, bitLenLo);
 
     let h0 = 0x6a09e667;
     let h1 = 0xbb67ae85;
@@ -10207,15 +10206,25 @@
 
     const w = new Uint32Array(64);
 
-    for (let i = 0; i < paddedLength; i += 64) {
-      for (let j = 0; j < 16; j += 1) {
-        w[j] = view.getUint32(i + j * 4);
+    function rightRotate(value, amount) {
+      return ((value >>> amount) | (value << (32 - amount))) >>> 0;
+    }
+
+    for (let offset = 0; offset < buffer.length; offset += 64) {
+      for (let index = 0; index < 16; index += 1) {
+        w[index] = view.getUint32(offset + index * 4);
       }
 
-      for (let j = 16; j < 64; j += 1) {
-        const s0 = rightRotate(w[j - 15], 7) ^ rightRotate(w[j - 15], 18) ^ (w[j - 15] >>> 3);
-        const s1 = rightRotate(w[j - 2], 17) ^ rightRotate(w[j - 2], 19) ^ (w[j - 2] >>> 10);
-        w[j] = (w[j - 16] + s0 + w[j - 7] + s1) >>> 0;
+      for (let index = 16; index < 64; index += 1) {
+        const s0 =
+          rightRotate(w[index - 15], 7) ^
+          rightRotate(w[index - 15], 18) ^
+          (w[index - 15] >>> 3);
+        const s1 =
+          rightRotate(w[index - 2], 17) ^
+          rightRotate(w[index - 2], 19) ^
+          (w[index - 2] >>> 10);
+        w[index] = (w[index - 16] + s0 + w[index - 7] + s1) >>> 0;
       }
 
       let a = h0;
@@ -10227,11 +10236,13 @@
       let g = h6;
       let h = h7;
 
-      for (let j = 0; j < 64; j += 1) {
-        const S1 = rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
+      for (let index = 0; index < 64; index += 1) {
+        const S1 =
+          rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25);
         const ch = (e & f) ^ (~e & g);
-        const temp1 = (h + S1 + ch + k[j] + w[j]) >>> 0;
-        const S0 = rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
+        const temp1 = (h + S1 + ch + k[index] + w[index]) >>> 0;
+        const S0 =
+          rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22);
         const maj = (a & b) ^ (a & c) ^ (b & c);
         const temp2 = (S0 + maj) >>> 0;
 
@@ -10267,10 +10278,6 @@
     hashView.setUint32(28, h7);
 
     return bufferToHex(hash.buffer);
-  }
-
-  function rightRotate(value, amount) {
-    return (value >>> amount) | (value << (32 - amount));
   }
 
   function isValidEmail(value) {
