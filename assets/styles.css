@@ -858,12 +858,97 @@ button {
 }
 
 .task-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  --task-board-scroll-shadow: rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  overflow-x: auto;
+  padding: 4px 4px 12px;
+  margin: 0 -4px;
+}
+
+.task-list::before,
+.task-list::after {
+  content: '';
+  flex: 0 0 4px;
+}
+
+.task-list::-webkit-scrollbar {
+  height: 10px;
+}
+
+.task-list::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 999px;
+}
+
+.task-list::-webkit-scrollbar-thumb {
+  background: var(--task-board-scroll-shadow);
+  border-radius: 999px;
+}
+
+.task-board-column {
+  --task-board-color: var(--color-primary);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  min-width: 280px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 20px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+.task-board-column--focused {
+  border-color: var(--task-board-color);
+  box-shadow: 0 18px 38px rgba(37, 99, 235, 0.18);
+}
+
+.task-board-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.task-board-column-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-board-column-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--task-board-color);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.task-board-column-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.task-board-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.task-board-column-empty {
+  margin: 0;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.06);
+  color: var(--color-text-secondary);
+  font-style: italic;
 }
 
 .task-empty-state {
@@ -956,6 +1041,7 @@ button {
   gap: 14px;
   background: var(--task-color-soft);
   box-shadow: var(--shadow-card);
+  width: 100%;
 }
 
 .task-item--archived {

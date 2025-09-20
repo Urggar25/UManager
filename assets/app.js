@@ -3382,40 +3382,78 @@
       const counts = buildTaskCounts(tasksForStatus);
       updateTaskCategoryCountBadges(counts);
 
-      const filteredTasks = tasksForStatus.filter((task) => {
+      const categories = Array.from(taskCategoriesById.values());
+      const boardColumns = [
+        {
+          id: TASK_CATEGORY_FILTER_UNCATEGORIZED,
+          name: 'Sans catégorie',
+          color: '#94a3b8',
+          tasks: [],
+        },
+        ...categories.map((category) => ({
+          id: category.id,
+          name: category.name,
+          color: category.color,
+          tasks: [],
+        })),
+      ];
+
+      const columnsById = new Map(boardColumns.map((column) => [column.id, column]));
+
+      tasksForStatus.forEach((task) => {
         if (!task || typeof task !== 'object') {
-          return false;
+          return;
         }
 
-        if (taskCategoryFilter === TASK_CATEGORY_FILTER_ALL) {
-          return true;
+        const rawCategoryId =
+          typeof task.categoryId === 'string' && task.categoryId ? task.categoryId : '';
+        const columnId = columnsById.has(rawCategoryId)
+          ? rawCategoryId
+          : TASK_CATEGORY_FILTER_UNCATEGORIZED;
+        const column = columnsById.get(columnId);
+        if (column) {
+          column.tasks.push(task);
         }
-
-        if (taskCategoryFilter === TASK_CATEGORY_FILTER_UNCATEGORIZED) {
-          return !task.categoryId;
-        }
-
-        return task.categoryId === taskCategoryFilter;
       });
 
-      const isFilteredView = taskCategoryFilter !== TASK_CATEGORY_FILTER_ALL;
+      let visibleColumns;
+      if (taskCategoryFilter === TASK_CATEGORY_FILTER_ALL) {
+        visibleColumns = boardColumns;
+      } else {
+        const targetColumn = columnsById.get(taskCategoryFilter);
+        visibleColumns = targetColumn ? [targetColumn] : boardColumns;
+      }
+
+      if (!Array.isArray(visibleColumns) || visibleColumns.length === 0) {
+        visibleColumns = boardColumns;
+      }
+
+      const visibleTaskCount = visibleColumns.reduce((total, column) => {
+        if (!column || !Array.isArray(column.tasks)) {
+          return total;
+        }
+        return total + column.tasks.length;
+      }, 0);
+
+      updateTaskCountDisplay(tasksForStatus.length, visibleTaskCount);
 
       taskList.innerHTML = '';
 
+      const isFilteredView = taskCategoryFilter !== TASK_CATEGORY_FILTER_ALL;
       if (taskEmptyState) {
-        if (filteredTasks.length === 0) {
+        if (visibleTaskCount === 0) {
           taskEmptyState.hidden = false;
           taskEmptyState.removeAttribute('hidden');
           if (taskStatusFilter === 'archived') {
             taskEmptyState.textContent = isFilteredView
-              ? 'Aucune tâche archivée pour cette catégorie.'
-              : 'Aucune tâche archivée pour le moment.';
+              ? 'Aucune carte archivée dans cette colonne.'
+              : 'Aucune carte archivée pour le moment.';
           } else {
             const defaultMessage =
               taskEmptyStateDefaultText ||
-              'Aucune tâche planifiée pour le moment. Ajoutez votre première action ci-dessus.';
+              'Aucune carte n’est disponible pour le moment. Ajoutez votre première tâche depuis l’onglet «\u00a0Créer une tâche\u00a0».';
             taskEmptyState.textContent = isFilteredView
-              ? 'Aucune tâche dans cette catégorie pour le moment.'
+              ? 'Aucune carte dans cette colonne pour le moment.'
               : defaultMessage;
           }
         } else {
@@ -3425,300 +3463,398 @@
           }
           taskEmptyState.textContent =
             taskStatusFilter === 'archived'
-              ? 'Aucune tâche archivée pour le moment.'
+              ? 'Aucune carte archivée pour le moment.'
               : taskEmptyStateDefaultText;
         }
       }
 
-      updateTaskCountDisplay(tasksForStatus.length, filteredTasks.length);
-
-      if (filteredTasks.length === 0) {
-        updateTaskSummaryCounts();
-        scheduleTaskCategoryIndicatorUpdate();
-        return;
-      }
-
       const fragment = document.createDocumentFragment();
+      const isArchivedView = taskStatusFilter === 'archived';
 
-      filteredTasks.forEach((task) => {
-        if (!task || typeof task !== 'object') {
+      visibleColumns.forEach((column) => {
+        if (!column) {
           return;
         }
 
-        const listItem = document.createElement('li');
-        listItem.className = 'task-item';
-        listItem.dataset.id = task.id || '';
-        listItem.dataset.categoryId = task.categoryId || '';
-
-        const isArchived = Boolean(task.isArchived);
-        if (isArchived) {
-          listItem.classList.add('task-item--archived');
+        const isFocused = isFilteredView && column.id === taskCategoryFilter;
+        const columnElement = createTaskColumn(column, counts, {
+          isFocused,
+          isArchivedView,
+        });
+        if (columnElement) {
+          fragment.appendChild(columnElement);
         }
-
-        const isAssignedToMe =
-          Array.isArray(task.assignedMembers) && task.assignedMembers.includes(currentUser);
-        if (isAssignedToMe) {
-          listItem.classList.add('task-item--assigned-me');
-        } else {
-          const taskColor = normalizeTaskColor(task.color);
-          listItem.style.setProperty('--task-color', taskColor);
-          listItem.style.setProperty('--task-color-soft', hexToRgba(taskColor, 0.12));
-        }
-
-        const header = document.createElement('div');
-        header.className = 'task-item-header';
-
-        const titleEl = document.createElement('h3');
-        titleEl.className = 'task-title';
-
-        if (isAssignedToMe) {
-          const assignedBadge = document.createElement('span');
-          assignedBadge.className = 'task-assigned-badge';
-          assignedBadge.setAttribute('title', 'Tâche qui vous est attribuée');
-          assignedBadge.setAttribute('aria-label', 'Tâche qui vous est attribuée');
-          assignedBadge.textContent = '⭐';
-          titleEl.appendChild(assignedBadge);
-        }
-
-        const titleText = document.createElement('span');
-        titleText.className = 'task-title-text';
-        titleText.textContent = task.title || 'Nouvelle tâche';
-        titleEl.appendChild(titleText);
-
-        const metaContainer = document.createElement('div');
-        metaContainer.className = 'task-meta';
-
-        if (isArchived) {
-          const statusBadge = document.createElement('span');
-          statusBadge.className = 'task-status-badge';
-          statusBadge.textContent = 'Archivée';
-          metaContainer.appendChild(statusBadge);
-        }
-
-        const category =
-          typeof task.categoryId === 'string' && task.categoryId
-            ? taskCategoriesById.get(task.categoryId)
-            : null;
-        const categoryChip = document.createElement('span');
-        categoryChip.className = 'task-item-category';
-        if (category) {
-          categoryChip.textContent = category.name;
-          categoryChip.style.setProperty('--task-category-color', category.color);
-        } else {
-          categoryChip.textContent = 'Sans catégorie';
-          categoryChip.classList.add('task-item-category--default');
-        }
-        metaContainer.appendChild(categoryChip);
-
-        if (task.dueDate) {
-          const dueDate = parseDateInput(task.dueDate);
-          const dueDateEl = document.createElement('span');
-          dueDateEl.className = 'task-due-date';
-          const formattedDueDate =
-            dueDate instanceof Date && !Number.isNaN(dueDate.getTime())
-              ? capitalizeLabel(taskDateFormatter.format(dueDate))
-              : task.dueDate;
-          dueDateEl.textContent = `Échéance : ${formattedDueDate}`;
-
-          if (dueDate && dueDate.getTime() < startOfDay(new Date()).getTime() && !isArchived) {
-            dueDateEl.classList.add('task-due-date--overdue');
-          }
-
-          metaContainer.appendChild(dueDateEl);
-        }
-
-        if (Array.isArray(task.assignedMembers) && task.assignedMembers.length > 0) {
-          const membersContainer = document.createElement('div');
-          membersContainer.className = 'task-members';
-
-          task.assignedMembers.forEach((memberId) => {
-            if (!memberId) {
-              return;
-            }
-            const chip = document.createElement('span');
-            chip.className = 'task-member-chip';
-            const member = teamMembersById.get(memberId);
-            chip.textContent = member ? formatTeamMemberLabel(member) : memberId;
-            membersContainer.appendChild(chip);
-          });
-
-          metaContainer.appendChild(membersContainer);
-        }
-
-        const actions = document.createElement('div');
-        actions.className = 'task-actions';
-
-        const editButton = document.createElement('button');
-        editButton.type = 'button';
-        editButton.className = 'task-action-button';
-        editButton.dataset.action = 'edit-task';
-        editButton.dataset.taskId = task.id || '';
-        editButton.textContent = 'Modifier';
-        actions.appendChild(editButton);
-
-        const archiveButton = document.createElement('button');
-        archiveButton.type = 'button';
-        archiveButton.className = 'task-action-button';
-        archiveButton.dataset.action = isArchived ? 'restore-task' : 'archive-task';
-        archiveButton.dataset.taskId = task.id || '';
-        archiveButton.textContent = isArchived ? 'Restaurer' : 'Archiver';
-        actions.appendChild(archiveButton);
-
-        const deleteButton = document.createElement('button');
-        deleteButton.type = 'button';
-        deleteButton.className = 'task-action-button task-action-button--danger';
-        deleteButton.dataset.action = 'delete-task';
-        deleteButton.dataset.taskId = task.id || '';
-        deleteButton.textContent = 'Supprimer';
-
-        actions.appendChild(deleteButton);
-
-        header.append(titleEl, metaContainer, actions);
-
-        const descriptionEl = document.createElement('p');
-        descriptionEl.className = 'task-description';
-        if (task.description) {
-          descriptionEl.textContent = task.description;
-        } else {
-          descriptionEl.textContent = 'Aucune description pour cette tâche.';
-          descriptionEl.classList.add('task-description--empty');
-        }
-
-        let attachmentNode = null;
-        if (task.attachment && typeof task.attachment === 'object') {
-          const attachmentHref =
-            (typeof task.attachment.dataUrl === 'string' && task.attachment.dataUrl) ||
-            (typeof task.attachment.url === 'string' && task.attachment.url) ||
-            '';
-
-          if (attachmentHref) {
-            attachmentNode = document.createElement('div');
-            attachmentNode.className = 'task-attachment';
-
-            const attachmentLink = document.createElement('a');
-            attachmentLink.className = 'task-attachment-link';
-            attachmentLink.href = attachmentHref;
-            attachmentLink.target = '_blank';
-            attachmentLink.rel = 'noopener';
-
-            if (
-              task.attachment.name &&
-              typeof task.attachment.dataUrl === 'string' &&
-              task.attachment.dataUrl
-            ) {
-              attachmentLink.setAttribute('download', task.attachment.name);
-            } else {
-              attachmentLink.removeAttribute('download');
-            }
-
-            const attachmentIcon = document.createElement('span');
-            attachmentIcon.className = 'task-attachment-link-icon';
-            attachmentIcon.setAttribute('aria-hidden', 'true');
-            attachmentIcon.textContent = '📎';
-
-            const attachmentLabel = document.createElement('span');
-            attachmentLabel.textContent = task.attachment.name || 'Document joint';
-
-            attachmentLink.append(attachmentIcon, attachmentLabel);
-            attachmentNode.appendChild(attachmentLink);
-
-            const rawSize = Number(task.attachment.size);
-            const sizeLabel = Number.isFinite(rawSize) && rawSize > 0 ? formatFileSize(rawSize) : '';
-            if (sizeLabel) {
-              const attachmentMeta = document.createElement('span');
-              attachmentMeta.className = 'task-attachment-meta';
-              attachmentMeta.textContent = sizeLabel;
-              attachmentNode.appendChild(attachmentMeta);
-            }
-          }
-        }
-
-        const commentsSection = document.createElement('div');
-        commentsSection.className = 'task-comments';
-
-        const commentsTitle = document.createElement('h4');
-        commentsTitle.className = 'task-comments-title';
-        commentsTitle.textContent = 'Commentaires';
-        commentsSection.appendChild(commentsTitle);
-
-        const commentsList = document.createElement('ul');
-        commentsList.className = 'task-comment-list';
-
-        if (Array.isArray(task.comments) && task.comments.length > 0) {
-          task.comments
-            .slice()
-            .sort((a, b) => {
-              const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
-              const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
-              return dateA.localeCompare(dateB);
-            })
-            .forEach((comment) => {
-              if (!comment || typeof comment !== 'object' || !comment.content) {
-                return;
-              }
-              const commentItem = document.createElement('li');
-              commentItem.className = 'task-comment';
-              const meta = document.createElement('span');
-              meta.className = 'task-comment-meta';
-              const authorLabel = formatMemberName(comment.author);
-              let dateLabel = '';
-              if (comment.createdAt && !Number.isNaN(new Date(comment.createdAt).getTime())) {
-                dateLabel = capitalizeLabel(
-                  taskCommentDateFormatter.format(new Date(comment.createdAt)),
-                );
-              }
-              meta.textContent = dateLabel ? `${authorLabel} · ${dateLabel}` : authorLabel;
-              const content = document.createElement('p');
-              content.className = 'task-comment-content';
-              content.textContent = comment.content;
-              commentItem.append(meta, content);
-              commentsList.appendChild(commentItem);
-            });
-        } else {
-          const emptyMessage = document.createElement('p');
-          emptyMessage.className = 'task-comment-empty';
-          emptyMessage.textContent = 'Aucun commentaire pour le moment.';
-          commentsSection.appendChild(emptyMessage);
-        }
-
-        commentsSection.appendChild(commentsList);
-
-        const commentForm = document.createElement('form');
-        commentForm.className = 'task-comment-form';
-        commentForm.dataset.taskId = task.id || '';
-
-        const commentLabel = document.createElement('label');
-        commentLabel.className = 'sr-only';
-        const commentFieldId = `task-comment-${task.id}`;
-        commentLabel.setAttribute('for', commentFieldId);
-        commentLabel.textContent = 'Ajouter un commentaire';
-
-        const commentTextarea = document.createElement('textarea');
-        commentTextarea.id = commentFieldId;
-        commentTextarea.name = 'comment';
-        commentTextarea.required = true;
-        commentTextarea.placeholder = 'Écrire un nouveau commentaire';
-
-        const commentSubmit = document.createElement('button');
-        commentSubmit.type = 'submit';
-        commentSubmit.className = 'primary-button task-comment-submit';
-        commentSubmit.textContent = 'Publier';
-
-        commentForm.append(commentLabel, commentTextarea, commentSubmit);
-        commentsSection.appendChild(commentForm);
-
-        const nodesToAppend = [header, descriptionEl];
-        if (attachmentNode) {
-          nodesToAppend.push(attachmentNode);
-        }
-        nodesToAppend.push(commentsSection);
-        listItem.append(...nodesToAppend);
-        fragment.appendChild(listItem);
       });
 
       taskList.appendChild(fragment);
       updateTaskSummaryCounts();
       scheduleTaskCategoryIndicatorUpdate();
+    }
+
+    function createTaskColumn(column, counts, options = {}) {
+      if (!column || typeof column !== 'object') {
+        return null;
+      }
+
+      const { isFocused = false, isArchivedView = false } = options;
+      const columnId =
+        typeof column.id === 'string' && column.id ? column.id : TASK_CATEGORY_FILTER_UNCATEGORIZED;
+      const columnLabel =
+        typeof column.name === 'string' && column.name.trim()
+          ? column.name.trim()
+          : columnId === TASK_CATEGORY_FILTER_UNCATEGORIZED
+          ? 'Sans catégorie'
+          : 'Catégorie';
+
+      const columnElement = document.createElement('section');
+      columnElement.className = 'task-board-column';
+      columnElement.dataset.taskCategoryId =
+        columnId === TASK_CATEGORY_FILTER_UNCATEGORIZED ? '' : columnId;
+      columnElement.setAttribute('role', 'region');
+
+      const headerId = `task-board-column-${columnId}`;
+      columnElement.setAttribute('aria-labelledby', headerId);
+
+      if (isFocused) {
+        columnElement.classList.add('task-board-column--focused');
+      }
+
+      const baseColor =
+        columnId === TASK_CATEGORY_FILTER_UNCATEGORIZED
+          ? '#94a3b8'
+          : column.color || DEFAULT_TASK_CATEGORY_COLOR;
+      columnElement.style.setProperty(
+        '--task-board-color',
+        normalizeTaskCategoryColor(baseColor),
+      );
+
+      const header = document.createElement('header');
+      header.className = 'task-board-column-header';
+
+      const title = document.createElement('h3');
+      title.className = 'task-board-column-title';
+      title.id = headerId;
+
+      const dot = document.createElement('span');
+      dot.className = 'task-board-column-dot';
+      dot.setAttribute('aria-hidden', 'true');
+
+      const titleLabel = document.createElement('span');
+      titleLabel.textContent = columnLabel;
+
+      title.append(dot, titleLabel);
+
+      const countLabel = document.createElement('span');
+      countLabel.className = 'task-board-column-count';
+      countLabel.textContent = formatTaskCountLabel(counts.get(columnId) || 0);
+
+      header.append(title, countLabel);
+
+      const body = document.createElement('div');
+      body.className = 'task-board-column-body';
+
+      const tasksInColumn = Array.isArray(column.tasks) ? column.tasks : [];
+      if (tasksInColumn.length === 0) {
+        const emptyMessage = document.createElement('p');
+        emptyMessage.className = 'task-board-column-empty';
+        if (isArchivedView) {
+          emptyMessage.textContent = 'Aucune carte archivée dans cette colonne.';
+        } else if (columnId === TASK_CATEGORY_FILTER_UNCATEGORIZED) {
+          emptyMessage.textContent = 'Aucune tâche sans catégorie pour le moment.';
+        } else {
+          emptyMessage.textContent = 'Aucune tâche dans cette catégorie pour le moment.';
+        }
+        body.appendChild(emptyMessage);
+      } else {
+        const cardsFragment = document.createDocumentFragment();
+        tasksInColumn.forEach((task) => {
+          const card = createTaskCard(task);
+          if (card) {
+            cardsFragment.appendChild(card);
+          }
+        });
+        body.appendChild(cardsFragment);
+      }
+
+      columnElement.append(header, body);
+      return columnElement;
+    }
+
+    function createTaskCard(task) {
+      if (!task || typeof task !== 'object') {
+        return null;
+      }
+
+      const card = document.createElement('article');
+      card.className = 'task-item';
+      card.dataset.id = task.id || '';
+      card.dataset.categoryId = task.categoryId || '';
+
+      const isArchived = Boolean(task.isArchived);
+      if (isArchived) {
+        card.classList.add('task-item--archived');
+      }
+
+      const isAssignedToMe =
+        Array.isArray(task.assignedMembers) && task.assignedMembers.includes(currentUser);
+      if (isAssignedToMe) {
+        card.classList.add('task-item--assigned-me');
+      } else {
+        const taskColor = normalizeTaskColor(task.color);
+        card.style.setProperty('--task-color', taskColor);
+        card.style.setProperty('--task-color-soft', hexToRgba(taskColor, 0.12));
+      }
+
+      const header = document.createElement('div');
+      header.className = 'task-item-header';
+
+      const titleEl = document.createElement('h3');
+      titleEl.className = 'task-title';
+
+      if (isAssignedToMe) {
+        const assignedBadge = document.createElement('span');
+        assignedBadge.className = 'task-assigned-badge';
+        assignedBadge.setAttribute('title', 'Tâche qui vous est attribuée');
+        assignedBadge.setAttribute('aria-label', 'Tâche qui vous est attribuée');
+        assignedBadge.textContent = '⭐';
+        titleEl.appendChild(assignedBadge);
+      }
+
+      const titleText = document.createElement('span');
+      titleText.className = 'task-title-text';
+      titleText.textContent = task.title || 'Nouvelle tâche';
+      titleEl.appendChild(titleText);
+
+      const metaContainer = document.createElement('div');
+      metaContainer.className = 'task-meta';
+
+      if (isArchived) {
+        const statusBadge = document.createElement('span');
+        statusBadge.className = 'task-status-badge';
+        statusBadge.textContent = 'Archivée';
+        metaContainer.appendChild(statusBadge);
+      }
+
+      const category =
+        typeof task.categoryId === 'string' && task.categoryId
+          ? taskCategoriesById.get(task.categoryId)
+          : null;
+      const categoryChip = document.createElement('span');
+      categoryChip.className = 'task-item-category';
+      if (category) {
+        categoryChip.textContent = category.name;
+        categoryChip.style.setProperty('--task-category-color', category.color);
+      } else {
+        categoryChip.textContent = 'Sans catégorie';
+        categoryChip.classList.add('task-item-category--default');
+      }
+      metaContainer.appendChild(categoryChip);
+
+      if (task.dueDate) {
+        const dueDate = parseDateInput(task.dueDate);
+        const dueDateEl = document.createElement('span');
+        dueDateEl.className = 'task-due-date';
+        const formattedDueDate =
+          dueDate instanceof Date && !Number.isNaN(dueDate.getTime())
+            ? capitalizeLabel(taskDateFormatter.format(dueDate))
+            : task.dueDate;
+        dueDateEl.textContent = `Échéance : ${formattedDueDate}`;
+
+        if (dueDate && dueDate.getTime() < startOfDay(new Date()).getTime() && !isArchived) {
+          dueDateEl.classList.add('task-due-date--overdue');
+        }
+
+        metaContainer.appendChild(dueDateEl);
+      }
+
+      if (Array.isArray(task.assignedMembers) && task.assignedMembers.length > 0) {
+        const membersContainer = document.createElement('div');
+        membersContainer.className = 'task-members';
+
+        task.assignedMembers.forEach((memberId) => {
+          if (!memberId) {
+            return;
+          }
+          const chip = document.createElement('span');
+          chip.className = 'task-member-chip';
+          const member = teamMembersById.get(memberId);
+          chip.textContent = member ? formatTeamMemberLabel(member) : memberId;
+          membersContainer.appendChild(chip);
+        });
+
+        metaContainer.appendChild(membersContainer);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'task-actions';
+
+      const editButton = document.createElement('button');
+      editButton.type = 'button';
+      editButton.className = 'task-action-button';
+      editButton.dataset.action = 'edit-task';
+      editButton.dataset.taskId = task.id || '';
+      editButton.textContent = 'Modifier';
+      actions.appendChild(editButton);
+
+      const archiveButton = document.createElement('button');
+      archiveButton.type = 'button';
+      archiveButton.className = 'task-action-button';
+      archiveButton.dataset.action = isArchived ? 'restore-task' : 'archive-task';
+      archiveButton.dataset.taskId = task.id || '';
+      archiveButton.textContent = isArchived ? 'Restaurer' : 'Archiver';
+      actions.appendChild(archiveButton);
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'task-action-button task-action-button--danger';
+      deleteButton.dataset.action = 'delete-task';
+      deleteButton.dataset.taskId = task.id || '';
+      deleteButton.textContent = 'Supprimer';
+
+      actions.appendChild(deleteButton);
+
+      header.append(titleEl, metaContainer, actions);
+
+      const descriptionEl = document.createElement('p');
+      descriptionEl.className = 'task-description';
+      if (task.description) {
+        descriptionEl.textContent = task.description;
+      } else {
+        descriptionEl.textContent = 'Aucune description pour cette tâche.';
+        descriptionEl.classList.add('task-description--empty');
+      }
+
+      let attachmentNode = null;
+      if (task.attachment && typeof task.attachment === 'object') {
+        const attachmentHref =
+          (typeof task.attachment.dataUrl === 'string' && task.attachment.dataUrl) ||
+          (typeof task.attachment.url === 'string' && task.attachment.url) ||
+          '';
+
+        if (attachmentHref) {
+          attachmentNode = document.createElement('div');
+          attachmentNode.className = 'task-attachment';
+
+          const attachmentLink = document.createElement('a');
+          attachmentLink.className = 'task-attachment-link';
+          attachmentLink.href = attachmentHref;
+          attachmentLink.target = '_blank';
+          attachmentLink.rel = 'noopener';
+
+          if (
+            task.attachment.name &&
+            typeof task.attachment.dataUrl === 'string' &&
+            task.attachment.dataUrl
+          ) {
+            attachmentLink.setAttribute('download', task.attachment.name);
+          } else {
+            attachmentLink.removeAttribute('download');
+          }
+
+          const attachmentIcon = document.createElement('span');
+          attachmentIcon.className = 'task-attachment-link-icon';
+          attachmentIcon.setAttribute('aria-hidden', 'true');
+          attachmentIcon.textContent = '📎';
+
+          const attachmentLabel = document.createElement('span');
+          attachmentLabel.textContent = task.attachment.name || 'Document joint';
+
+          attachmentLink.append(attachmentIcon, attachmentLabel);
+          attachmentNode.appendChild(attachmentLink);
+
+          const rawSize = Number(task.attachment.size);
+          const sizeLabel = Number.isFinite(rawSize) && rawSize > 0 ? formatFileSize(rawSize) : '';
+          if (sizeLabel) {
+            const attachmentMeta = document.createElement('span');
+            attachmentMeta.className = 'task-attachment-meta';
+            attachmentMeta.textContent = sizeLabel;
+            attachmentNode.appendChild(attachmentMeta);
+          }
+        }
+      }
+
+      const commentsSection = document.createElement('div');
+      commentsSection.className = 'task-comments';
+
+      const commentsTitle = document.createElement('h4');
+      commentsTitle.className = 'task-comments-title';
+      commentsTitle.textContent = 'Commentaires';
+      commentsSection.appendChild(commentsTitle);
+
+      const commentsList = document.createElement('ul');
+      commentsList.className = 'task-comment-list';
+
+      if (Array.isArray(task.comments) && task.comments.length > 0) {
+        task.comments
+          .slice()
+          .sort((a, b) => {
+            const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+            const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+            return dateA.localeCompare(dateB);
+          })
+          .forEach((comment) => {
+            if (!comment || typeof comment !== 'object' || !comment.content) {
+              return;
+            }
+            const commentItem = document.createElement('li');
+            commentItem.className = 'task-comment';
+            const meta = document.createElement('span');
+            meta.className = 'task-comment-meta';
+            const authorLabel = formatMemberName(comment.author);
+            let dateLabel = '';
+            if (comment.createdAt && !Number.isNaN(new Date(comment.createdAt).getTime())) {
+              dateLabel = capitalizeLabel(
+                taskCommentDateFormatter.format(new Date(comment.createdAt)),
+              );
+            }
+            meta.textContent = dateLabel ? `${authorLabel} · ${dateLabel}` : authorLabel;
+            const content = document.createElement('p');
+            content.className = 'task-comment-content';
+            content.textContent = comment.content;
+            commentItem.append(meta, content);
+            commentsList.appendChild(commentItem);
+          });
+      } else {
+        const emptyMessage = document.createElement('p');
+        emptyMessage.className = 'task-comment-empty';
+        emptyMessage.textContent = 'Aucun commentaire pour le moment.';
+        commentsSection.appendChild(emptyMessage);
+      }
+
+      commentsSection.appendChild(commentsList);
+
+      const commentForm = document.createElement('form');
+      commentForm.className = 'task-comment-form';
+      commentForm.dataset.taskId = task.id || '';
+
+      const commentLabel = document.createElement('label');
+      commentLabel.className = 'sr-only';
+      const commentFieldId = `task-comment-${task.id}`;
+      commentLabel.setAttribute('for', commentFieldId);
+      commentLabel.textContent = 'Ajouter un commentaire';
+
+      const commentTextarea = document.createElement('textarea');
+      commentTextarea.id = commentFieldId;
+      commentTextarea.name = 'comment';
+      commentTextarea.required = true;
+      commentTextarea.placeholder = 'Écrire un nouveau commentaire';
+
+      const commentSubmit = document.createElement('button');
+      commentSubmit.type = 'submit';
+      commentSubmit.className = 'primary-button task-comment-submit';
+      commentSubmit.textContent = 'Publier';
+
+      commentForm.append(commentLabel, commentTextarea, commentSubmit);
+      commentsSection.appendChild(commentForm);
+
+      const nodesToAppend = [header, descriptionEl];
+      if (attachmentNode) {
+        nodesToAppend.push(attachmentNode);
+      }
+      nodesToAppend.push(commentsSection);
+      card.append(...nodesToAppend);
+
+      return card;
     }
 
     function renderTeamChat() {
