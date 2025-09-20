@@ -608,9 +608,22 @@
                 <p id="search-categories-empty" class="empty-state" hidden>
                   Ajoutez vos premières catégories pour filtrer vos contacts.
                 </p>
-                <div class="form-row advanced-multiselect">
-                  <label for="search-keywords">Sélectionnez mes mots clés</label>
-                  <select id="search-keywords" name="search-keywords" multiple></select>
+                <div class="form-row advanced-keywords">
+                  <fieldset class="form-fieldset advanced-keywords-list">
+                    <legend>Sélectionnez mes mots clés</legend>
+                    <div id="search-keywords" class="checkbox-grid"></div>
+                  </fieldset>
+                  <fieldset id="search-keyword-mode" class="form-fieldset advanced-keywords-mode">
+                    <legend>Combiner les mots clés</legend>
+                    <label class="choice-option">
+                      <input type="radio" name="search-keyword-mode" value="all" checked />
+                      <span>ET — tous les mots clés sélectionnés</span>
+                    </label>
+                    <label class="choice-option">
+                      <input type="radio" name="search-keyword-mode" value="any" />
+                      <span>OU — au moins un des mots clés sélectionnés</span>
+                    </label>
+                  </fieldset>
                 </div>
                 <div class="advanced-actions">
                   <button type="submit" class="primary-button">Appliquer les filtres</button>
