@@ -608,21 +608,21 @@
 
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
-	
-	if (typeof data.panelOwner !== 'string' || !data.panelOwner.trim()) {
-	  data.panelOwner = currentUser;
-	  saveDataForUser(currentUser, data);
-	}
+    
+    if (typeof data.panelOwner !== 'string' || !data.panelOwner.trim()) {
+      data.panelOwner = currentUser;
+      saveDataForUser(currentUser, data);
+    }
 
-	if (!Array.isArray(data.teamMembers) || data.teamMembers.length === 0) {
-	  data.teamMembers = [data.panelOwner];
-	  saveDataForUser(currentUser, data);
-	} else if (!data.teamMembers.includes(data.panelOwner)) {
-	  data.teamMembers.unshift(data.panelOwner);
-	  data.teamMembers = Array.from(new Set(data.teamMembers));
-	  saveDataForUser(currentUser, data);
-	}
-	
+    if (!Array.isArray(data.teamMembers) || data.teamMembers.length === 0) {
+      data.teamMembers = [data.panelOwner];
+      saveDataForUser(currentUser, data);
+    } else if (!data.teamMembers.includes(data.panelOwner)) {
+      data.teamMembers.unshift(data.panelOwner);
+      data.teamMembers = Array.from(new Set(data.teamMembers));
+      saveDataForUser(currentUser, data);
+    }
+    
         const topbarTeamButton = document.getElementById('topbar-team');
         const isOwner = currentUser === data.panelOwner;
 
@@ -639,11 +639,11 @@
         }
 
 
-	
-	if (!Array.isArray(data.teamMembers) || data.teamMembers.length === 0) {
-	  data.teamMembers = [currentUser];
-	  saveDataForUser(currentUser, data);
-	}
+    
+    if (!Array.isArray(data.teamMembers) || data.teamMembers.length === 0) {
+      data.teamMembers = [currentUser];
+      saveDataForUser(currentUser, data);
+    }
 
     const numberFormatter = new Intl.NumberFormat('fr-FR');
     const percentFormatter = new Intl.NumberFormat('fr-FR', {
@@ -664,7 +664,7 @@
     });
 
     const CONTACT_RESULTS_PER_PAGE_DEFAULT = 10;
-	const KEYWORD_FILTER_MODE_ALL = 'all';
+    const KEYWORD_FILTER_MODE_ALL = 'all';
     const KEYWORD_FILTER_MODE_ANY = 'any';
 
     let contactSearchTerm = '';
@@ -1189,7 +1189,7 @@
         renderKeywords();
       });
     }
-
+    
     if (emailTemplateAddParagraphButton instanceof HTMLButtonElement) {
       emailTemplateAddParagraphButton.addEventListener('click', () => {
         addEmailTemplateBlock('paragraph');
@@ -1719,16 +1719,16 @@
         }
 
         const keywordFilters = formData.getAll('search-keywords').map((value) => value.toString());
-		const rawKeywordMode = formData.get('search-keyword-mode') || KEYWORD_FILTER_MODE_ALL;
-		const keywordMode =
-		  rawKeywordMode === KEYWORD_FILTER_MODE_ANY
-			? KEYWORD_FILTER_MODE_ANY
-			: KEYWORD_FILTER_MODE_ALL;
+        const rawKeywordMode = formData.get('search-keyword-mode') || KEYWORD_FILTER_MODE_ALL;
+        const keywordMode =
+          rawKeywordMode === KEYWORD_FILTER_MODE_ANY
+            ? KEYWORD_FILTER_MODE_ANY
+            : KEYWORD_FILTER_MODE_ALL;
 
         advancedFilters = {
           categories: categoryFilters,
           keywords: keywordFilters,
-		  keywordMode,
+          keywordMode,
         };
         setActiveSavedSearchId('');
         clearContactSaveSearchFeedback();
@@ -1740,7 +1740,7 @@
         window.requestAnimationFrame(() => {
           advancedFilters = createEmptyAdvancedFilters();
           renderSearchCategoryFields();
-		  renderSearchKeywordOptions();
+          renderSearchKeywordOptions();
           setActiveSavedSearchId('');
           clearContactSaveSearchFeedback();
           contactCurrentPage = 1;
@@ -1853,41 +1853,41 @@
 
         if (document.getElementById('team')) {
           // Rendu initial
-	  renderTeamPage();
+      renderTeamPage();
 
-	  // Submit "Ajouter un membre"
-	  const addForm = document.getElementById('team-add-form');
-	  if (addForm instanceof HTMLFormElement) {
-		addForm.addEventListener('submit', (e) => {
-		  e.preventDefault();
-		  const formData = new FormData(addForm);
-		  const username = (formData.get('username') || '').toString().trim();
-		  if (username) {
-			addTeamMember(username);
-			addForm.reset();
-			// recycle le rendu pour que le select se mette à jour
-			renderTeamPage();
-		  }
-		});
-	  }
+      // Submit "Ajouter un membre"
+      const addForm = document.getElementById('team-add-form');
+      if (addForm instanceof HTMLFormElement) {
+        addForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const formData = new FormData(addForm);
+          const username = (formData.get('username') || '').toString().trim();
+          if (username) {
+            addTeamMember(username);
+            addForm.reset();
+            // recycle le rendu pour que le select se mette à jour
+            renderTeamPage();
+          }
+        });
+      }
 
-	  // Click "Retirer" (robuste avec .closest)
-	  const list = document.getElementById('team-list');
-	  if (list) {
-	    list.addEventListener('click', (e) => {
-	  	  const target = e.target;
-	  	  if (!(target instanceof Element)) return;
+      // Click "Retirer" (robuste avec .closest)
+      const list = document.getElementById('team-list');
+      if (list) {
+        list.addEventListener('click', (e) => {
+          const target = e.target;
+          if (!(target instanceof Element)) return;
 
-		  // On remonte jusqu'au bouton qui porte bien data-action="team-remove"
-		  const btn = target.closest('button[data-action="team-remove"]');
-		  if (!btn) return;
+          // On remonte jusqu'au bouton qui porte bien data-action="team-remove"
+          const btn = target.closest('button[data-action="team-remove"]');
+          if (!btn) return;
 
-		  const username = btn.getAttribute('data-username') || '';
-		  if (username) removeTeamMember(username);
-	    });
-	  }
+          const username = btn.getAttribute('data-username') || '';
+          if (username) removeTeamMember(username);
+        });
+      }
 
-	}
+    }
 
     const importApi = {
       getCategories: () =>
@@ -2332,56 +2332,56 @@
       saveDataForUser(currentUser, data);
       renderCalendar();
     }
-	
-	function upsertCalendarEventForTask(task) {
-	  const EVENT_TIME  = '20:00';
-	  const EVENT_TITLE = `📝 Tâche · ${task.title}`;
-	  if (!Array.isArray(data.events)) data.events = [];
+    
+    function upsertCalendarEventForTask(task) {
+      const EVENT_TIME  = '20:00';
+      const EVENT_TITLE = `📝 Tâche · ${task.title}`;
+      if (!Array.isArray(data.events)) data.events = [];
 
-	  // Pas de deadline → supprimer l’éventuel évènement lié
-	  if (!task.dueDate) {
-		if (task.calendarEventId) {
-		  deleteCalendarEvent(task.calendarEventId);
-		  task.calendarEventId = '';
-		}
-		return;
-	  }
+      // Pas de deadline → supprimer l’éventuel évènement lié
+      if (!task.dueDate) {
+        if (task.calendarEventId) {
+          deleteCalendarEvent(task.calendarEventId);
+          task.calendarEventId = '';
+        }
+        return;
+      }
 
-	  const existingId = (typeof task.calendarEventId === 'string' && task.calendarEventId) ? task.calendarEventId : '';
-	  const existing   = existingId ? data.events.find(e => e && e.id === existingId) : null;
+      const existingId = (typeof task.calendarEventId === 'string' && task.calendarEventId) ? task.calendarEventId : '';
+      const existing   = existingId ? data.events.find(e => e && e.id === existingId) : null;
 
-	  if (existing) {
-		const updated = {
-		  ...existing,
-		  title: EVENT_TITLE,
-		  date: task.dueDate,        // <-- nouvelle date
-		  time: EVENT_TIME,
-		  notes: task.description || '',
-		};
+      if (existing) {
+        const updated = {
+          ...existing,
+          title: EVENT_TITLE,
+          date: task.dueDate,        // <-- nouvelle date
+          time: EVENT_TIME,
+          notes: task.description || '',
+        };
 
-		// Si la date a changé, on supprime puis on ré-ajoute (évite les caches internes)
-		if (existing.date !== updated.date) {
-		  data.events = data.events.filter(e => e && e.id !== existingId);
-		  data.events.push(updated);
-		} else {
-		  // Sinon, remplacement immuable dans le tableau
-		  data.events = data.events.map(e => (e && e.id === existingId) ? updated : e);
-		}
-	  } else {
-		// Pas encore lié → on crée l’évènement
-		const newId = generateId('event');
-		data.events = [...data.events, {
-		  id: newId,
-		  title: EVENT_TITLE,
-		  date: task.dueDate,
-		  time: EVENT_TIME,
-		  notes: task.description || '',
-		}];
-		task.calendarEventId = newId;
-	  }
+        // Si la date a changé, on supprime puis on ré-ajoute (évite les caches internes)
+        if (existing.date !== updated.date) {
+          data.events = data.events.filter(e => e && e.id !== existingId);
+          data.events.push(updated);
+        } else {
+          // Sinon, remplacement immuable dans le tableau
+          data.events = data.events.map(e => (e && e.id === existingId) ? updated : e);
+        }
+      } else {
+        // Pas encore lié → on crée l’évènement
+        const newId = generateId('event');
+        data.events = [...data.events, {
+          id: newId,
+          title: EVENT_TITLE,
+          date: task.dueDate,
+          time: EVENT_TIME,
+          notes: task.description || '',
+        }];
+        task.calendarEventId = newId;
+      }
 
-	  if (Array.isArray(data.events)) data.events.sort(compareCalendarEvents);
-	}
+      if (Array.isArray(data.events)) data.events.sort(compareCalendarEvents);
+    }
 
 
     function getEventsForDate(date) {
@@ -2745,21 +2745,21 @@
     }
 
     function loadTeamMembers() {
-	  const allowedUsernames = Array.isArray(data.teamMembers) && data.teamMembers.length > 0
-		? data.teamMembers.map((u) => (typeof u === 'string' ? u.trim() : '')).filter(Boolean)
-		: [currentUser];
+      const allowedUsernames = Array.isArray(data.teamMembers) && data.teamMembers.length > 0
+        ? data.teamMembers.map((u) => (typeof u === 'string' ? u.trim() : '')).filter(Boolean)
+        : [currentUser];
 
-	  const store = loadUserStore();
-	  const usersObj = store && store.users && typeof store.users === 'object' ? store.users : {};
+      const store = loadUserStore();
+      const usersObj = store && store.users && typeof store.users === 'object' ? store.users : {};
 
-	  const members = allowedUsernames.map((username) => {
-		const details = usersObj[username] && typeof usersObj[username] === 'object' ? usersObj[username] : {};
-		const email = typeof details.email === 'string' ? details.email : '';
-		return { username, email };
-	  });
+      const members = allowedUsernames.map((username) => {
+        const details = usersObj[username] && typeof usersObj[username] === 'object' ? usersObj[username] : {};
+        const email = typeof details.email === 'string' ? details.email : '';
+        return { username, email };
+      });
 
-	  return members.sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
-	}
+      return members.sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
+    }
 
 
     function populateTaskMemberOptions() {
@@ -2837,27 +2837,27 @@
         }
       });
     }
-	
-	function loadAllUsersFromStore() {
-	  const store = loadUserStore();
-	  const usersObj = store && store.users && typeof store.users === 'object' ? store.users : {};
-	  // Retourne [{ username, email? }, ...]
-	  return Object.keys(usersObj).map((u) => {
-		const v = usersObj[u] || {};
-		return { username: u, email: typeof v.email === 'string' ? v.email : '' };
-	  }).sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
-	}
+    
+    function loadAllUsersFromStore() {
+      const store = loadUserStore();
+      const usersObj = store && store.users && typeof store.users === 'object' ? store.users : {};
+      // Retourne [{ username, email? }, ...]
+      return Object.keys(usersObj).map((u) => {
+        const v = usersObj[u] || {};
+        return { username: u, email: typeof v.email === 'string' ? v.email : '' };
+      }).sort((a, b) => a.username.localeCompare(b.username, 'fr', { sensitivity: 'base' }));
+    }
 
-	function getAvailableUsersForTeam() {
-	  const all = loadAllUsersFromStore();
-	  const team = new Set(Array.isArray(data.teamMembers) ? data.teamMembers : []);
-	  return all.filter(({ username }) => !team.has(username));
-	}
+    function getAvailableUsersForTeam() {
+      const all = loadAllUsersFromStore();
+      const team = new Set(Array.isArray(data.teamMembers) ? data.teamMembers : []);
+      return all.filter(({ username }) => !team.has(username));
+    }
 
-	function rebuildTeamCaches() {
-	  // Recalcule la liste et la map depuis la source de vérité (data.teamMembers + store)
-	  teamMembers = loadTeamMembers();
-	  teamMembersById = new Map(teamMembers.map((m) => [m.username, m]));
+    function rebuildTeamCaches() {
+      // Recalcule la liste et la map depuis la source de vérité (data.teamMembers + store)
+      teamMembers = loadTeamMembers();
+      teamMembersById = new Map(teamMembers.map((m) => [m.username, m]));
 
         // Répercuter partout
         populateTaskMemberOptions(); // met à jour le <select> des tâches
@@ -2867,24 +2867,24 @@
       }
 
 
-	function sanitizeTasksAgainstTeam() {
-	  if (!Array.isArray(data.tasks)) return;
-	  let changed = false;
-	  data.tasks.forEach((t) => {
-		if (!t || !Array.isArray(t.assignedMembers)) return;
-		const filtered = t.assignedMembers.filter((u) => teamMembersById.has(u));
-		if (filtered.length !== t.assignedMembers.length) {
-		  t.assignedMembers = filtered;
-		  changed = true;
-		}
-	  });
-	  if (changed) {
-		data.tasks = data.tasks.map((it) => normalizeTask(it)).sort(compareTasks);
-		data.lastUpdated = new Date().toISOString();
-		saveDataForUser(currentUser, data);
-		renderTasks();
-	  }
-	}
+    function sanitizeTasksAgainstTeam() {
+      if (!Array.isArray(data.tasks)) return;
+      let changed = false;
+      data.tasks.forEach((t) => {
+        if (!t || !Array.isArray(t.assignedMembers)) return;
+        const filtered = t.assignedMembers.filter((u) => teamMembersById.has(u));
+        if (filtered.length !== t.assignedMembers.length) {
+          t.assignedMembers = filtered;
+          changed = true;
+        }
+      });
+      if (changed) {
+        data.tasks = data.tasks.map((it) => normalizeTask(it)).sort(compareTasks);
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+        renderTasks();
+      }
+    }
 
 
     function updateTaskPanelDescription() {
@@ -3751,22 +3751,22 @@
           if (newTask.dueDate) {
             const eventId = generateId('event');
             // Titre d’évènement explicite ; ajuste si tu veux quelque chose de plus court
-	    const eventTitle = `📝 Tâche · ${newTask.title}`;
+        const eventTitle = `📝 Tâche · ${newTask.title}`;
 
-	    data.events.push({
-		  id: eventId,
-		  title: eventTitle,
-		  date: newTask.dueDate,
-		  time: '20:00',           // <- à 20h
-		  notes: newTask.description || '',
-	    });
+        data.events.push({
+          id: eventId,
+          title: eventTitle,
+          date: newTask.dueDate,
+          time: '20:00',           // <- à 20h
+          notes: newTask.description || '',
+        });
 
-	    // Lier l’évènement à la tâche
-	    newTask.calendarEventId = eventId;
+        // Lier l’évènement à la tâche
+        newTask.calendarEventId = eventId;
   
-	    // Garder le tri et l’état cohérents dans le calendrier
-	    data.events.sort(compareCalendarEvents);
-	  }
+        // Garder le tri et l’état cohérents dans le calendrier
+        data.events.sort(compareCalendarEvents);
+      }
 
       data.tasks.push(newTask);
       data.tasks = data.tasks.map((item) => normalizeTask(item)).sort(compareTasks);
@@ -4365,119 +4365,119 @@
     function renderTeamPage() {
           // Remplir infos haut de page
           const ownerEl = document.getElementById('team-owner-name');
-	  if (ownerEl) ownerEl.textContent = data.panelOwner || '—';
+      if (ownerEl) ownerEl.textContent = data.panelOwner || '—';
 
-	  const listEl = document.getElementById('team-list');
-	  const emptyEl = document.getElementById('team-empty');
-	  const countEl = document.getElementById('team-count');
+      const listEl = document.getElementById('team-list');
+      const emptyEl = document.getElementById('team-empty');
+      const countEl = document.getElementById('team-count');
 
-	  if (!(listEl instanceof HTMLElement)) return;
+      if (!(listEl instanceof HTMLElement)) return;
 
-	  // Contenu liste
-	  const members = Array.isArray(data.teamMembers) ? data.teamMembers.slice() : [];
-	  listEl.innerHTML = '';
+      // Contenu liste
+      const members = Array.isArray(data.teamMembers) ? data.teamMembers.slice() : [];
+      listEl.innerHTML = '';
 
-	  if (!members.length) {
-		if (emptyEl) emptyEl.hidden = false;
-		if (countEl) countEl.textContent = '0';
-	  } else {
-		if (emptyEl) emptyEl.hidden = true;
-		if (countEl) countEl.textContent = String(members.length);
+      if (!members.length) {
+        if (emptyEl) emptyEl.hidden = false;
+        if (countEl) countEl.textContent = '0';
+      } else {
+        if (emptyEl) emptyEl.hidden = true;
+        if (countEl) countEl.textContent = String(members.length);
 
-		members.forEach((username) => {
-		  const li = document.createElement('li');
-		  li.className = 'category-item';
+        members.forEach((username) => {
+          const li = document.createElement('li');
+          li.className = 'category-item';
 
-		  const main = document.createElement('div');
-		  main.className = 'category-main';
+          const main = document.createElement('div');
+          main.className = 'category-main';
 
-		  const title = document.createElement('h3');
-		  title.className = 'category-title';
-		  title.textContent = username;
+          const title = document.createElement('h3');
+          title.className = 'category-title';
+          title.textContent = username;
 
-		  const desc = document.createElement('p');
-		  desc.className = 'category-description';
-		  desc.textContent = (username === data.panelOwner)
-			? 'Fondateur du panel'
-			: 'Membre';
+          const desc = document.createElement('p');
+          desc.className = 'category-description';
+          desc.textContent = (username === data.panelOwner)
+            ? 'Fondateur du panel'
+            : 'Membre';
 
-		  main.appendChild(title);
-		  main.appendChild(desc);
+          main.appendChild(title);
+          main.appendChild(desc);
 
-		  const actions = document.createElement('div');
-		  actions.className = 'category-actions';
+          const actions = document.createElement('div');
+          actions.className = 'category-actions';
 
-		  // Bouton retirer (sauf fondateur)
-		  if (username !== data.panelOwner) {
-			const removeBtn = document.createElement('button');
-			removeBtn.type = 'button';
-			removeBtn.className = 'category-button category-button--danger';
-			removeBtn.textContent = 'Retirer';
-			removeBtn.setAttribute('data-action', 'team-remove');
-			removeBtn.setAttribute('data-username', username);
-			actions.appendChild(removeBtn);
-		  }
+          // Bouton retirer (sauf fondateur)
+          if (username !== data.panelOwner) {
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'category-button category-button--danger';
+            removeBtn.textContent = 'Retirer';
+            removeBtn.setAttribute('data-action', 'team-remove');
+            removeBtn.setAttribute('data-username', username);
+            actions.appendChild(removeBtn);
+          }
 
 
-		  li.appendChild(main);
-		  li.appendChild(actions);
-		  listEl.appendChild(li);
-		});
-	  }
+          li.appendChild(main);
+          li.appendChild(actions);
+          listEl.appendChild(li);
+        });
+      }
 
-	  // Remplir le select "Ajouter un membre"
-	  const select = document.getElementById('team-user-select');
-	  if (select instanceof HTMLSelectElement) {
-		const candidates = getAvailableUsersForTeam();
-		select.innerHTML = '';
-		if (candidates.length === 0) {
-		  const opt = document.createElement('option');
-		  opt.value = '';
-		  opt.disabled = true;
-		  opt.selected = true;
-		  opt.textContent = 'Aucun utilisateur disponible';
-		  select.appendChild(opt);
-		  select.disabled = true;
-		} else {
-		  candidates.forEach(({ username, email }) => {
-			const opt = document.createElement('option');
-			opt.value = username;
-			opt.textContent = email ? `${username} (${email})` : username;
-			select.appendChild(opt);
-		  });
-		  select.disabled = false;
-		}
-	  }
-	}
-	
-	function addTeamMember(username) {
-	  if (!username) return;
-	  if (!Array.isArray(data.teamMembers)) data.teamMembers = [];
-	  if (!data.teamMembers.includes(username)) {
-		data.teamMembers.push(username);
-		data.teamMembers = Array.from(new Set(data.teamMembers));
-		data.lastUpdated = new Date().toISOString();
-		saveDataForUser(currentUser, data);
-		rebuildTeamCaches();
-		renderTeamPage();
-	  }
-	}
+      // Remplir le select "Ajouter un membre"
+      const select = document.getElementById('team-user-select');
+      if (select instanceof HTMLSelectElement) {
+        const candidates = getAvailableUsersForTeam();
+        select.innerHTML = '';
+        if (candidates.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.disabled = true;
+          opt.selected = true;
+          opt.textContent = 'Aucun utilisateur disponible';
+          select.appendChild(opt);
+          select.disabled = true;
+        } else {
+          candidates.forEach(({ username, email }) => {
+            const opt = document.createElement('option');
+            opt.value = username;
+            opt.textContent = email ? `${username} (${email})` : username;
+            select.appendChild(opt);
+          });
+          select.disabled = false;
+        }
+      }
+    }
+    
+    function addTeamMember(username) {
+      if (!username) return;
+      if (!Array.isArray(data.teamMembers)) data.teamMembers = [];
+      if (!data.teamMembers.includes(username)) {
+        data.teamMembers.push(username);
+        data.teamMembers = Array.from(new Set(data.teamMembers));
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+        rebuildTeamCaches();
+        renderTeamPage();
+      }
+    }
 
-	function removeTeamMember(username) {
-	  if (!username) return;
-	  if (username === data.panelOwner) return; // Sécurité
-	  if (!Array.isArray(data.teamMembers)) return;
+    function removeTeamMember(username) {
+      if (!username) return;
+      if (username === data.panelOwner) return; // Sécurité
+      if (!Array.isArray(data.teamMembers)) return;
 
-	  const before = data.teamMembers.length;
-	  data.teamMembers = data.teamMembers.filter((u) => u !== username);
+      const before = data.teamMembers.length;
+      data.teamMembers = data.teamMembers.filter((u) => u !== username);
 
-	  if (data.teamMembers.length !== before) {
-		data.lastUpdated = new Date().toISOString();
-		saveDataForUser(currentUser, data);
-		rebuildTeamCaches();
-		renderTeamPage();
-	  }
-	}
+      if (data.teamMembers.length !== before) {
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+        rebuildTeamCaches();
+        renderTeamPage();
+      }
+    }
 
     function updateTaskCountDisplay(totalCount, visibleCount = totalCount) {
       const totalLabel = formatTaskCountLabel(totalCount);
@@ -4558,60 +4558,60 @@
     function deleteTask(taskId) {
           if (!taskId) return;
 
-	  // Chercher la tâche pour savoir si elle a un évènement lié
-	  const existingTask = Array.isArray(data.tasks)
-		? data.tasks.find((t) => t && t.id === taskId)
-		: null;
+      // Chercher la tâche pour savoir si elle a un évènement lié
+      const existingTask = Array.isArray(data.tasks)
+        ? data.tasks.find((t) => t && t.id === taskId)
+        : null;
 
-	  // Supprimer la tâche
-	  const initialLength = Array.isArray(data.tasks) ? data.tasks.length : 0;
-	  data.tasks = Array.isArray(data.tasks)
-		? data.tasks.filter((task) => task && task.id !== taskId)
-		: [];
+      // Supprimer la tâche
+      const initialLength = Array.isArray(data.tasks) ? data.tasks.length : 0;
+      data.tasks = Array.isArray(data.tasks)
+        ? data.tasks.filter((task) => task && task.id !== taskId)
+        : [];
 
-	  if (data.tasks.length === initialLength) return;
+      if (data.tasks.length === initialLength) return;
 
-	  // S’il y a un évènement lié, on le supprime aussi
-	  if (existingTask && typeof existingTask.calendarEventId === 'string' && existingTask.calendarEventId) {
-		deleteCalendarEvent(existingTask.calendarEventId);
-		// deleteCalendarEvent() fait déjà save + renderCalendar()
-	  }
+      // S’il y a un évènement lié, on le supprime aussi
+      if (existingTask && typeof existingTask.calendarEventId === 'string' && existingTask.calendarEventId) {
+        deleteCalendarEvent(existingTask.calendarEventId);
+        // deleteCalendarEvent() fait déjà save + renderCalendar()
+      }
 
-	  data.lastUpdated = new Date().toISOString();
-	  saveDataForUser(currentUser, data);
-	  renderTasks();
-	}
-	
-	// État local : id de la tâche en cours d’édition
-	let editingTaskId = '';
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderTasks();
+    }
+    
+    // État local : id de la tâche en cours d’édition
+    let editingTaskId = '';
 
-	function setTaskFormMode(mode /* 'create' | 'edit' */) {
-	  if (!taskForm) return;
-	  const submitBtn = taskForm.querySelector('button[type="submit"]');
-	  const resetBtn  = taskForm.querySelector('button[type="reset"]');
+    function setTaskFormMode(mode /* 'create' | 'edit' */) {
+      if (!taskForm) return;
+      const submitBtn = taskForm.querySelector('button[type="submit"]');
+      const resetBtn  = taskForm.querySelector('button[type="reset"]');
 
-	  taskForm.dataset.mode = mode;
-	  if (submitBtn instanceof HTMLButtonElement) {
-		submitBtn.textContent = mode === 'edit' ? 'Enregistrer' : 'Ajouter la tâche';
-	  }
-	  if (resetBtn instanceof HTMLButtonElement) {
-		resetBtn.textContent = mode === 'edit' ? 'Annuler la modification' : 'Réinitialiser';
-	  }
-	}
+      taskForm.dataset.mode = mode;
+      if (submitBtn instanceof HTMLButtonElement) {
+        submitBtn.textContent = mode === 'edit' ? 'Enregistrer' : 'Ajouter la tâche';
+      }
+      if (resetBtn instanceof HTMLButtonElement) {
+        resetBtn.textContent = mode === 'edit' ? 'Annuler la modification' : 'Réinitialiser';
+      }
+    }
 
-	function startEditTask(taskId) {
-	  if (!Array.isArray(data.tasks)) return;
-	  const t = data.tasks.find((x) => x && x.id === taskId);
-	  if (!t) return;
+    function startEditTask(taskId) {
+      if (!Array.isArray(data.tasks)) return;
+      const t = data.tasks.find((x) => x && x.id === taskId);
+      if (!t) return;
 
           // Ouvre la page « Créer une tâche » pour faciliter la modification
           showPage && showPage('tasks-create');
 
-	  // Remplit le formulaire
-	  if (taskTitleInput instanceof HTMLInputElement) taskTitleInput.value = t.title || '';
-	  if (taskDueDateInput instanceof HTMLInputElement) taskDueDateInput.value = t.dueDate || '';
-	  if (taskColorInput instanceof HTMLInputElement) taskColorInput.value = normalizeTaskColor(t.color || DEFAULT_TASK_COLOR);
-	  if (taskDescriptionInput instanceof HTMLTextAreaElement) taskDescriptionInput.value = t.description || '';
+      // Remplit le formulaire
+      if (taskTitleInput instanceof HTMLInputElement) taskTitleInput.value = t.title || '';
+      if (taskDueDateInput instanceof HTMLInputElement) taskDueDateInput.value = t.dueDate || '';
+      if (taskColorInput instanceof HTMLInputElement) taskColorInput.value = normalizeTaskColor(t.color || DEFAULT_TASK_COLOR);
+      if (taskDescriptionInput instanceof HTMLTextAreaElement) taskDescriptionInput.value = t.description || '';
 
         if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
           const assignedMembers = Array.isArray(t.assignedMembers) ? t.assignedMembers.slice() : [];
@@ -4635,12 +4635,12 @@
         editingTaskId = t.id;
         setTaskFormMode('edit');
 
-	  // Focus UX
-	  window.requestAnimationFrame(() => {
-		taskTitleInput && taskTitleInput.focus();
-		taskTitleInput && taskTitleInput.setSelectionRange(taskTitleInput.value.length, taskTitleInput.value.length);
-	  });
-	}
+      // Focus UX
+      window.requestAnimationFrame(() => {
+        taskTitleInput && taskTitleInput.focus();
+        taskTitleInput && taskTitleInput.setSelectionRange(taskTitleInput.value.length, taskTitleInput.value.length);
+      });
+    }
 
     async function applyTaskEditsFromForm() {
       if (!taskForm || !editingTaskId) return;
@@ -4648,25 +4648,25 @@
 
       const formData = new FormData(taskForm);
       const title = (formData.get('task-title') || '').toString().trim();
-	  if (!title) { taskTitleInput.focus(); return; }
+      if (!title) { taskTitleInput.focus(); return; }
 
-	  // Date
-	  let dueDate = '';
-	  const dueDateRaw = (formData.get('task-due-date') || '').toString().trim();
-	  if (taskDueDateInput instanceof HTMLInputElement) taskDueDateInput.setCustomValidity('');
-	  if (dueDateRaw) {
-		if (isValidDateKey(dueDateRaw)) {
-		  dueDate = dueDateRaw; // attendu: YYYY-MM-DD
-		} else if (taskDueDateInput instanceof HTMLInputElement) {
-		  taskDueDateInput.setCustomValidity('Veuillez sélectionner une date valide.');
-		  taskDueDateInput.reportValidity();
-		  taskDueDateInput.focus();
-		  return;
-		}
-	  }
+      // Date
+      let dueDate = '';
+      const dueDateRaw = (formData.get('task-due-date') || '').toString().trim();
+      if (taskDueDateInput instanceof HTMLInputElement) taskDueDateInput.setCustomValidity('');
+      if (dueDateRaw) {
+        if (isValidDateKey(dueDateRaw)) {
+          dueDate = dueDateRaw; // attendu: YYYY-MM-DD
+        } else if (taskDueDateInput instanceof HTMLInputElement) {
+          taskDueDateInput.setCustomValidity('Veuillez sélectionner une date valide.');
+          taskDueDateInput.reportValidity();
+          taskDueDateInput.focus();
+          return;
+        }
+      }
 
-	  const colorValue       = normalizeTaskColor((formData.get('task-color') || DEFAULT_TASK_COLOR).toString());
-	  const descriptionValue = (formData.get('task-description') || '').toString().trim();
+      const colorValue       = normalizeTaskColor((formData.get('task-color') || DEFAULT_TASK_COLOR).toString());
+      const descriptionValue = (formData.get('task-description') || '').toString().trim();
 
       const members = [];
       if (taskMemberSelect instanceof HTMLSelectElement && !taskMemberSelect.disabled) {
@@ -4719,19 +4719,19 @@
       upsertCalendarEventForTask(task);
 
       // Sauvegarde + rendu
-	  data.tasks = data.tasks.map((it) => normalizeTask(it)).sort(compareTasks);
-	  data.lastUpdated = new Date().toISOString();
-	  saveDataForUser(currentUser, data);
+      data.tasks = data.tasks.map((it) => normalizeTask(it)).sort(compareTasks);
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
 
-	  if (typeof renderCalendar === 'function') renderCalendar();
+      if (typeof renderCalendar === 'function') renderCalendar();
 
-	  // Reset mode édition
-	  editingTaskId = '';
-	  taskForm.reset();
-	  resetTaskFormDefaults();
-	  setTaskFormMode('create');
-	  renderTasks();
-	}
+      // Reset mode édition
+      editingTaskId = '';
+      taskForm.reset();
+      resetTaskFormDefaults();
+      setTaskFormMode('create');
+      renderTasks();
+    }
 
 
 
@@ -6209,7 +6209,7 @@
         if (Array.isArray(advancedFilters.keywords) && advancedFilters.keywords.length > 0) {
           advancedFilters = { ...advancedFilters, keywords: [] };
         }
-		if (advancedFilters.keywordMode !== KEYWORD_FILTER_MODE_ALL) {
+        if (advancedFilters.keywordMode !== KEYWORD_FILTER_MODE_ALL) {
           advancedFilters = { ...advancedFilters, keywordMode: KEYWORD_FILTER_MODE_ALL };
         }
         return;
@@ -6269,15 +6269,15 @@
       }
 
       const allowedValues = new Set(
-	    Array.isArray(keywords)
-		  ? keywords
-		  	.map((keyword) => (keyword && keyword.id ? keyword.id.toString() : ''))
-			.filter((value) => Boolean(value))
-		  : []
-	  );
+        Array.isArray(keywords)
+          ? keywords
+            .map((keyword) => (keyword && keyword.id ? keyword.id.toString() : ''))
+            .filter((value) => Boolean(value))
+          : []
+      );
       const filteredSelection = previousSelection.filter((value) => allowedValues.has(value));
 
-    if (filteredSelection.length !== previousSelection.length) {
+      if (filteredSelection.length !== previousSelection.length) {
         advancedFilters = { ...advancedFilters, keywords: filteredSelection };
       }
 
@@ -6293,23 +6293,23 @@
 
       let matched = false;
       if (!searchKeywordModeInputs || searchKeywordModeInputs.length === 0) {
-		return; // rien à traiter
-	  }
+        return; // rien à traiter
+      }
 
-	  searchKeywordModeInputs.forEach((input) => {
-		if (!(input instanceof HTMLInputElement)) {
-		  return;
-		}
+      searchKeywordModeInputs.forEach((input) => {
+        if (!(input instanceof HTMLInputElement)) {
+          return;
+        }
 
-		input.disabled = shouldForceAll;
+        input.disabled = shouldForceAll;
 
-		if (input.value === normalizedMode) {
-		  input.checked = true;
-		  matched = true;
-		} else if (input.checked) {
-		  input.checked = false;
-  	    }
-	  });
+        if (input.value === normalizedMode) {
+          input.checked = true;
+          matched = true;
+        } else if (input.checked) {
+          input.checked = false;
+        }
+      });
 
 
       if (!matched) {
@@ -6325,7 +6325,6 @@
         advancedFilters = { ...(advancedFilters || {}), keywordMode: normalizedMode };
       }
     }
-  
 
     function handleSaveCurrentSearch() {
       if (!Array.isArray(data.savedSearches)) {
@@ -6585,7 +6584,7 @@
           }
         }
       }
-
+      
       updateCampaignRecipients();
     }
 
@@ -6768,9 +6767,9 @@
 
         if (keywordNames.length > 0) {
           const keywordModeLabel =
-		  savedSearch?.advancedFilters?.keywordMode === KEYWORD_FILTER_MODE_ANY
-			? 'OU'
-			: 'ET';
+          savedSearch?.advancedFilters?.keywordMode === KEYWORD_FILTER_MODE_ANY
+            ? 'OU'
+            : 'ET';
           parts.push(`Mots clés (${keywordModeLabel}) : ${keywordNames.join(', ')}`);
         }
       }
@@ -6855,49 +6854,39 @@
       } else {
         blockId = generateId('email-block');
       }
+      
       return { id: blockId, type: normalizedType, data };
+
     }
 
     function normalizeEmailTemplateBlockData(type, rawData = {}) {
-      const defaults = EMAIL_TEMPLATE_BLOCK_DEFAULTS[type] || EMAIL_TEMPLATE_BLOCK_DEFAULTS.paragraph;
+      const defaults =
+        EMAIL_TEMPLATE_BLOCK_DEFAULTS[type] || EMAIL_TEMPLATE_BLOCK_DEFAULTS.paragraph;
       const data = { ...defaults };
 
       if (type === 'paragraph') {
         if (typeof rawData.text === 'string') {
           data.text = rawData.text;
         }
-        if (typeof rawData.align === 'string' && EMAIL_TEMPLATE_ALIGN_VALUES.has(rawData.align)) {
+        if (
+          typeof rawData.align === 'string' &&
+          EMAIL_TEMPLATE_ALIGN_VALUES.has(rawData.align)
+        ) {
           data.align = rawData.align;
         }
         if (!EMAIL_TEMPLATE_ALIGN_VALUES.has(data.align)) {
           data.align = 'left';
         }
-        return data;
-      }
 
-      if (type === 'image') {
-        if (typeof rawData.url === 'string') {
-          data.url = rawData.url.trim();
-        }
-        if (typeof rawData.alt === 'string') {
-          data.alt = rawData.alt.trim();
-        }
-        if (typeof rawData.link === 'string') {
-          data.link = rawData.link.trim();
-        }
-        if (typeof rawData.caption === 'string') {
-          data.caption = rawData.caption.trim();
-        }
-        return data;
-      }
+      } else if (type === 'image') {
+        if (typeof rawData.url === 'string') data.url = rawData.url.trim();
+        if (typeof rawData.alt === 'string') data.alt = rawData.alt.trim();
+        if (typeof rawData.link === 'string') data.link = rawData.link.trim();
+        if (typeof rawData.caption === 'string') data.caption = rawData.caption.trim();
 
-      if (type === 'button') {
-        if (typeof rawData.label === 'string') {
-          data.label = rawData.label.trim();
-        }
-        if (typeof rawData.url === 'string') {
-          data.url = rawData.url.trim();
-        }
+      } else if (type === 'button') {
+        if (typeof rawData.label === 'string') data.label = rawData.label.trim();
+        if (typeof rawData.url === 'string') data.url = rawData.url.trim();
         if (
           typeof rawData.variant === 'string' &&
           EMAIL_TEMPLATE_BUTTON_VARIANTS.has(rawData.variant)
@@ -6907,11 +6896,11 @@
         if (!EMAIL_TEMPLATE_BUTTON_VARIANTS.has(data.variant)) {
           data.variant = 'primary';
         }
-        return data;
       }
 
       return data;
     }
+
 
     function cloneEmailTemplateBlock(block, options = {}) {
       if (!block || typeof block !== 'object') {
@@ -6924,7 +6913,6 @@
       if (!emailTemplateBlocksContainer) {
         return;
       }
-
       emailTemplateBlocksContainer.innerHTML = '';
 
       if (!Array.isArray(emailTemplateDraftBlocks) || emailTemplateDraftBlocks.length === 0) {
@@ -6934,7 +6922,6 @@
         emailTemplateBlocksContainer.appendChild(emptyState);
         return;
       }
-
       const fragment = document.createDocumentFragment();
       emailTemplateDraftBlocks.forEach((block, index) => {
         const element = createEmailTemplateBlockElement(block, index);
@@ -9874,22 +9861,22 @@
 
     function upgradeDataStructure(rawData) {
       const base = rawData && typeof rawData === 'object' ? rawData : {};
-	  // -- PRÉSERVER / NORMALISER LE FONDATEUR ET L'ÉQUIPE -------------------------
-	  base.panelOwner = (typeof base.panelOwner === 'string' && base.panelOwner.trim())
-	    ? base.panelOwner.trim()
-	    : (base.panelOwner || ''); // ne crée pas ici, juste préserve si présent
+      // -- PRÉSERVER / NORMALISER LE FONDATEUR ET L'ÉQUIPE -------------------------
+      base.panelOwner = (typeof base.panelOwner === 'string' && base.panelOwner.trim())
+        ? base.panelOwner.trim()
+        : (base.panelOwner || ''); // ne crée pas ici, juste préserve si présent
 
-	  if (Array.isArray(base.teamMembers)) {
-		base.teamMembers = Array.from(new Set(
-		  base.teamMembers
-		    .filter(u => typeof u === 'string')
-		    .map(u => u.trim())
-		    .filter(Boolean)
-		));
-	  } else {
-		base.teamMembers = [];
-	  }
-		// ---------------------------------------------------------------------------
+      if (Array.isArray(base.teamMembers)) {
+        base.teamMembers = Array.from(new Set(
+          base.teamMembers
+            .filter(u => typeof u === 'string')
+            .map(u => u.trim())
+            .filter(Boolean)
+        ));
+      } else {
+        base.teamMembers = [];
+      }
+        // ---------------------------------------------------------------------------
 
 
       if (!base.metrics || typeof base.metrics !== 'object') {
@@ -10057,22 +10044,32 @@
 
         base.savedSearches = normalizedSavedSearches;
       }
+      
+      const safeMap = (arr, normalizer, label) => {
+        if (!Array.isArray(arr)) return [];
+        const isFn = typeof normalizer === 'function';
+        return arr.map((item, idx) => {
+          try {
+            return isFn ? normalizer(item) : item;
+          } catch (e) {
+            console.error(`[${label}] normalize failed at index ${idx}:`, item, e);
+            return null;
+          }
+        }).filter(Boolean);
+      };
 
-      if (!Array.isArray(base.emailTemplates)) {
-        base.emailTemplates = [];
-      } else {
-        base.emailTemplates = base.emailTemplates
-          .map((item) => normalizeEmailTemplateRecord(item))
-          .filter((item) => item);
-      }
+      base.emailTemplates = safeMap(
+        base.emailTemplates,
+        (typeof normalizeEmailTemplateRecord === 'function' ? normalizeEmailTemplateRecord : null),
+        'emailTemplates'
+      );
 
-      if (!Array.isArray(base.emailCampaigns)) {
-        base.emailCampaigns = [];
-      } else {
-        base.emailCampaigns = base.emailCampaigns
-          .map((item) => normalizeEmailCampaignRecord(item))
-          .filter((item) => item);
-      }
+      base.emailCampaigns = safeMap(
+        base.emailCampaigns,
+        (typeof normalizeEmailCampaignRecord === 'function' ? normalizeEmailCampaignRecord : null),
+        'emailCampaigns'
+      );
+
 
       base.contacts.forEach((contact) => {
         if (!contact || typeof contact !== 'object') {
@@ -10155,14 +10152,13 @@
       return base;
     }
 
-	// Ensuite seulement, ta fonction
-	function createEmptyAdvancedFilters() {
-	  return {
-		categories: {},
-		keywords: [],
-		keywordMode: (window.KEYWORD_FILTER_MODE_ALL || 'all'),
-	  };
-	}
+    function createEmptyAdvancedFilters() {
+      return {
+        categories: {},
+        keywords: [],
+        keywordMode: (window.KEYWORD_FILTER_MODE_ALL || 'all'),
+      };
+    }
 
     function cloneAdvancedFilters(source) {
       const result = createEmptyAdvancedFilters();
@@ -10204,7 +10200,7 @@
       const ANY = window.KEYWORD_FILTER_MODE_ANY || 'any';
       const ALL = window.KEYWORD_FILTER_MODE_ALL || 'all';
 
-        // keywords
+      // keywords
       const items = Array.isArray(rawKeywords) ? rawKeywords : [];
       const keywordSet = new Set();
       items.forEach((v) => {
@@ -10219,10 +10215,9 @@
       const mode = (source && typeof source.keywordMode === 'string') ? source.keywordMode : ALL;
       result.keywordMode = (mode === ANY) ? ANY : ALL;
 
-
       return result;
     }
-
+    
     function getFirstNonEmptyString(candidates) {
       if (!Array.isArray(candidates)) {
         return '';
@@ -10736,24 +10731,24 @@
   }
 
   function loadDataForUser(username) {
-	  if (!username) {
-		return cloneDefaultData();
-	  }
+      if (!username) {
+        return cloneDefaultData();
+      }
 
-	  const storageKey = `${DATA_KEY_PREFIX}${username}`;
-	  try {
-		const stored = window.localStorage.getItem(storageKey);
-		if (stored) {
-		  const parsed = JSON.parse(stored) || {};
-		  // On préserve TOUT ce qui est présent, puis on normalise les blocs connus
-		  const base = typeof parsed === 'object' ? parsed : {};
+      const storageKey = `${DATA_KEY_PREFIX}${username}`;
+      try {
+        const stored = window.localStorage.getItem(storageKey);
+        if (stored) {
+          const parsed = JSON.parse(stored) || {};
+          // On préserve TOUT ce qui est présent, puis on normalise les blocs connus
+          const base = typeof parsed === 'object' ? parsed : {};
 
-		  return {
-			// préserve tous les champs déjà sauvés (dont panelOwner, teamMembers, etc.)
-			...base,
+          return {
+            // préserve tous les champs déjà sauvés (dont panelOwner, teamMembers, etc.)
+            ...base,
 
-			// normalisations sans perdre de données
-			metrics: { ...defaultData.metrics, ...(base.metrics || {}) },
+            // normalisations sans perdre de données
+            metrics: { ...defaultData.metrics, ...(base.metrics || {}) },
                         categories: Array.isArray(base.categories) ? base.categories : [],
                         keywords: Array.isArray(base.keywords) ? base.keywords : [],
                         contacts: Array.isArray(base.contacts) ? base.contacts : [],
@@ -10777,14 +10772,14 @@
                         // si jamais ces champs n’existaient pas encore
                         panelOwner: typeof base.panelOwner === 'string' ? base.panelOwner : '',
                         teamMembers: Array.isArray(base.teamMembers) ? base.teamMembers : [],
-		  };
-		}
-	  } catch (error) {
-		console.warn('Impossible de charger les données locales :', error);
-	  }
+          };
+        }
+      } catch (error) {
+        console.warn('Impossible de charger les données locales :', error);
+      }
 
-	  return cloneDefaultData();
-	}
+      return cloneDefaultData();
+    }
 
 
   function saveDataForUser(username, data) {
@@ -10801,24 +10796,24 @@
   }
 
   function cloneDefaultData() {
-          return {
-                metrics: { ...defaultData.metrics },
-                categories: [],
-                keywords: [],
-                contacts: [],
-                events: [],
-                taskCategories: [],
-                tasks: [],
-                teamChatMessages: [],
-                savedSearches: [],
-                emailTemplates: [],
-                emailCampaigns: [],
-                lastUpdated: null,
-                // Nouveaux champs persistés
-                panelOwner: '',
-                teamMembers: [],
-          };
-	}
+      return {
+        metrics: { ...defaultData.metrics },
+        categories: [],
+        keywords: [],
+        contacts: [],
+        events: [],
+        taskCategories: [],
+        tasks: [],
+        teamChatMessages: [],
+        savedSearches: [],
+        emailTemplates: [],
+        emailCampaigns: [],
+        lastUpdated: null,
+        // Nouveaux champs persistés
+        panelOwner: '',
+        teamMembers: [],
+      };
+    }
 
 
   async function hashPassword(password) {
