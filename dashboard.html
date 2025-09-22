@@ -332,6 +332,141 @@
             </div>
           </section>
 
+          <section id="directory-home" class="page" aria-labelledby="directory-home-title">
+            <header class="page-header">
+              <div>
+                <h1 id="directory-home-title">Accueil du répertoire</h1>
+                <p class="page-subtitle">
+                  Visualisez la complétude de vos contacts et l'état de vos enrichissements en un coup d'œil.
+                </p>
+              </div>
+              <div class="insight-card">
+                <span class="insight-label">Jeux de données suivis</span>
+                <span class="insight-value" id="total-datasets">0</span>
+              </div>
+            </header>
+
+            <section class="directory-overview" aria-labelledby="directory-metrics-title">
+              <div class="directory-overview-header">
+                <h2 id="directory-metrics-title">Indicateurs principaux</h2>
+                <p class="directory-overview-caption">
+                  Les compteurs se mettent à jour automatiquement lors de l'ajout ou de la modification d'un contact.
+                </p>
+              </div>
+              <div class="directory-metric-grid">
+                <article class="directory-metric-card">
+                  <h3 class="directory-metric-title">Contacts enregistrés</h3>
+                  <p class="directory-metric-value" data-metric="peopleCount">0</p>
+                  <p class="directory-metric-note">
+                    Nombre total de fiches présentes dans votre base.
+                  </p>
+                </article>
+                <article class="directory-metric-card">
+                  <h3 class="directory-metric-title">Téléphones détectés</h3>
+                  <p class="directory-metric-value" data-metric="phoneCount">0</p>
+                  <p class="directory-metric-note" data-metric-share="phone">0 % des contacts</p>
+                </article>
+                <article class="directory-metric-card">
+                  <h3 class="directory-metric-title">Adresses mail détectées</h3>
+                  <p class="directory-metric-value" data-metric="emailCount">0</p>
+                  <p class="directory-metric-note" data-metric-share="email">0 % des contacts</p>
+                </article>
+              </div>
+            </section>
+
+            <section class="directory-coverage" aria-labelledby="directory-coverage-title">
+              <div class="directory-coverage-intro">
+                <h2 id="directory-coverage-title">Couverture des coordonnées</h2>
+                <p class="directory-coverage-subtitle">
+                  Répartition des contacts disposant d'un téléphone, d'une adresse mail ou des deux.
+                </p>
+              </div>
+              <div class="directory-coverage-layout">
+                <div
+                  id="contact-coverage-chart"
+                  class="directory-coverage-chart"
+                  role="img"
+                  aria-label="Répartition des contacts selon les moyens de contact."
+                >
+                  <span id="contact-coverage-highlight" class="directory-coverage-highlight">0 %</span>
+                </div>
+                <div class="directory-coverage-details">
+                  <p id="contact-coverage-summary" class="directory-coverage-summary">
+                    Aucun contact n'a encore été enregistré.
+                  </p>
+                  <ul class="directory-coverage-breakdown">
+                    <li>
+                      <span class="directory-coverage-dot directory-coverage-dot--both" aria-hidden="true"></span>
+                      <div class="directory-coverage-text">
+                        <p class="directory-coverage-label">Téléphone &amp; e-mail</p>
+                        <p class="directory-coverage-values">
+                          <span data-coverage-count="both">0</span>
+                          <span data-coverage-percent="both">0 %</span>
+                        </p>
+                      </div>
+                    </li>
+                    <li>
+                      <span class="directory-coverage-dot directory-coverage-dot--phone" aria-hidden="true"></span>
+                      <div class="directory-coverage-text">
+                        <p class="directory-coverage-label">Téléphone uniquement</p>
+                        <p class="directory-coverage-values">
+                          <span data-coverage-count="phone">0</span>
+                          <span data-coverage-percent="phone">0 %</span>
+                        </p>
+                      </div>
+                    </li>
+                    <li>
+                      <span class="directory-coverage-dot directory-coverage-dot--email" aria-hidden="true"></span>
+                      <div class="directory-coverage-text">
+                        <p class="directory-coverage-label">E-mail uniquement</p>
+                        <p class="directory-coverage-values">
+                          <span data-coverage-count="email">0</span>
+                          <span data-coverage-percent="email">0 %</span>
+                        </p>
+                      </div>
+                    </li>
+                    <li>
+                      <span class="directory-coverage-dot directory-coverage-dot--none" aria-hidden="true"></span>
+                      <div class="directory-coverage-text">
+                        <p class="directory-coverage-label">Aucune coordonnée</p>
+                        <p class="directory-coverage-values">
+                          <span data-coverage-count="none">0</span>
+                          <span data-coverage-percent="none">0 %</span>
+                        </p>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+
+            <section class="directory-datasets" aria-labelledby="directory-datasets-title">
+              <div class="directory-datasets-header">
+                <h2 id="directory-datasets-title">Structure de vos informations</h2>
+                <p class="directory-datasets-caption">
+                  Vérifiez la richesse de votre répertoire et complétez les éléments manquants.
+                </p>
+              </div>
+              <div class="directory-datasets-grid">
+                <article class="directory-dataset-card">
+                  <h3>Catégories configurées</h3>
+                  <p class="directory-dataset-value" id="categories-count">0</p>
+                  <p class="directory-dataset-note">Types de données personnalisées disponibles.</p>
+                </article>
+                <article class="directory-dataset-card">
+                  <h3>Mots clés actifs</h3>
+                  <p class="directory-dataset-value" id="keywords-count">0</p>
+                  <p class="directory-dataset-note">Facilitent la segmentation et les recherches ciblées.</p>
+                </article>
+                <article class="directory-dataset-card">
+                  <h3>Dernière mise à jour</h3>
+                  <p class="directory-dataset-value" id="last-updated">—</p>
+                  <p class="directory-dataset-note">Date de la dernière modification dans le répertoire.</p>
+                </article>
+              </div>
+            </section>
+          </section>
+
           <section id="categories" class="page" aria-labelledby="categories-title">
             <header class="page-header">
               <div>
@@ -935,6 +1070,60 @@
     </div>
 
     <div
+      id="keyword-stats-overlay"
+      class="keyword-stats-overlay"
+      role="dialog"
+      aria-modal="true"
+      hidden
+    >
+      <div id="keyword-stats-dialog" class="keyword-stats-dialog" role="document" aria-labelledby="keyword-stats-title">
+        <header class="keyword-stats-header">
+          <h2 id="keyword-stats-title">Statistiques du mot clé</h2>
+          <button
+            type="button"
+            class="keyword-stats-close"
+            data-close-keyword-stats
+            aria-label="Fermer la fenêtre statistiques"
+          >
+            ✕
+          </button>
+        </header>
+        <div class="keyword-stats-body">
+          <div id="keyword-stats-chart" class="keyword-stats-chart" aria-hidden="true">
+            <span id="keyword-stats-percent" class="keyword-stats-percent">0 %</span>
+          </div>
+          <div class="keyword-stats-details">
+            <p id="keyword-stats-summary" class="keyword-stats-summary">
+              Aucun contact n'est associé à ce mot clé.
+            </p>
+            <dl class="keyword-stats-legend">
+              <div class="keyword-stats-legend-item keyword-stats-legend-item--primary">
+                <dt>Attribué</dt>
+                <dd>
+                  <span id="keyword-stats-assigned-count">0</span>
+                  <span id="keyword-stats-assigned-percent">0 %</span>
+                </dd>
+              </div>
+              <div class="keyword-stats-legend-item">
+                <dt>Non attribué</dt>
+                <dd>
+                  <span id="keyword-stats-remaining-count">0</span>
+                  <span id="keyword-stats-remaining-percent">0 %</span>
+                </dd>
+              </div>
+            </dl>
+            <p class="keyword-stats-total">
+              Total de contacts : <span id="keyword-stats-total">0</span>
+            </p>
+          </div>
+        </div>
+        <footer class="keyword-stats-footer">
+          <button type="button" class="secondary-button" data-close-keyword-stats>Fermer</button>
+        </footer>
+      </div>
+    </div>
+
+    <div
       id="calendar-overlay"
       class="calendar-overlay"
       role="dialog"
@@ -1119,6 +1308,9 @@
           <p class="keyword-description"></p>
         </div>
         <div class="keyword-actions">
+          <button type="button" class="keyword-button keyword-button--stats" data-action="stats">
+            Statistiques
+          </button>
           <button type="button" class="keyword-button" data-action="edit">Modifier</button>
           <button type="button" class="keyword-button keyword-button--danger" data-action="delete">
             Supprimer

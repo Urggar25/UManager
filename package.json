@@ -1,0 +1,10 @@
+{
+  "name": "umanager",
+  "version": "1.0.0",
+  "description": "Outils d'administration UManager",
+  "main": "server/mailer.js",
+  "license": "MIT",
+  "dependencies": {
+    "nodemailer": "^6.9.8"
+  }
+}
