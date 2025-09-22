@@ -1370,6 +1370,8 @@
       });
     }
 
+    let campaignResetKeepFeedback = false;
+
     if (emailCampaignForm) {
       emailCampaignForm.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -1471,13 +1473,16 @@
           type: 'created',
           campaignId: campaignRecord.id,
         });
-        resetCampaignForm(true);
-        updateCampaignRecipients();
+        campaignResetKeepFeedback = true;
+        if (emailCampaignForm) {
+          emailCampaignForm.reset();
+        }
       });
 
       emailCampaignForm.addEventListener('reset', () => {
         window.requestAnimationFrame(() => {
-          resetCampaignForm();
+          resetCampaignForm(true, { keepFeedback: campaignResetKeepFeedback });
+          campaignResetKeepFeedback = false;
         });
       });
     }
@@ -7834,10 +7839,8 @@
       return 0;
     }
 
-    function resetCampaignForm(shouldFocus = true) {
-      if (emailCampaignForm) {
-        emailCampaignForm.reset();
-      }
+    function resetCampaignForm(shouldFocus = true, options = {}) {
+      const keepFeedback = Boolean(options && options.keepFeedback);
       campaignRecipients = [];
       campaignSubjectEdited = false;
       campaignActiveTemplateId = '';
@@ -7857,7 +7860,9 @@
       if (campaignEmailPreview) {
         campaignEmailPreview.innerHTML = campaignEmailPreviewEmptyHtml;
       }
-      setEmailCampaignFeedback('');
+      if (!keepFeedback) {
+        setEmailCampaignFeedback('');
+      }
       if (shouldFocus && campaignTemplateSelect instanceof HTMLSelectElement) {
         campaignTemplateSelect.focus();
       }
