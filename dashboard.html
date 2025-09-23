@@ -18,10 +18,13 @@
           <span class="brand-name">UManager</span>
         </div>
         <nav class="topbar-nav" aria-label="Modules">
+          <button class="topbar-button active" type="button" data-top-target="home" id="topbar-home">
+            Accueil
+          </button>
           <button class="topbar-button" type="button" data-top-target="calendar">
             Calendrier
           </button>
-          <button class="topbar-button active" type="button" data-top-target="tasks">
+          <button class="topbar-button" type="button" data-top-target="tasks">
             Tâches
           </button>
           <button class="topbar-button" type="button" data-top-target="directory">
@@ -33,6 +36,9 @@
           <button class="topbar-button" type="button" data-top-target="team" id="topbar-team">
             Équipe
           </button>
+          <button class="topbar-button" type="button" data-top-target="administration" id="topbar-administration">
+            Administration
+          </button>
         </nav>
         <div class="topbar-user" aria-live="polite">
           <span class="topbar-user-label">Connecté&nbsp;:</span>
@@ -42,7 +48,122 @@
       </header>
       <div class="app-shell">
         <main class="content" aria-live="polite">
-          <section id="tasks-summary" class="page active" aria-labelledby="tasks-summary-title">
+          <section id="home-overview" class="page active" aria-labelledby="home-overview-title">
+            <header class="page-header">
+              <div>
+                <h1 id="home-overview-title">Accueil</h1>
+                <p class="page-subtitle">
+                  Retrouvez vos informations clés et les dernières actualités publiées par l'administration.
+                </p>
+              </div>
+            </header>
+
+            <div class="home-grid">
+              <section class="summary home-section" aria-labelledby="home-teams-title">
+                <div>
+                  <h2 id="home-teams-title">Vos équipes</h2>
+                  <p class="home-section-subtitle">
+                    Visualisez les équipes auxquelles vous appartenez et définissez celle que vous suivez actuellement.
+                  </p>
+                </div>
+                <div class="home-current-team">
+                  <span class="home-current-team-label">Équipe actuelle</span>
+                  <strong id="home-current-team" class="home-current-team-name">—</strong>
+                </div>
+                <ul id="home-teams-list" class="home-team-list" aria-live="polite"></ul>
+                <p id="home-teams-empty" class="empty-state" hidden>
+                  Ajoutez une équipe pour commencer à collaborer.
+                </p>
+                <form id="home-team-form" class="home-team-form" autocomplete="off">
+                  <div class="form-row">
+                    <label for="home-team-name">Nom de l'équipe *</label>
+                    <input id="home-team-name" name="team-name" type="text" maxlength="80" required />
+                  </div>
+                  <div class="form-row">
+                    <label for="home-team-role">Rôle dans l'équipe</label>
+                    <input
+                      id="home-team-role"
+                      name="team-role"
+                      type="text"
+                      maxlength="80"
+                      placeholder="Ex. Responsable, Membre"
+                    />
+                  </div>
+                  <div class="form-actions">
+                    <button type="submit" class="primary-button">Ajouter l'équipe</button>
+                  </div>
+                </form>
+                <p id="home-team-feedback" class="form-feedback" aria-live="polite" hidden></p>
+              </section>
+
+              <section class="summary home-section" aria-labelledby="home-subscription-title">
+                <div>
+                  <h2 id="home-subscription-title">Abonnement</h2>
+                  <p class="home-section-subtitle">
+                    Consultez votre offre actuelle et explorez les possibilités d'évolution.
+                  </p>
+                </div>
+                <div class="home-subscription-header">
+                  <span class="home-subscription-label">Offre active</span>
+                  <div class="home-subscription-current">
+                    <strong id="home-subscription-name">Aucun abonnement</strong>
+                    <span id="home-subscription-price" class="home-subscription-price">0 € / mois</span>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label for="home-subscription-select">Changer d'offre</label>
+                  <select id="home-subscription-select" name="subscription"></select>
+                </div>
+                <div class="home-subscription-metrics">
+                  <div class="summary-item">
+                    <span class="summary-label">Contacts max</span>
+                    <span class="summary-value" id="home-subscription-contact-limit">0</span>
+                  </div>
+                  <div class="summary-item">
+                    <span class="summary-label">Tâches actives max</span>
+                    <span class="summary-value" id="home-subscription-task-limit">0</span>
+                  </div>
+                </div>
+                <ul id="home-subscription-features" class="home-feature-list"></ul>
+              </section>
+            </div>
+
+            <section class="summary home-section" aria-labelledby="home-directory-title">
+              <div>
+                <h2 id="home-directory-title">Capacité du répertoire</h2>
+                <p class="home-section-subtitle">
+                  Surveillez le nombre de contacts enregistrés par rapport à votre quota.
+                </p>
+              </div>
+              <p class="home-directory-limit">
+                <strong id="home-directory-limit">Limite actuelle : —</strong>
+              </p>
+              <div class="home-directory-progress" aria-hidden="true">
+                <div
+                  id="home-directory-progress-bar"
+                  class="home-directory-progress-bar"
+                  role="progressbar"
+                  aria-valuemin="0"
+                  aria-valuemax="0"
+                  aria-valuenow="0"
+                ></div>
+              </div>
+              <p id="home-directory-usage" class="home-directory-usage">—</p>
+            </section>
+
+            <section class="summary home-section" aria-labelledby="home-news-title">
+              <div>
+                <h2 id="home-news-title">Dernières nouveautés</h2>
+                <p id="home-news-updated" class="home-section-subtitle">
+                  Les annonces publiées par l'administration apparaissent ici.
+                </p>
+              </div>
+              <ul id="home-news-list" class="home-news-list" aria-live="polite"></ul>
+              <p id="home-news-empty" class="empty-state" hidden>Aucune nouveauté n'a encore été publiée.</p>
+            </section>
+          </section>
+
+          <section id="tasks-summary" class="page" aria-labelledby="tasks-summary-title">
             <header class="page-header">
               <div>
                 <h1 id="tasks-summary-title">Récapitulatif des tâches</h1>
@@ -1051,6 +1172,63 @@
               <h2 id="team-list-title">Membres de l'équipe</h2>
               <ul id="team-list" class="category-list" aria-live="polite"></ul>
               <p id="team-empty" class="empty-state" hidden>Aucun membre pour l’instant.</p>
+            </section>
+          </section>
+
+          <section id="administration" class="page" aria-labelledby="administration-title">
+            <header class="page-header">
+              <div>
+                <h1 id="administration-title">Administration</h1>
+                <p class="page-subtitle">
+                  Publiez des nouveautés pour l'ensemble des utilisateurs et testez la plateforme sous l'identité d'un membre existant.
+                </p>
+              </div>
+            </header>
+
+            <section class="admin-section" aria-labelledby="admin-news-title">
+              <h2 id="admin-news-title">Publier une nouveauté</h2>
+              <form id="admin-article-form" class="form-grid" autocomplete="off">
+                <div class="form-row">
+                  <label for="admin-article-title">Titre *</label>
+                  <input id="admin-article-title" name="title" type="text" maxlength="120" required />
+                </div>
+                <div class="form-row">
+                  <label for="admin-article-summary">Résumé *</label>
+                  <textarea id="admin-article-summary" name="summary" rows="3" maxlength="280" required></textarea>
+                </div>
+                <div class="form-row">
+                  <label for="admin-article-content">Contenu détaillé</label>
+                  <textarea id="admin-article-content" name="content" rows="4" maxlength="2000"></textarea>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="primary-button">Publier la nouveauté</button>
+                </div>
+                <p id="admin-article-feedback" class="form-feedback" aria-live="polite" hidden></p>
+              </form>
+              <div class="admin-news-list-wrapper">
+                <h3 class="admin-subtitle">Annonces publiées</h3>
+                <ul id="admin-news-list" class="admin-news-list" aria-live="polite"></ul>
+                <p id="admin-news-empty" class="empty-state" hidden>
+                  Aucune annonce n'a été publiée pour le moment.
+                </p>
+              </div>
+            </section>
+
+            <section class="admin-section" aria-labelledby="admin-impersonate-title">
+              <h2 id="admin-impersonate-title">Simuler une connexion</h2>
+              <p class="admin-section-description">
+                Sélectionnez un utilisateur existant pour ouvrir une session en son nom et vérifier son expérience.
+              </p>
+              <form id="admin-impersonate-form" class="form-grid" autocomplete="off">
+                <div class="form-row">
+                  <label for="admin-impersonate-select">Utilisateur</label>
+                  <select id="admin-impersonate-select" name="username" required></select>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="secondary-button">Se connecter en tant que cet utilisateur</button>
+                </div>
+                <p id="admin-impersonate-feedback" class="form-feedback" aria-live="polite" hidden></p>
+              </form>
             </section>
           </section>
         </main>

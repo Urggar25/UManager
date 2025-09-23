@@ -2,6 +2,50 @@
   const USER_STORE_KEY = 'umanager-user-store';
   const ACTIVE_USER_KEY = 'umanager-active-user';
   const DATA_KEY_PREFIX = 'umanager-data-store:';
+  const SUPER_ADMIN_EMAIL = 'fasquellesteven@gmail.com';
+  const NEWS_STORE_KEY = 'umanager-news-store';
+  const NEWS_DISPLAY_LIMIT = 5;
+  const DEFAULT_SUBSCRIPTION_ID = 'none';
+  const SUBSCRIPTION_PLAN_ORDER = ['none', 'essential', 'pro', 'ultimate'];
+  const SUBSCRIPTION_PLANS = {
+    none: {
+      id: 'none',
+      name: 'Aucun abonnement',
+      priceLabel: '0 € / mois',
+      contactLimit: 5,
+      taskLimit: 5,
+      features: ['5 contacts max', '5 tâches actives max'],
+    },
+    essential: {
+      id: 'essential',
+      name: 'Essentiel',
+      priceLabel: '5 € / mois',
+      contactLimit: 25,
+      taskLimit: 10,
+      features: ['25 contacts max', '10 tâches actives max'],
+    },
+    pro: {
+      id: 'pro',
+      name: 'Pro',
+      priceLabel: '20 € / mois',
+      contactLimit: 250,
+      taskLimit: 50,
+      features: ['250 contacts max', '50 tâches actives max', "Accès au tchat d'équipe"],
+    },
+    ultimate: {
+      id: 'ultimate',
+      name: 'Ultimate',
+      priceLabel: '100 € / mois',
+      contactLimit: 100000,
+      taskLimit: 500,
+      features: [
+        '100 000 contacts max',
+        '500 tâches actives max',
+        "Accès au tchat d'équipe",
+        'Accès au partage de document',
+      ],
+    },
+  };
 
   const DEFAULT_ADMINS = [
     { username: 'admin1', password: 'emsal1', email: 'admin1@umanager.local' },
@@ -26,6 +70,9 @@
     emailTemplates: [],
     emailCampaigns: [],
     lastUpdated: null,
+    subscription: DEFAULT_SUBSCRIPTION_ID,
+    teams: [],
+    currentTeamId: '',
   };
 
   const TEAM_CHAT_HISTORY_LIMIT = 200;
@@ -365,8 +412,76 @@
       active: document.querySelector('[data-task-status-count="active"]'),
       archived: document.querySelector('[data-task-status-count="archived"]'),
     };
+    const homeCurrentTeamEl = document.getElementById('home-current-team');
+    const homeTeamsList = document.getElementById('home-teams-list');
+    const homeTeamsEmpty = document.getElementById('home-teams-empty');
+    const homeTeamForm = document.getElementById('home-team-form');
+    const homeTeamNameInput = document.getElementById('home-team-name');
+    const homeTeamRoleInput = document.getElementById('home-team-role');
+    const homeTeamFeedback = document.getElementById('home-team-feedback');
+    const homeSubscriptionNameEl = document.getElementById('home-subscription-name');
+    const homeSubscriptionPriceEl = document.getElementById('home-subscription-price');
+    const homeSubscriptionContactLimitEl = document.getElementById('home-subscription-contact-limit');
+    const homeSubscriptionTaskLimitEl = document.getElementById('home-subscription-task-limit');
+    const homeSubscriptionSelect = document.getElementById('home-subscription-select');
+    const homeSubscriptionFeaturesList = document.getElementById('home-subscription-features');
+    const homeDirectoryLimitEl = document.getElementById('home-directory-limit');
+    const homeDirectoryProgressBar = document.getElementById('home-directory-progress-bar');
+    const homeDirectoryUsageEl = document.getElementById('home-directory-usage');
+    const homeNewsList = document.getElementById('home-news-list');
+    const homeNewsEmpty = document.getElementById('home-news-empty');
+    const homeNewsUpdatedEl = document.getElementById('home-news-updated');
+    const topbarHomeButton = document.getElementById('topbar-home');
+    const topbarTeamButton = document.getElementById('topbar-team');
+    const topbarAdministrationButton = document.getElementById('topbar-administration');
+    const adminArticleForm = document.getElementById('admin-article-form');
+    const adminArticleFeedback = document.getElementById('admin-article-feedback');
+    const adminNewsList = document.getElementById('admin-news-list');
+    const adminNewsEmpty = document.getElementById('admin-news-empty');
+    const adminImpersonateForm = document.getElementById('admin-impersonate-form');
+    const adminImpersonateSelect = document.getElementById('admin-impersonate-select');
+    const adminImpersonateFeedback = document.getElementById('admin-impersonate-feedback');
+    const homeNewsUpdatedDefault = homeNewsUpdatedEl ? homeNewsUpdatedEl.textContent || '' : '';
+    const adminArticleFeedbackDefault =
+      adminArticleFeedback ? adminArticleFeedback.textContent || '' : '';
+    const adminImpersonateFeedbackDefault =
+      adminImpersonateFeedback ? adminImpersonateFeedback.textContent || '' : '';
+
+    if (homeTeamFeedback) {
+      homeTeamFeedback.textContent = '';
+      homeTeamFeedback.hidden = true;
+      homeTeamFeedback.setAttribute('hidden', '');
+    }
+
+    if (adminArticleFeedback) {
+      adminArticleFeedback.textContent = '';
+      adminArticleFeedback.hidden = true;
+      adminArticleFeedback.setAttribute('hidden', '');
+    }
+
+    if (adminImpersonateFeedback) {
+      adminImpersonateFeedback.textContent = '';
+      adminImpersonateFeedback.hidden = true;
+      adminImpersonateFeedback.setAttribute('hidden', '');
+    }
+
+    let userStore = loadUserStore();
+    const currentUserRecord =
+      userStore &&
+      typeof userStore === 'object' &&
+      userStore.users &&
+      typeof userStore.users === 'object'
+        ? userStore.users[currentUser]
+        : null;
+    const currentUserEmail =
+      currentUserRecord && typeof currentUserRecord.email === 'string'
+        ? currentUserRecord.email.trim()
+        : '';
+    const normalizedAdminEmail = SUPER_ADMIN_EMAIL.toLowerCase();
+    const isSuperAdmin = currentUserEmail.toLowerCase() === normalizedAdminEmail;
 
     const MODULE_CONFIG = {
+      home: [{ id: 'home-overview', label: "Vue d'ensemble" }],
       tasks: [
         { id: 'tasks-summary', label: 'Page de récapitulatif' },
         { id: 'tasks-organization', label: 'Organisation des tâches' },
@@ -389,6 +504,12 @@
       team: [{ id: 'team', label: "Gestion de l'équipe" }],
     };
 
+    if (isSuperAdmin) {
+      MODULE_CONFIG.administration = [
+        { id: 'administration', label: 'Administration générale' },
+      ];
+    }
+
     const pageModuleMap = new Map();
     Object.entries(MODULE_CONFIG).forEach(([moduleId, entries]) => {
       entries.forEach((entry) => {
@@ -397,6 +518,21 @@
         }
       });
     });
+
+    if (!isSuperAdmin) {
+      if (
+        topbarAdministrationButton instanceof HTMLElement &&
+        topbarAdministrationButton.parentElement
+      ) {
+        topbarAdministrationButton.parentElement.removeChild(topbarAdministrationButton);
+      }
+      pageModuleMap.delete('administration');
+      const adminIndex = topbarButtons.indexOf(topbarAdministrationButton);
+      if (adminIndex >= 0) {
+        topbarButtons.splice(adminIndex, 1);
+      }
+    }
+
     const TASK_STATUS_VALUES = new Set(['active', 'archived']);
     const metricValues = Array.from(document.querySelectorAll('[data-metric]'));
     const metricShares = Array.from(document.querySelectorAll('[data-metric-share]'));
@@ -622,10 +758,15 @@
       dateStyle: 'medium',
       timeStyle: 'short',
     });
+    const newsDateFormatter = new Intl.DateTimeFormat('fr-FR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
 
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
-    
+    let newsData = loadNewsStore();
+
     if (typeof data.panelOwner !== 'string' || !data.panelOwner.trim()) {
       data.panelOwner = currentUser;
       saveDataForUser(currentUser, data);
@@ -639,24 +780,21 @@
       data.teamMembers = Array.from(new Set(data.teamMembers));
       saveDataForUser(currentUser, data);
     }
-    
-        const topbarTeamButton = document.getElementById('topbar-team');
-        const isOwner = currentUser === data.panelOwner;
 
-        if (!isOwner) {
-          if (topbarTeamButton instanceof HTMLElement && topbarTeamButton.parentElement) {
-            topbarTeamButton.parentElement.removeChild(topbarTeamButton);
-          }
-          delete MODULE_CONFIG.team;
-          pageModuleMap.delete('team');
-          const teamIndex = topbarButtons.indexOf(topbarTeamButton);
-          if (teamIndex >= 0) {
-            topbarButtons.splice(teamIndex, 1);
-          }
-        }
+    const isOwner = currentUser === data.panelOwner;
 
+    if (!isOwner) {
+      if (topbarTeamButton instanceof HTMLElement && topbarTeamButton.parentElement) {
+        topbarTeamButton.parentElement.removeChild(topbarTeamButton);
+      }
+      delete MODULE_CONFIG.team;
+      pageModuleMap.delete('team');
+      const teamIndex = topbarButtons.indexOf(topbarTeamButton);
+      if (teamIndex >= 0) {
+        topbarButtons.splice(teamIndex, 1);
+      }
+    }
 
-    
     if (!Array.isArray(data.teamMembers) || data.teamMembers.length === 0) {
       data.teamMembers = [currentUser];
       saveDataForUser(currentUser, data);
@@ -717,6 +855,15 @@
     let keywordStatsActiveId = '';
     let keywordStatsPreviousFocus = null;
 
+    renderHomeTeams();
+    renderHomeSubscription();
+    renderHomeDirectoryLimit();
+    renderHomeNews();
+    if (isSuperAdmin) {
+      renderAdminNewsList();
+      renderAdminUserOptions();
+    }
+
     normalizeCategoryOrders();
     populateTaskMemberOptions();
     updateTaskPanelDescription();
@@ -748,6 +895,156 @@
         updateCategoryOptionsVisibility();
       });
     }
+
+    if (homeTeamForm instanceof HTMLFormElement) {
+      homeTeamForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const nameValue = homeTeamNameInput ? homeTeamNameInput.value : '';
+        const roleValue = homeTeamRoleInput ? homeTeamRoleInput.value : '';
+        const added = addTeamMembership(nameValue, roleValue);
+        if (added) {
+          homeTeamForm.reset();
+          if (homeTeamNameInput instanceof HTMLInputElement) {
+            homeTeamNameInput.focus();
+          }
+        }
+      });
+    }
+
+    if (homeTeamsList) {
+      homeTeamsList.addEventListener('click', (event) => {
+        const target =
+          event.target instanceof HTMLElement
+            ? event.target.closest('button[data-action]')
+            : null;
+        if (!(target instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        const action = target.dataset.action || '';
+        const teamId = target.dataset.teamId || '';
+        if (!teamId) {
+          return;
+        }
+
+        if (action === 'home-team-set-current') {
+          setCurrentTeam(teamId);
+        } else if (action === 'home-team-remove') {
+          removeTeamMembership(teamId);
+        }
+      });
+    }
+
+    if (homeSubscriptionSelect instanceof HTMLSelectElement) {
+      homeSubscriptionSelect.addEventListener('change', (event) => {
+        const target = event.target instanceof HTMLSelectElement ? event.target : homeSubscriptionSelect;
+        const selectedPlan = getSubscriptionPlan(target.value);
+        if (!selectedPlan || selectedPlan.id === data.subscription) {
+          return;
+        }
+        data.subscription = selectedPlan.id;
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+        renderHomeSubscription();
+        renderHomeDirectoryLimit();
+      });
+    }
+
+    if (adminArticleForm instanceof HTMLFormElement && isSuperAdmin) {
+      adminArticleForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const formData = new FormData(adminArticleForm);
+        const title = (formData.get('title') || '').toString().trim();
+        const summary = (formData.get('summary') || '').toString().trim();
+        const content = (formData.get('content') || '').toString().trim();
+
+        if (!title || !summary) {
+          setAdminArticleFeedback('Veuillez renseigner le titre et le résumé.', 'error');
+          return;
+        }
+
+        addNewsArticle({
+          id: generateId('news'),
+          title,
+          summary,
+          content,
+          createdAt: new Date().toISOString(),
+          author: currentUser,
+        });
+
+        adminArticleForm.reset();
+        setAdminArticleFeedback('La nouveauté a été publiée.', 'success');
+      });
+    }
+
+    if (adminNewsList && isSuperAdmin) {
+      adminNewsList.addEventListener('click', (event) => {
+        const target =
+          event.target instanceof HTMLElement
+            ? event.target.closest('button[data-action="delete-news"]')
+            : null;
+        if (!(target instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        const articleId = target.dataset.newsId || '';
+        if (!articleId) {
+          return;
+        }
+
+        const removed = deleteNewsArticle(articleId);
+        if (removed) {
+          setAdminArticleFeedback('La nouveauté a été supprimée.', 'success');
+        } else {
+          setAdminArticleFeedback("Impossible de supprimer cette nouveauté.", 'error');
+        }
+      });
+    }
+
+    if (adminImpersonateForm instanceof HTMLFormElement && isSuperAdmin) {
+      adminImpersonateForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        if (!(adminImpersonateSelect instanceof HTMLSelectElement)) {
+          return;
+        }
+        userStore = loadUserStore();
+        const selectedUsername = adminImpersonateSelect.value;
+        if (!selectedUsername) {
+          setAdminImpersonateFeedback('Sélectionnez un utilisateur.', 'error');
+          return;
+        }
+        if (selectedUsername === currentUser) {
+          setAdminImpersonateFeedback('Vous êtes déjà connecté avec ce compte.', 'error');
+          return;
+        }
+        const usersObj =
+          userStore && userStore.users && typeof userStore.users === 'object'
+            ? userStore.users
+            : {};
+        if (!usersObj[selectedUsername]) {
+          setAdminImpersonateFeedback('Utilisateur introuvable.', 'error');
+          return;
+        }
+
+        saveActiveUser(selectedUsername);
+        setAdminImpersonateFeedback(`Connexion en cours en tant que ${selectedUsername}…`, 'success');
+        window.location.reload();
+      });
+    }
+
+    document.addEventListener('umanager:data-changed', (event) => {
+      const detail = event && typeof event === 'object' ? event.detail : null;
+      if (detail && detail.section === 'contacts') {
+        renderHomeDirectoryLimit();
+      }
+    });
+
+    document.addEventListener('umanager:page-changed', (event) => {
+      const detail = event && typeof event === 'object' ? event.detail : null;
+      if (detail && detail.pageId === 'administration' && isSuperAdmin) {
+        renderAdminUserOptions();
+      }
+    });
 
     topbarButtons.forEach((button) => {
       button.addEventListener('click', () => {
@@ -1958,7 +2255,7 @@
     window.UManager = window.UManager || {};
     window.UManager.importApi = importApi;
 
-    activateModule('tasks', 'tasks-summary');
+    activateModule('home', 'home-overview');
     renderMetrics();
     renderCategories();
     renderKeywords();
@@ -2713,8 +3010,13 @@
         return;
       }
 
+      if (moduleId === 'administration' && !isSuperAdmin) {
+        activateModule('home', 'home-overview');
+        return;
+      }
+
       if (moduleId === 'team' && !isOwner) {
-        activateModule('tasks', 'tasks-summary');
+        activateModule('home', 'home-overview');
         return;
       }
 
@@ -2752,7 +3054,12 @@
       }
 
       if (pageId === 'team' && !isOwner) {
-        activateModule('tasks', 'tasks-summary');
+        activateModule('home', 'home-overview');
+        return;
+      }
+
+      if (pageId === 'administration' && !isSuperAdmin) {
+        activateModule('home', 'home-overview');
         return;
       }
 
@@ -4878,6 +5185,672 @@
       return null;
     }
 
+    function getSubscriptionPlan(planId) {
+      const key = typeof planId === 'string' ? planId.trim().toLowerCase() : '';
+      if (SUBSCRIPTION_PLANS[key]) {
+        return SUBSCRIPTION_PLANS[key];
+      }
+      return SUBSCRIPTION_PLANS[DEFAULT_SUBSCRIPTION_ID];
+    }
+
+    function setHomeTeamFeedback(message, type = '') {
+      if (!(homeTeamFeedback instanceof HTMLElement)) {
+        return;
+      }
+
+      homeTeamFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+
+      if (!message) {
+        homeTeamFeedback.textContent = '';
+        homeTeamFeedback.hidden = true;
+        homeTeamFeedback.setAttribute('hidden', '');
+        return;
+      }
+
+      homeTeamFeedback.textContent = message;
+      homeTeamFeedback.hidden = false;
+      homeTeamFeedback.removeAttribute('hidden');
+
+      if (type === 'error') {
+        homeTeamFeedback.classList.add('form-feedback--error');
+      } else if (type === 'success') {
+        homeTeamFeedback.classList.add('form-feedback--success');
+      }
+    }
+
+    function renderHomeTeams() {
+      const teams = Array.isArray(data.teams) ? data.teams.slice() : [];
+      const currentTeamIdValue = typeof data.currentTeamId === 'string' ? data.currentTeamId : '';
+
+      if (homeCurrentTeamEl) {
+        const currentTeam = teams.find((team) => team && team.id === currentTeamIdValue);
+        homeCurrentTeamEl.textContent = currentTeam ? currentTeam.name : '—';
+      }
+
+      if (!(homeTeamsList instanceof HTMLElement)) {
+        if (homeTeamsEmpty) {
+          if (teams.length === 0) {
+            homeTeamsEmpty.hidden = false;
+            homeTeamsEmpty.removeAttribute('hidden');
+          } else {
+            homeTeamsEmpty.hidden = true;
+            if (!homeTeamsEmpty.hasAttribute('hidden')) {
+              homeTeamsEmpty.setAttribute('hidden', '');
+            }
+          }
+        }
+        return;
+      }
+
+      homeTeamsList.innerHTML = '';
+
+      if (teams.length === 0) {
+        if (homeTeamsEmpty) {
+          homeTeamsEmpty.hidden = false;
+          homeTeamsEmpty.removeAttribute('hidden');
+        }
+        return;
+      }
+
+      if (homeTeamsEmpty) {
+        homeTeamsEmpty.hidden = true;
+        if (!homeTeamsEmpty.hasAttribute('hidden')) {
+          homeTeamsEmpty.setAttribute('hidden', '');
+        }
+      }
+
+      const fragment = document.createDocumentFragment();
+      teams.forEach((team) => {
+        if (!team || typeof team !== 'object') {
+          return;
+        }
+
+        const item = document.createElement('li');
+        item.className = 'home-team-item';
+
+        const main = document.createElement('div');
+        main.className = 'home-team-main';
+
+        const nameEl = document.createElement('p');
+        nameEl.className = 'home-team-name';
+        nameEl.textContent = team.name || 'Équipe';
+        main.appendChild(nameEl);
+
+        if (team.role) {
+          const roleEl = document.createElement('p');
+          roleEl.className = 'home-team-role';
+          roleEl.textContent = `Rôle : ${team.role}`;
+          main.appendChild(roleEl);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'home-team-actions';
+
+        if (team.id === currentTeamIdValue) {
+          const tag = document.createElement('span');
+          tag.className = 'home-team-tag';
+          tag.textContent = 'Équipe actuelle';
+          actions.appendChild(tag);
+        } else {
+          const setButton = document.createElement('button');
+          setButton.type = 'button';
+          setButton.className = 'home-team-action';
+          setButton.dataset.action = 'home-team-set-current';
+          setButton.dataset.teamId = team.id;
+          setButton.textContent = 'Définir comme équipe actuelle';
+          actions.appendChild(setButton);
+        }
+
+        if (teams.length > 1) {
+          const removeButton = document.createElement('button');
+          removeButton.type = 'button';
+          removeButton.className = 'home-team-action home-team-action--danger';
+          removeButton.dataset.action = 'home-team-remove';
+          removeButton.dataset.teamId = team.id;
+          removeButton.textContent = 'Retirer de mes équipes';
+          actions.appendChild(removeButton);
+        }
+
+        item.append(main, actions);
+        fragment.appendChild(item);
+      });
+
+      homeTeamsList.appendChild(fragment);
+    }
+
+    function addTeamMembership(name, role) {
+      const normalizedName = typeof name === 'string' ? name.trim() : '';
+      const normalizedRole = typeof role === 'string' ? role.trim() : '';
+
+      if (!normalizedName) {
+        setHomeTeamFeedback("Veuillez indiquer le nom de l'équipe.", 'error');
+        return false;
+      }
+
+      const teams = Array.isArray(data.teams) ? data.teams.slice() : [];
+      const alreadyExists = teams.some(
+        (team) =>
+          team &&
+          typeof team === 'object' &&
+          typeof team.name === 'string' &&
+          team.name.trim().toLowerCase() === normalizedName.toLowerCase(),
+      );
+
+      if (alreadyExists) {
+        setHomeTeamFeedback('Cette équipe est déjà enregistrée.', 'error');
+        return false;
+      }
+
+      const newTeam = {
+        id: generateId('user-team'),
+        name: normalizedName,
+        role: normalizedRole || 'Membre',
+      };
+
+      teams.push(newTeam);
+      data.teams = teams;
+
+      if (!data.currentTeamId) {
+        data.currentTeamId = newTeam.id;
+      }
+
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderHomeTeams();
+      setHomeTeamFeedback(`L'équipe « ${newTeam.name} » a été ajoutée.`, 'success');
+      return true;
+    }
+
+    function setCurrentTeam(teamId) {
+      if (!Array.isArray(data.teams)) {
+        setHomeTeamFeedback("Aucune équipe n'est disponible.", 'error');
+        return false;
+      }
+
+      const target = data.teams.find((team) => team && team.id === teamId);
+      if (!target) {
+        setHomeTeamFeedback("Équipe introuvable.", 'error');
+        return false;
+      }
+
+      if (data.currentTeamId === teamId) {
+        setHomeTeamFeedback(`« ${target.name} » est déjà votre équipe active.`, 'error');
+        return false;
+      }
+
+      data.currentTeamId = teamId;
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderHomeTeams();
+      setHomeTeamFeedback(`« ${target.name} » est désormais votre équipe active.`, 'success');
+      return true;
+    }
+
+    function removeTeamMembership(teamId) {
+      if (!Array.isArray(data.teams)) {
+        setHomeTeamFeedback("Aucune équipe à retirer.", 'error');
+        return false;
+      }
+
+      if (data.teams.length <= 1) {
+        setHomeTeamFeedback('Vous devez conserver au moins une équipe.', 'error');
+        return false;
+      }
+
+      const previousLength = data.teams.length;
+      data.teams = data.teams.filter((team) => team && team.id !== teamId);
+
+      if (data.teams.length === previousLength) {
+        setHomeTeamFeedback("Équipe introuvable.", 'error');
+        return false;
+      }
+
+      if (!data.teams.some((team) => team && team.id === data.currentTeamId)) {
+        data.currentTeamId = data.teams[0] ? data.teams[0].id : '';
+      }
+
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      renderHomeTeams();
+      setHomeTeamFeedback('Équipe retirée avec succès.', 'success');
+      return true;
+    }
+
+    function renderHomeSubscription() {
+      const plan = getSubscriptionPlan(data.subscription);
+
+      if (homeSubscriptionNameEl) {
+        homeSubscriptionNameEl.textContent = plan.name;
+      }
+
+      if (homeSubscriptionPriceEl) {
+        homeSubscriptionPriceEl.textContent = plan.priceLabel;
+      }
+
+      if (homeSubscriptionContactLimitEl) {
+        homeSubscriptionContactLimitEl.textContent = numberFormatter.format(
+          Number.isFinite(plan.contactLimit) ? plan.contactLimit : 0,
+        );
+      }
+
+      if (homeSubscriptionTaskLimitEl) {
+        homeSubscriptionTaskLimitEl.textContent = numberFormatter.format(
+          Number.isFinite(plan.taskLimit) ? plan.taskLimit : 0,
+        );
+      }
+
+      if (homeSubscriptionSelect instanceof HTMLSelectElement) {
+        const selectedValue = plan.id;
+        const fragment = document.createDocumentFragment();
+
+        SUBSCRIPTION_PLAN_ORDER.forEach((planId) => {
+          const optionPlan = SUBSCRIPTION_PLANS[planId];
+          if (!optionPlan) {
+            return;
+          }
+          const option = document.createElement('option');
+          option.value = optionPlan.id;
+          option.textContent = `${optionPlan.name} — ${optionPlan.priceLabel}`;
+          fragment.appendChild(option);
+        });
+
+        homeSubscriptionSelect.innerHTML = '';
+        homeSubscriptionSelect.appendChild(fragment);
+        homeSubscriptionSelect.value = selectedValue;
+      }
+
+      if (homeSubscriptionFeaturesList) {
+        homeSubscriptionFeaturesList.innerHTML = '';
+        const features = Array.isArray(plan.features) ? plan.features : [];
+        const fragment = document.createDocumentFragment();
+
+        if (features.length === 0) {
+          const placeholder = document.createElement('li');
+          placeholder.textContent = 'Aucune caractéristique supplémentaire.';
+          fragment.appendChild(placeholder);
+        } else {
+          features.forEach((feature) => {
+            const item = document.createElement('li');
+            item.textContent = feature;
+            fragment.appendChild(item);
+          });
+        }
+
+        homeSubscriptionFeaturesList.appendChild(fragment);
+      }
+    }
+
+    function renderHomeDirectoryLimit() {
+      const plan = getSubscriptionPlan(data.subscription);
+      const limit = Number.isFinite(plan.contactLimit) ? Number(plan.contactLimit) : 0;
+      const totalContacts = Array.isArray(data.contacts) ? data.contacts.length : 0;
+
+      if (homeDirectoryLimitEl) {
+        const limitText =
+          limit > 0
+            ? `${numberFormatter.format(limit)} contact${limit > 1 ? 's' : ''} max`
+            : 'Aucune limite configurée';
+        homeDirectoryLimitEl.textContent = `Limite actuelle : ${limitText}`;
+      }
+
+      if (homeDirectoryUsageEl) {
+        if (limit > 0) {
+          const remaining = Math.max(limit - totalContacts, 0);
+          const remainingText =
+            remaining > 0
+              ? `${numberFormatter.format(remaining)} restant${remaining > 1 ? 's' : ''}`
+              : 'Limite atteinte';
+          homeDirectoryUsageEl.textContent = `${numberFormatter.format(totalContacts)} contact${
+            totalContacts > 1 ? 's' : ''
+          } enregistrés · ${remainingText}`;
+        } else {
+          homeDirectoryUsageEl.textContent = `${numberFormatter.format(totalContacts)} contact${
+            totalContacts > 1 ? 's' : ''
+          } enregistrés`;
+        }
+      }
+
+      if (homeDirectoryProgressBar instanceof HTMLElement) {
+        const effectiveLimit = limit > 0 ? limit : Math.max(totalContacts, 1);
+        const ratio = limit > 0 ? Math.min(totalContacts / limit, 1) : 0;
+        const percent = Math.max(0, Math.min(ratio, 1)) * 100;
+        homeDirectoryProgressBar.style.width = `${percent}%`;
+        homeDirectoryProgressBar.setAttribute('aria-valuemin', '0');
+        homeDirectoryProgressBar.setAttribute('aria-valuemax', effectiveLimit.toString());
+        homeDirectoryProgressBar.setAttribute(
+          'aria-valuenow',
+          Math.min(totalContacts, effectiveLimit).toString(),
+        );
+        const label = limit > 0
+          ? `${numberFormatter.format(totalContacts)} sur ${numberFormatter.format(limit)} contacts`
+          : `${numberFormatter.format(totalContacts)} contacts enregistrés`;
+        homeDirectoryProgressBar.setAttribute('aria-label', `Utilisation du répertoire : ${label}`);
+      }
+    }
+
+    function renderHomeNews() {
+      if (!(homeNewsList instanceof HTMLElement)) {
+        return;
+      }
+
+      const articles = Array.isArray(newsData.articles) ? newsData.articles.slice() : [];
+      articles.sort((a, b) => {
+        const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+        const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+        return dateB.localeCompare(dateA);
+      });
+
+      homeNewsList.innerHTML = '';
+
+      if (articles.length === 0) {
+        if (homeNewsEmpty) {
+          homeNewsEmpty.hidden = false;
+          homeNewsEmpty.removeAttribute('hidden');
+        }
+        if (homeNewsUpdatedEl) {
+          homeNewsUpdatedEl.textContent = homeNewsUpdatedDefault || '';
+        }
+        return;
+      }
+
+      if (homeNewsEmpty) {
+        homeNewsEmpty.hidden = true;
+        if (!homeNewsEmpty.hasAttribute('hidden')) {
+          homeNewsEmpty.setAttribute('hidden', '');
+        }
+      }
+
+      const fragment = document.createDocumentFragment();
+      articles.slice(0, NEWS_DISPLAY_LIMIT).forEach((article) => {
+        if (!article || typeof article !== 'object') {
+          return;
+        }
+
+        const item = document.createElement('li');
+        item.className = 'home-news-item';
+
+        const titleEl = document.createElement('h3');
+        titleEl.className = 'home-news-title';
+        titleEl.textContent = article.title || 'Annonce';
+        item.appendChild(titleEl);
+
+        const metaParts = [];
+        if (article.createdAt) {
+          const createdDate = new Date(article.createdAt);
+          if (!Number.isNaN(createdDate.getTime())) {
+            metaParts.push(newsDateFormatter.format(createdDate));
+          }
+        }
+        if (article.author) {
+          metaParts.push(`par ${article.author}`);
+        }
+        if (metaParts.length > 0) {
+          const metaEl = document.createElement('p');
+          metaEl.className = 'home-news-meta';
+          metaEl.textContent = metaParts.join(' · ');
+          item.appendChild(metaEl);
+        }
+
+        if (article.summary) {
+          const summaryEl = document.createElement('p');
+          summaryEl.className = 'home-news-summary';
+          summaryEl.textContent = article.summary;
+          item.appendChild(summaryEl);
+        }
+
+        if (article.content) {
+          const contentEl = document.createElement('p');
+          contentEl.className = 'home-news-content';
+          contentEl.textContent = article.content;
+          item.appendChild(contentEl);
+        }
+
+        fragment.appendChild(item);
+      });
+
+      homeNewsList.appendChild(fragment);
+
+      if (homeNewsUpdatedEl) {
+        const latest = articles[0];
+        if (latest && latest.createdAt) {
+          const latestDate = new Date(latest.createdAt);
+          if (!Number.isNaN(latestDate.getTime())) {
+            homeNewsUpdatedEl.textContent = `Dernière mise à jour : ${newsDateFormatter.format(
+              latestDate,
+            )}`;
+          } else {
+            homeNewsUpdatedEl.textContent = homeNewsUpdatedDefault || '';
+          }
+        } else {
+          homeNewsUpdatedEl.textContent = homeNewsUpdatedDefault || '';
+        }
+      }
+    }
+
+    function setAdminArticleFeedback(message, type = '') {
+      if (!(adminArticleFeedback instanceof HTMLElement)) {
+        return;
+      }
+
+      adminArticleFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+
+      if (!message) {
+        adminArticleFeedback.textContent = '';
+        adminArticleFeedback.hidden = true;
+        adminArticleFeedback.setAttribute('hidden', '');
+        return;
+      }
+
+      adminArticleFeedback.textContent = message;
+      adminArticleFeedback.hidden = false;
+      adminArticleFeedback.removeAttribute('hidden');
+
+      if (type === 'error') {
+        adminArticleFeedback.classList.add('form-feedback--error');
+      } else if (type === 'success') {
+        adminArticleFeedback.classList.add('form-feedback--success');
+      }
+    }
+
+    function setAdminImpersonateFeedback(message, type = '') {
+      if (!(adminImpersonateFeedback instanceof HTMLElement)) {
+        return;
+      }
+
+      adminImpersonateFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+
+      if (!message) {
+        adminImpersonateFeedback.textContent = '';
+        adminImpersonateFeedback.hidden = true;
+        adminImpersonateFeedback.setAttribute('hidden', '');
+        return;
+      }
+
+      adminImpersonateFeedback.textContent = message;
+      adminImpersonateFeedback.hidden = false;
+      adminImpersonateFeedback.removeAttribute('hidden');
+
+      if (type === 'error') {
+        adminImpersonateFeedback.classList.add('form-feedback--error');
+      } else if (type === 'success') {
+        adminImpersonateFeedback.classList.add('form-feedback--success');
+      }
+    }
+
+    function addNewsArticle(article) {
+      const normalized = normalizeNewsArticle(article);
+      if (!normalized) {
+        return null;
+      }
+
+      if (!newsData || typeof newsData !== 'object') {
+        newsData = { articles: [] };
+      }
+
+      if (!Array.isArray(newsData.articles)) {
+        newsData.articles = [];
+      }
+
+      newsData.articles = newsData.articles.filter(
+        (existing) => existing && existing.id !== normalized.id,
+      );
+      newsData.articles.unshift(normalized);
+      newsData.articles.sort((a, b) => {
+        const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+        const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+        return dateB.localeCompare(dateA);
+      });
+      saveNewsStore(newsData);
+      renderHomeNews();
+      renderAdminNewsList();
+      return normalized;
+    }
+
+    function deleteNewsArticle(articleId) {
+      if (!newsData || !Array.isArray(newsData.articles)) {
+        return false;
+      }
+
+      const previousLength = newsData.articles.length;
+      newsData.articles = newsData.articles.filter(
+        (article) => article && article.id !== articleId,
+      );
+
+      if (newsData.articles.length === previousLength) {
+        return false;
+      }
+
+      saveNewsStore(newsData);
+      renderHomeNews();
+      renderAdminNewsList();
+      return true;
+    }
+
+    function renderAdminNewsList() {
+      if (!(adminNewsList instanceof HTMLElement)) {
+        return;
+      }
+
+      const articles = Array.isArray(newsData.articles) ? newsData.articles.slice() : [];
+      articles.sort((a, b) => {
+        const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+        const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+        return dateB.localeCompare(dateA);
+      });
+
+      adminNewsList.innerHTML = '';
+
+      if (articles.length === 0) {
+        if (adminNewsEmpty) {
+          adminNewsEmpty.hidden = false;
+          adminNewsEmpty.removeAttribute('hidden');
+        }
+        return;
+      }
+
+      if (adminNewsEmpty) {
+        adminNewsEmpty.hidden = true;
+        if (!adminNewsEmpty.hasAttribute('hidden')) {
+          adminNewsEmpty.setAttribute('hidden', '');
+        }
+      }
+
+      const fragment = document.createDocumentFragment();
+      articles.forEach((article) => {
+        if (!article || typeof article !== 'object') {
+          return;
+        }
+
+        const item = document.createElement('li');
+        item.className = 'admin-news-item';
+
+        const titleEl = document.createElement('h3');
+        titleEl.className = 'admin-news-title';
+        titleEl.textContent = article.title || 'Annonce';
+        item.appendChild(titleEl);
+
+        const metaParts = [];
+        if (article.createdAt) {
+          const createdDate = new Date(article.createdAt);
+          if (!Number.isNaN(createdDate.getTime())) {
+            metaParts.push(newsDateFormatter.format(createdDate));
+          }
+        }
+        if (article.author) {
+          metaParts.push(`par ${article.author}`);
+        }
+        if (metaParts.length > 0) {
+          const metaEl = document.createElement('p');
+          metaEl.className = 'admin-news-meta';
+          metaEl.textContent = metaParts.join(' · ');
+          item.appendChild(metaEl);
+        }
+
+        if (article.summary) {
+          const summaryEl = document.createElement('p');
+          summaryEl.className = 'admin-news-summary';
+          summaryEl.textContent = article.summary;
+          item.appendChild(summaryEl);
+        }
+
+        if (article.content) {
+          const contentEl = document.createElement('p');
+          contentEl.className = 'admin-news-content';
+          contentEl.textContent = article.content;
+          item.appendChild(contentEl);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'admin-news-actions';
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'ghost-button ghost-button--danger';
+        deleteButton.dataset.action = 'delete-news';
+        deleteButton.dataset.newsId = article.id;
+        deleteButton.textContent = 'Supprimer';
+        actions.appendChild(deleteButton);
+        item.appendChild(actions);
+
+        fragment.appendChild(item);
+      });
+
+      adminNewsList.appendChild(fragment);
+    }
+
+    function renderAdminUserOptions() {
+      if (!(adminImpersonateSelect instanceof HTMLSelectElement)) {
+        return;
+      }
+
+      userStore = loadUserStore();
+      const usersObj =
+        userStore && userStore.users && typeof userStore.users === 'object'
+          ? userStore.users
+          : {};
+
+      const usernames = Object.keys(usersObj).sort((a, b) =>
+        a.localeCompare(b, 'fr', { sensitivity: 'base' }),
+      );
+
+      adminImpersonateSelect.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = 'Sélectionnez un utilisateur';
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      adminImpersonateSelect.appendChild(placeholder);
+
+      usernames.forEach((username) => {
+        const details = usersObj[username];
+        const email = details && typeof details.email === 'string' ? details.email : '';
+        const option = document.createElement('option');
+        option.value = username;
+        option.textContent = email ? `${username} (${email})` : username;
+        adminImpersonateSelect.appendChild(option);
+      });
+    }
+
     function renderMetrics() {
       const metrics = data && typeof data === 'object' && data.metrics ? data.metrics : {};
       const contacts = Array.isArray(data.contacts) ? data.contacts : [];
@@ -4976,6 +5949,8 @@
           lastUpdatedEl.textContent = '—';
         }
       }
+
+      renderHomeDirectoryLimit();
 
       refreshKeywordStatsIfOpen();
     }
@@ -10344,6 +11319,44 @@
       } else {
         base.teamMembers = [];
       }
+      const normalizedSubscriptionKey =
+        typeof base.subscription === 'string' ? base.subscription.trim().toLowerCase() : '';
+      const subscriptionPlan =
+        normalizedSubscriptionKey && SUBSCRIPTION_PLANS[normalizedSubscriptionKey]
+          ? SUBSCRIPTION_PLANS[normalizedSubscriptionKey]
+          : null;
+      base.subscription = subscriptionPlan ? subscriptionPlan.id : DEFAULT_SUBSCRIPTION_ID;
+
+      const normalizedTeams = [];
+      const seenTeamIds = new Set();
+      if (Array.isArray(base.teams)) {
+        base.teams.forEach((entry) => {
+          const normalized = normalizeUserTeam(entry);
+          if (!normalized) {
+            return;
+          }
+
+          let candidateId = normalized.id;
+          while (!candidateId || seenTeamIds.has(candidateId)) {
+            candidateId = generateId('user-team');
+          }
+
+          normalized.id = candidateId;
+          seenTeamIds.add(candidateId);
+          normalizedTeams.push(normalized);
+        });
+      }
+
+      if (normalizedTeams.length === 0) {
+        normalizedTeams.push(createDefaultUserTeam());
+      }
+
+      base.teams = normalizedTeams;
+
+      const candidateCurrentTeamId =
+        typeof base.currentTeamId === 'string' ? base.currentTeamId.trim() : '';
+      const hasCurrentTeam = normalizedTeams.some((team) => team.id === candidateCurrentTeamId);
+      base.currentTeamId = hasCurrentTeam ? candidateCurrentTeamId : normalizedTeams[0].id;
         // ---------------------------------------------------------------------------
 
 
@@ -10618,6 +11631,35 @@
       }
 
       return base;
+    }
+
+    function normalizeUserTeam(rawTeam) {
+      if (!rawTeam || typeof rawTeam !== 'object') {
+        return null;
+      }
+
+      const normalizedId =
+        typeof rawTeam.id === 'string' && rawTeam.id.trim() ? rawTeam.id.trim() : '';
+      const name =
+        getFirstNonEmptyString([rawTeam.name, rawTeam.label, rawTeam.title]) ||
+        'Équipe sans nom';
+      const role =
+        getFirstNonEmptyString([rawTeam.role, rawTeam.position, rawTeam.function]) ||
+        'Membre';
+
+      return {
+        id: normalizedId,
+        name,
+        role,
+      };
+    }
+
+    function createDefaultUserTeam() {
+      return {
+        id: generateId('user-team'),
+        name: 'Équipe principale',
+        role: 'Membre',
+      };
     }
 
     function createEmptyAdvancedFilters() {
@@ -11173,6 +12215,84 @@
     }
   }
 
+  function loadNewsStore() {
+    try {
+      const stored = window.localStorage.getItem(NEWS_STORE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          const articles = Array.isArray(parsed.articles) ? parsed.articles : [];
+          const normalizedArticles = articles
+            .map((article) => normalizeNewsArticle(article))
+            .filter(Boolean)
+            .sort((a, b) => {
+              const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+              const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+              return dateB.localeCompare(dateA);
+            });
+
+          return { articles: normalizedArticles };
+        }
+      }
+    } catch (error) {
+      console.warn('Impossible de charger les nouveautés :', error);
+    }
+
+    return { articles: [] };
+  }
+
+  function saveNewsStore(store) {
+    if (!store || typeof store !== 'object') {
+      return;
+    }
+
+    const articles = Array.isArray(store.articles) ? store.articles : [];
+    const payload = {
+      articles: articles
+        .map((article) => normalizeNewsArticle(article))
+        .filter(Boolean)
+        .sort((a, b) => {
+          const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+          const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+          return dateB.localeCompare(dateA);
+        }),
+    };
+
+    try {
+      window.localStorage.setItem(NEWS_STORE_KEY, JSON.stringify(payload));
+    } catch (error) {
+      console.warn('Impossible de sauvegarder les nouveautés :', error);
+    }
+  }
+
+  function normalizeNewsArticle(rawArticle) {
+    if (!rawArticle || typeof rawArticle !== 'object') {
+      return null;
+    }
+
+    const normalizedId =
+      typeof rawArticle.id === 'string' && rawArticle.id.trim()
+        ? rawArticle.id.trim()
+        : '';
+
+    const normalized = {
+      id: normalizedId || generateId('news'),
+      title: getFirstNonEmptyString([rawArticle.title, rawArticle.name]) || 'Annonce',
+      summary:
+        getFirstNonEmptyString([rawArticle.summary, rawArticle.resume, rawArticle.description]) ||
+        '',
+      content:
+        typeof rawArticle.content === 'string' ? rawArticle.content.trim() : '',
+      createdAt:
+        selectValidIsoDate(rawArticle.createdAt, rawArticle.created_at) ||
+        new Date().toISOString(),
+      author:
+        getFirstNonEmptyString([rawArticle.author, rawArticle.createdBy, rawArticle.owner]) || '',
+    };
+
+    return normalized;
+  }
+
   function saveActiveUser(username) {
     try {
       window.localStorage.setItem(ACTIVE_USER_KEY, username);
@@ -11240,6 +12360,13 @@
                         // si jamais ces champs n’existaient pas encore
                         panelOwner: typeof base.panelOwner === 'string' ? base.panelOwner : '',
                         teamMembers: Array.isArray(base.teamMembers) ? base.teamMembers : [],
+                        subscription:
+                          typeof base.subscription === 'string'
+                            ? base.subscription
+                            : DEFAULT_SUBSCRIPTION_ID,
+                        teams: Array.isArray(base.teams) ? base.teams : [],
+                        currentTeamId:
+                          typeof base.currentTeamId === 'string' ? base.currentTeamId : '',
           };
         }
       } catch (error) {
@@ -11280,6 +12407,9 @@
         // Nouveaux champs persistés
         panelOwner: '',
         teamMembers: [],
+        subscription: DEFAULT_SUBSCRIPTION_ID,
+        teams: [],
+        currentTeamId: '',
       };
     }
 
