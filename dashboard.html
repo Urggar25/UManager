@@ -43,6 +43,14 @@
         <div class="topbar-user" aria-live="polite">
           <span class="topbar-user-label">Connecté&nbsp;:</span>
           <strong id="current-username">—</strong>
+          <button
+            id="impersonation-exit-button"
+            class="logout-button logout-button--secondary"
+            type="button"
+            hidden
+          >
+            Revenir sur le compte administrateur
+          </button>
           <button id="logout-button" class="logout-button" type="button">Se déconnecter</button>
         </div>
       </header>
@@ -94,37 +102,20 @@
                   </div>
                 </form>
                 <p id="home-team-feedback" class="form-feedback" aria-live="polite" hidden></p>
+                <p id="home-onboarding-lock" class="home-onboarding-lock" hidden>
+                  Vous devez créer ou rejoindre une équipe avant d'accéder aux autres modules de l'application.
+                </p>
               </section>
 
-              <section class="summary home-section" aria-labelledby="home-subscription-title">
+              <section class="summary home-section" aria-labelledby="home-invitations-title">
                 <div>
-                  <h2 id="home-subscription-title">Abonnement</h2>
+                  <h2 id="home-invitations-title">Invitations reçues</h2>
                   <p class="home-section-subtitle">
-                    Consultez votre offre actuelle et explorez les possibilités d'évolution.
+                    Rejoignez les équipes qui vous ont invité en confirmant votre participation.
                   </p>
                 </div>
-                <div class="home-subscription-header">
-                  <span class="home-subscription-label">Offre active</span>
-                  <div class="home-subscription-current">
-                    <strong id="home-subscription-name">Aucun abonnement</strong>
-                    <span id="home-subscription-price" class="home-subscription-price">0 € / mois</span>
-                  </div>
-                </div>
-                <div class="form-row">
-                  <label for="home-subscription-select">Changer d'offre</label>
-                  <select id="home-subscription-select" name="subscription"></select>
-                </div>
-                <div class="home-subscription-metrics">
-                  <div class="summary-item">
-                    <span class="summary-label">Contacts max</span>
-                    <span class="summary-value" id="home-subscription-contact-limit">0</span>
-                  </div>
-                  <div class="summary-item">
-                    <span class="summary-label">Tâches actives max</span>
-                    <span class="summary-value" id="home-subscription-task-limit">0</span>
-                  </div>
-                </div>
-                <ul id="home-subscription-features" class="home-feature-list"></ul>
+                <ul id="home-invitations-list" class="home-invitations" aria-live="polite"></ul>
+                <p id="home-invitations-empty" class="empty-state" hidden>Aucune invitation en attente.</p>
               </section>
             </div>
 
@@ -1157,21 +1148,60 @@
               <h2 id="team-add-title">Ajouter un membre</h2>
               <form id="team-add-form" class="form-grid" autocomplete="off">
                 <div class="form-row">
-                  <label for="team-user-select">Utilisateur</label>
-                  <select id="team-user-select" name="username" required></select>
+                  <label for="team-user-email">Adresse mail du membre *</label>
+                  <input
+                    id="team-user-email"
+                    name="email"
+                    type="email"
+                    required
+                    placeholder="prenom.nom@exemple.com"
+                  />
                 </div>
                 <div class="form-actions">
-                  <button type="submit" class="primary-button">Ajouter à l'équipe</button>
+                  <button type="submit" class="primary-button">Envoyer l'invitation</button>
                 </div>
               </form>
               <p class="form-hint">
-                La liste propose uniquement les utilisateurs existants qui ne sont pas déjà membres.
+                Saisissez l'adresse mail utilisée par le membre sur UManager pour lui envoyer une invitation.
               </p>
+              <p id="team-add-feedback" class="form-feedback" aria-live="polite" hidden></p>
+            </section>
+
+            <section class="category-list-wrapper" aria-labelledby="team-pending-title">
+              <h2 id="team-pending-title">Invitations en attente</h2>
+              <ul id="team-pending-list" class="category-list" aria-live="polite"></ul>
+              <p id="team-pending-empty" class="empty-state" hidden>Aucune invitation en cours.</p>
             </section>
             <section class="category-list-wrapper" aria-labelledby="team-list-title">
               <h2 id="team-list-title">Membres de l'équipe</h2>
               <ul id="team-list" class="category-list" aria-live="polite"></ul>
               <p id="team-empty" class="empty-state" hidden>Aucun membre pour l’instant.</p>
+            </section>
+
+            <section class="summary" aria-labelledby="team-subscription-title">
+              <h2 id="team-subscription-title">Abonnement de l'équipe</h2>
+              <div class="home-subscription-header">
+                <span class="home-subscription-label">Offre active</span>
+                <div class="home-subscription-current">
+                  <strong id="team-subscription-name">Aucun abonnement</strong>
+                  <span id="team-subscription-price" class="home-subscription-price">0 € / mois</span>
+                </div>
+              </div>
+              <div class="form-row">
+                <label for="team-subscription-select">Changer d'offre</label>
+                <select id="team-subscription-select" name="subscription"></select>
+              </div>
+              <div class="home-subscription-metrics">
+                <div class="summary-item">
+                  <span class="summary-label">Contacts max</span>
+                  <span class="summary-value" id="team-subscription-contact-limit">0</span>
+                </div>
+                <div class="summary-item">
+                  <span class="summary-label">Tâches actives max</span>
+                  <span class="summary-value" id="team-subscription-task-limit">0</span>
+                </div>
+              </div>
+              <ul id="team-subscription-features" class="home-feature-list"></ul>
             </section>
           </section>
 
