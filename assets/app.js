@@ -75,6 +75,9 @@
     currentTeamId: '',
   };
 
+  const IMPERSONATION_ADMIN_KEY = 'umanager-impersonation-admin';
+  const TEAM_STORE_KEY = 'umanager-team-store';
+
   const TEAM_CHAT_HISTORY_LIMIT = 200;
   const TEAM_CHAT_MAX_MESSAGE_LENGTH = 500;
   const TASK_MEMBER_NONE_VALUE = '__none__';
@@ -419,12 +422,18 @@
     const homeTeamNameInput = document.getElementById('home-team-name');
     const homeTeamRoleInput = document.getElementById('home-team-role');
     const homeTeamFeedback = document.getElementById('home-team-feedback');
-    const homeSubscriptionNameEl = document.getElementById('home-subscription-name');
-    const homeSubscriptionPriceEl = document.getElementById('home-subscription-price');
-    const homeSubscriptionContactLimitEl = document.getElementById('home-subscription-contact-limit');
-    const homeSubscriptionTaskLimitEl = document.getElementById('home-subscription-task-limit');
-    const homeSubscriptionSelect = document.getElementById('home-subscription-select');
-    const homeSubscriptionFeaturesList = document.getElementById('home-subscription-features');
+    const homeOnboardingLock = document.getElementById('home-onboarding-lock');
+    const homeInvitationsList = document.getElementById('home-invitations-list');
+    const homeInvitationsEmpty = document.getElementById('home-invitations-empty');
+    const teamAddFeedback = document.getElementById('team-add-feedback');
+    const teamPendingList = document.getElementById('team-pending-list');
+    const teamPendingEmpty = document.getElementById('team-pending-empty');
+    const teamSubscriptionNameEl = document.getElementById('team-subscription-name');
+    const teamSubscriptionPriceEl = document.getElementById('team-subscription-price');
+    const teamSubscriptionContactLimitEl = document.getElementById('team-subscription-contact-limit');
+    const teamSubscriptionTaskLimitEl = document.getElementById('team-subscription-task-limit');
+    const teamSubscriptionSelect = document.getElementById('team-subscription-select');
+    const teamSubscriptionFeaturesList = document.getElementById('team-subscription-features');
     const homeDirectoryLimitEl = document.getElementById('home-directory-limit');
     const homeDirectoryProgressBar = document.getElementById('home-directory-progress-bar');
     const homeDirectoryUsageEl = document.getElementById('home-directory-usage');
@@ -453,6 +462,17 @@
       homeTeamFeedback.setAttribute('hidden', '');
     }
 
+    if (teamAddFeedback) {
+      teamAddFeedback.textContent = '';
+      teamAddFeedback.hidden = true;
+      teamAddFeedback.setAttribute('hidden', '');
+    }
+
+    if (homeOnboardingLock) {
+      homeOnboardingLock.hidden = true;
+      homeOnboardingLock.setAttribute('hidden', '');
+    }
+
     if (adminArticleFeedback) {
       adminArticleFeedback.textContent = '';
       adminArticleFeedback.hidden = true;
@@ -466,6 +486,7 @@
     }
 
     let userStore = loadUserStore();
+    let teamStore = loadTeamStore();
     const currentUserRecord =
       userStore &&
       typeof userStore === 'object' &&
@@ -479,6 +500,34 @@
         : '';
     const normalizedAdminEmail = SUPER_ADMIN_EMAIL.toLowerCase();
     const isSuperAdmin = currentUserEmail.toLowerCase() === normalizedAdminEmail;
+    const impersonationExitButton = document.getElementById('impersonation-exit-button');
+    const storedAdminUsername = loadImpersonationAdmin();
+    const isImpersonating =
+      typeof storedAdminUsername === 'string' &&
+      storedAdminUsername &&
+      storedAdminUsername !== currentUser;
+
+    if (!isImpersonating && storedAdminUsername && storedAdminUsername === currentUser) {
+      clearImpersonationAdmin();
+    }
+
+    if (impersonationExitButton instanceof HTMLButtonElement) {
+      if (isImpersonating) {
+        impersonationExitButton.hidden = false;
+        impersonationExitButton.removeAttribute('hidden');
+        impersonationExitButton.addEventListener('click', () => {
+          if (!storedAdminUsername) {
+            return;
+          }
+          saveActiveUser(storedAdminUsername);
+          clearImpersonationAdmin();
+          window.location.reload();
+        });
+      } else {
+        impersonationExitButton.hidden = true;
+        impersonationExitButton.setAttribute('hidden', '');
+      }
+    }
 
     const MODULE_CONFIG = {
       home: [{ id: 'home-overview', label: "Vue d'ensemble" }],
@@ -766,6 +815,7 @@
     let data = loadDataForUser(currentUser);
     data = upgradeDataStructure(data);
     let newsData = loadNewsStore();
+    let onboardingLocked = false;
 
     if (typeof data.panelOwner !== 'string' || !data.panelOwner.trim()) {
       data.panelOwner = currentUser;
@@ -856,7 +906,8 @@
     let keywordStatsPreviousFocus = null;
 
     renderHomeTeams();
-    renderHomeSubscription();
+    renderHomeInvitations();
+    renderTeamSubscription();
     renderHomeDirectoryLimit();
     renderHomeNews();
     if (isSuperAdmin) {
@@ -880,6 +931,7 @@
     if (logoutButton) {
       logoutButton.addEventListener('click', () => {
         clearActiveUser();
+        clearImpersonationAdmin();
         navigateToLogin();
       });
     }
@@ -935,9 +987,35 @@
       });
     }
 
-    if (homeSubscriptionSelect instanceof HTMLSelectElement) {
-      homeSubscriptionSelect.addEventListener('change', (event) => {
-        const target = event.target instanceof HTMLSelectElement ? event.target : homeSubscriptionSelect;
+    if (homeInvitationsList instanceof HTMLElement) {
+      homeInvitationsList.addEventListener('click', (event) => {
+        const target =
+          event.target instanceof HTMLElement
+            ? event.target.closest('button[data-action]')
+            : null;
+        if (!(target instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        const action = target.dataset.action || '';
+        const invitationId = target.dataset.invitationId || '';
+        const teamId = target.dataset.teamId || '';
+        if (!invitationId || !teamId) {
+          return;
+        }
+
+        if (action === 'home-invitation-accept') {
+          acceptTeamInvitation(teamId, invitationId);
+        } else if (action === 'home-invitation-decline') {
+          declineTeamInvitation(teamId, invitationId);
+        }
+      });
+    }
+
+    if (teamSubscriptionSelect instanceof HTMLSelectElement) {
+      teamSubscriptionSelect.addEventListener('change', (event) => {
+        const target =
+          event.target instanceof HTMLSelectElement ? event.target : teamSubscriptionSelect;
         const selectedPlan = getSubscriptionPlan(target.value);
         if (!selectedPlan || selectedPlan.id === data.subscription) {
           return;
@@ -945,7 +1023,7 @@
         data.subscription = selectedPlan.id;
         data.lastUpdated = new Date().toISOString();
         saveDataForUser(currentUser, data);
-        renderHomeSubscription();
+        renderTeamSubscription();
         renderHomeDirectoryLimit();
       });
     }
@@ -1026,6 +1104,9 @@
           return;
         }
 
+        if (!storedAdminUsername) {
+          saveImpersonationAdmin(currentUser);
+        }
         saveActiveUser(selectedUsername);
         setAdminImpersonateFeedback(`Connexion en cours en tant que ${selectedUsername}…`, 'success');
         window.location.reload();
@@ -1052,6 +1133,10 @@
         if (!moduleId) {
           return;
         }
+        if (onboardingLocked && moduleId !== 'home') {
+          showOnboardingLockNotice();
+          return;
+        }
         activateModule(moduleId);
       });
     });
@@ -1067,6 +1152,10 @@
         }
         const pageId = target.dataset.contextTarget || '';
         if (pageId) {
+          if (onboardingLocked && pageId !== 'home-overview') {
+            showOnboardingLockNotice();
+            return;
+          }
           activatePage(pageId);
         }
       });
@@ -1076,6 +1165,10 @@
       button.addEventListener('click', () => {
         const targetPage = button.dataset.navigate || '';
         if (targetPage) {
+          if (onboardingLocked && targetPage !== 'home-overview') {
+            showOnboardingLockNotice();
+            return;
+          }
           showPage(targetPage);
         }
       });
@@ -2194,42 +2287,57 @@
       });
     }
 
-        if (document.getElementById('team')) {
-          // Rendu initial
+    if (document.getElementById('team')) {
       renderTeamPage();
 
-      // Submit "Ajouter un membre"
       const addForm = document.getElementById('team-add-form');
+      const emailInput = document.getElementById('team-user-email');
       if (addForm instanceof HTMLFormElement) {
-        addForm.addEventListener('submit', (e) => {
-          e.preventDefault();
+        addForm.addEventListener('submit', (event) => {
+          event.preventDefault();
           const formData = new FormData(addForm);
-          const username = (formData.get('username') || '').toString().trim();
-          if (username) {
-            addTeamMember(username);
+          const email = (formData.get('email') || '').toString().trim();
+          const invited = inviteTeamMemberByEmail(email);
+          if (invited) {
             addForm.reset();
-            // recycle le rendu pour que le select se mette à jour
-            renderTeamPage();
+            if (emailInput instanceof HTMLInputElement) {
+              emailInput.focus();
+            }
           }
         });
       }
 
-      // Click "Retirer" (robuste avec .closest)
       const list = document.getElementById('team-list');
       if (list) {
-        list.addEventListener('click', (e) => {
-          const target = e.target;
-          if (!(target instanceof Element)) return;
-
-          // On remonte jusqu'au bouton qui porte bien data-action="team-remove"
-          const btn = target.closest('button[data-action="team-remove"]');
-          if (!btn) return;
-
-          const username = btn.getAttribute('data-username') || '';
-          if (username) removeTeamMember(username);
+        list.addEventListener('click', (event) => {
+          const target = event.target instanceof Element ? event.target.closest('button[data-action]') : null;
+          if (!(target instanceof HTMLButtonElement)) {
+            return;
+          }
+          if (target.dataset.action === 'team-remove') {
+            const username = target.dataset.username || '';
+            if (username) {
+              removeTeamMember(username);
+            }
+          }
         });
       }
 
+      if (teamPendingList instanceof HTMLElement) {
+        teamPendingList.addEventListener('click', (event) => {
+          const target =
+            event.target instanceof Element ? event.target.closest('button[data-action]') : null;
+          if (!(target instanceof HTMLButtonElement)) {
+            return;
+          }
+          if (target.dataset.action === 'team-cancel-invite') {
+            const invitationId = target.dataset.invitationId || '';
+            if (invitationId) {
+              cancelTeamInvitation(invitationId);
+            }
+          }
+        });
+      }
     }
 
     const importApi = {
@@ -2389,17 +2497,127 @@
         return;
       }
       const weekStart = startOfWeek(calendarReferenceDate);
-      const fragment = document.createDocumentFragment();
+      const wrapper = document.createElement('div');
+      wrapper.className = 'calendar-week';
+
+      const weekDays = [];
       for (let index = 0; index < 7; index += 1) {
         const dayDate = addDays(weekStart, index);
-        fragment.appendChild(
-          createCalendarDayElement(dayDate, {
-            isInCurrentPeriod: true,
-            includeWeekdayLabel: true,
-          }),
-        );
+        const dateKey = formatDateKey(dayDate);
+        const eventsForDay = getEventsForDate(dayDate);
+        const allDayEvents = [];
+        const hourlyEvents = new Map();
+
+        eventsForDay.forEach((eventItem) => {
+          if (eventItem && eventItem.time) {
+            const hour = parseInt(eventItem.time.slice(0, 2), 10);
+            if (Number.isFinite(hour)) {
+              const bucket = hourlyEvents.get(hour) || [];
+              bucket.push(eventItem);
+              hourlyEvents.set(hour, bucket);
+              return;
+            }
+          }
+          allDayEvents.push(eventItem);
+        });
+
+        weekDays.push({ dayDate, dateKey, allDayEvents, hourlyEvents });
       }
-      calendarGridEl.appendChild(fragment);
+
+      const headerRow = document.createElement('div');
+      headerRow.className = 'calendar-week-header';
+      const headerLabel = document.createElement('div');
+      headerLabel.className = 'calendar-week-label';
+      headerLabel.textContent = 'Heures';
+      headerRow.appendChild(headerLabel);
+
+      weekDays.forEach(({ dayDate, dateKey }) => {
+        const dayButton = document.createElement('button');
+        dayButton.type = 'button';
+        dayButton.className = 'calendar-week-day';
+        if (formatDateKey(calendarSelectedDate) === dateKey) {
+          dayButton.classList.add('calendar-week-day--selected');
+        }
+        dayButton.dataset.date = dateKey;
+        dayButton.textContent = `${capitalizeLabel(
+          calendarShortWeekdayFormatter.format(dayDate),
+        )} ${dayDate.getDate()}`;
+        dayButton.addEventListener('click', () => {
+          selectCalendarDate(dayDate);
+        });
+        headerRow.appendChild(dayButton);
+      });
+      wrapper.appendChild(headerRow);
+
+      const allDayRow = document.createElement('div');
+      allDayRow.className = 'calendar-week-all-day';
+      const allDayLabel = document.createElement('div');
+      allDayLabel.className = 'calendar-week-label';
+      allDayLabel.textContent = 'Toute la journée';
+      allDayRow.appendChild(allDayLabel);
+
+      weekDays.forEach(({ dayDate, dateKey, allDayEvents }) => {
+        const cell = document.createElement('div');
+        cell.className = 'calendar-week-all-day-cell';
+        if (formatDateKey(calendarSelectedDate) === dateKey) {
+          cell.classList.add('calendar-week-all-day-cell--selected');
+        }
+        cell.dataset.date = dateKey;
+        cell.addEventListener('click', () => {
+          selectCalendarDate(dayDate);
+        });
+        allDayEvents.forEach((eventItem) => {
+          const eventEl = document.createElement('div');
+          eventEl.className = 'calendar-week-event calendar-week-event--all-day';
+          eventEl.textContent = eventItem.title;
+          cell.appendChild(eventEl);
+        });
+        allDayRow.appendChild(cell);
+      });
+      wrapper.appendChild(allDayRow);
+
+      const hours = Array.from({ length: 24 }, (_, index) => index);
+      hours.forEach((hour) => {
+        const row = document.createElement('div');
+        row.className = 'calendar-week-row';
+        const timeCell = document.createElement('div');
+        timeCell.className = 'calendar-week-time';
+        timeCell.textContent = `${hour.toString().padStart(2, '0')}:00`;
+        row.appendChild(timeCell);
+
+        weekDays.forEach(({ dayDate, dateKey, hourlyEvents }) => {
+          const cell = document.createElement('div');
+          cell.className = 'calendar-week-cell';
+          if (formatDateKey(calendarSelectedDate) === dateKey) {
+            cell.classList.add('calendar-week-cell--selected');
+          }
+          cell.dataset.date = dateKey;
+          cell.dataset.hour = String(hour);
+          cell.addEventListener('click', () => {
+            selectCalendarDate(dayDate);
+          });
+
+          const eventsAtHour = hourlyEvents.get(hour) || [];
+          eventsAtHour.forEach((eventItem) => {
+            const eventEl = document.createElement('div');
+            eventEl.className = 'calendar-week-event';
+            eventEl.textContent = eventItem.title;
+            if (eventItem.time) {
+              const meta = document.createElement('span');
+              meta.className = 'calendar-week-event-meta';
+              meta.textContent = eventItem.time;
+              eventEl.appendChild(meta);
+            }
+            cell.appendChild(eventEl);
+          });
+
+          row.appendChild(cell);
+        });
+
+        wrapper.appendChild(row);
+      });
+
+      calendarGridEl.appendChild(wrapper);
     }
 
     function createCalendarDayElement(date, options = {}) {
@@ -4716,120 +4934,154 @@
     }
 
     function renderTeamPage() {
-          // Remplir infos haut de page
-          const ownerEl = document.getElementById('team-owner-name');
-      if (ownerEl) ownerEl.textContent = data.panelOwner || '—';
-
+      const ownerEl = document.getElementById('team-owner-name');
       const listEl = document.getElementById('team-list');
       const emptyEl = document.getElementById('team-empty');
       const countEl = document.getElementById('team-count');
+      const emailInput = document.getElementById('team-user-email');
 
-      if (!(listEl instanceof HTMLElement)) return;
+      setTeamAddFeedback('');
 
-      // Contenu liste
-      const members = Array.isArray(data.teamMembers) ? data.teamMembers.slice() : [];
-      listEl.innerHTML = '';
-
-      if (!members.length) {
-        if (emptyEl) emptyEl.hidden = false;
-        if (countEl) countEl.textContent = '0';
-      } else {
-        if (emptyEl) emptyEl.hidden = true;
-        if (countEl) countEl.textContent = String(members.length);
-
-        members.forEach((username) => {
-          const li = document.createElement('li');
-          li.className = 'category-item';
-
-          const main = document.createElement('div');
-          main.className = 'category-main';
-
-          const title = document.createElement('h3');
-          title.className = 'category-title';
-          title.textContent = username;
-
-          const desc = document.createElement('p');
-          desc.className = 'category-description';
-          desc.textContent = (username === data.panelOwner)
-            ? 'Fondateur du panel'
-            : 'Membre';
-
-          main.appendChild(title);
-          main.appendChild(desc);
-
-          const actions = document.createElement('div');
-          actions.className = 'category-actions';
-
-          // Bouton retirer (sauf fondateur)
-          if (username !== data.panelOwner) {
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.className = 'category-button category-button--danger';
-            removeBtn.textContent = 'Retirer';
-            removeBtn.setAttribute('data-action', 'team-remove');
-            removeBtn.setAttribute('data-username', username);
-            actions.appendChild(removeBtn);
-          }
-
-
-          li.appendChild(main);
-          li.appendChild(actions);
-          listEl.appendChild(li);
-        });
+      if (emailInput instanceof HTMLInputElement) {
+        emailInput.disabled = false;
       }
 
-      // Remplir le select "Ajouter un membre"
-      const select = document.getElementById('team-user-select');
-      if (select instanceof HTMLSelectElement) {
-        const candidates = getAvailableUsersForTeam();
-        select.innerHTML = '';
-        if (candidates.length === 0) {
-          const opt = document.createElement('option');
-          opt.value = '';
-          opt.disabled = true;
-          opt.selected = true;
-          opt.textContent = 'Aucun utilisateur disponible';
-          select.appendChild(opt);
-          select.disabled = true;
-        } else {
-          candidates.forEach(({ username, email }) => {
-            const opt = document.createElement('option');
-            opt.value = username;
-            opt.textContent = email ? `${username} (${email})` : username;
-            select.appendChild(opt);
-          });
-          select.disabled = false;
+      if (!(listEl instanceof HTMLElement)) {
+        return;
+      }
+
+      const ownedTeam = getOwnedTeam();
+      if (ownerEl) {
+        ownerEl.textContent = ownedTeam ? ownedTeam.owner : data.panelOwner || currentUser || '—';
+      }
+
+      listEl.innerHTML = '';
+      synchronizeOwnedTeamMembers();
+
+      if (!ownedTeam) {
+        if (emptyEl) {
+          emptyEl.hidden = false;
+          emptyEl.removeAttribute('hidden');
+          emptyEl.textContent = 'Créez votre équipe depuis la page d’accueil pour gérer les membres.';
+        }
+        if (countEl) {
+          countEl.textContent = '0';
+        }
+        if (emailInput instanceof HTMLInputElement) {
+          emailInput.disabled = true;
+        }
+        renderTeamPendingInvitations(null);
+        return;
+      }
+
+      const members = Array.isArray(ownedTeam.members) ? ownedTeam.members.slice() : [];
+      members.sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+
+      if (members.length === 0) {
+        if (emptyEl) {
+          emptyEl.hidden = false;
+          emptyEl.removeAttribute('hidden');
+        }
+      } else if (emptyEl) {
+        emptyEl.hidden = true;
+        if (!emptyEl.hasAttribute('hidden')) {
+          emptyEl.setAttribute('hidden', '');
         }
       }
-    }
-    
-    function addTeamMember(username) {
-      if (!username) return;
-      if (!Array.isArray(data.teamMembers)) data.teamMembers = [];
-      if (!data.teamMembers.includes(username)) {
-        data.teamMembers.push(username);
-        data.teamMembers = Array.from(new Set(data.teamMembers));
-        data.lastUpdated = new Date().toISOString();
-        saveDataForUser(currentUser, data);
-        rebuildTeamCaches();
-        renderTeamPage();
+
+      if (countEl) {
+        countEl.textContent = String(members.length);
       }
+
+      const fragment = document.createDocumentFragment();
+      members.forEach((username) => {
+        const item = document.createElement('li');
+        item.className = 'category-item';
+
+        const main = document.createElement('div');
+        main.className = 'category-main';
+
+        const title = document.createElement('h3');
+        title.className = 'category-title';
+        title.textContent = username;
+        main.appendChild(title);
+
+        const description = document.createElement('p');
+        description.className = 'category-description';
+        description.textContent =
+          username === ownedTeam.owner ? 'Fondateur du panel' : 'Membre';
+        main.appendChild(description);
+
+        const actions = document.createElement('div');
+        actions.className = 'category-actions';
+
+        if (username !== ownedTeam.owner) {
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'category-button category-button--danger';
+          removeBtn.dataset.action = 'team-remove';
+          removeBtn.dataset.username = username;
+          removeBtn.textContent = 'Retirer';
+          actions.appendChild(removeBtn);
+        }
+
+        item.append(main, actions);
+        fragment.appendChild(item);
+      });
+
+      listEl.appendChild(fragment);
+      renderTeamPendingInvitations(ownedTeam);
     }
 
     function removeTeamMember(username) {
-      if (!username) return;
-      if (username === data.panelOwner) return; // Sécurité
-      if (!Array.isArray(data.teamMembers)) return;
+      const ownedTeam = getOwnedTeam();
+      if (!ownedTeam) {
+        setTeamAddFeedback('Aucune équipe à gérer.', 'error');
+        return false;
+      }
 
-      const before = data.teamMembers.length;
-      data.teamMembers = data.teamMembers.filter((u) => u !== username);
+      if (!username || username === ownedTeam.owner) {
+        setTeamAddFeedback('Vous ne pouvez pas retirer le fondateur de l’équipe.', 'error');
+        return false;
+      }
 
-      if (data.teamMembers.length !== before) {
+      const previousLength = ownedTeam.members.length;
+      ownedTeam.members = ownedTeam.members.filter((member) => member !== username);
+
+      if (ownedTeam.members.length === previousLength) {
+        setTeamAddFeedback('Membre introuvable.', 'error');
+        return false;
+      }
+
+      teamStore.teams[ownedTeam.id] = normalizeTeamEntry(ownedTeam) || ownedTeam;
+      saveTeamStore(teamStore);
+
+      if (Array.isArray(data.teamMembers)) {
+        data.teamMembers = data.teamMembers.filter((member) => member !== username);
         data.lastUpdated = new Date().toISOString();
         saveDataForUser(currentUser, data);
-        rebuildTeamCaches();
-        renderTeamPage();
       }
+
+      rebuildTeamCaches();
+
+      const memberData = loadDataForUser(username);
+      if (Array.isArray(memberData.teams)) {
+        memberData.teams = memberData.teams.filter((team) => team && team.id !== ownedTeam.id);
+        if (memberData.currentTeamId === ownedTeam.id) {
+          memberData.currentTeamId = memberData.teams.length > 0 ? memberData.teams[0].id : '';
+        }
+      }
+      if (Array.isArray(memberData.teamMembers)) {
+        memberData.teamMembers = memberData.teamMembers.filter((member) => member !== username);
+      }
+      memberData.lastUpdated = new Date().toISOString();
+      saveDataForUser(username, memberData);
+
+      renderTeamPage();
+      renderHomeTeams();
+      synchronizeOwnedTeamMembers();
+      setTeamAddFeedback(`Le membre ${username} a été retiré.`, 'success');
+      return true;
     }
 
     function updateTaskCountDisplay(totalCount, visibleCount = totalCount) {
@@ -5218,6 +5470,47 @@
       }
     }
 
+    function setTeamAddFeedback(message, type = '') {
+      if (!(teamAddFeedback instanceof HTMLElement)) {
+        return;
+      }
+
+      teamAddFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+
+      if (!message) {
+        teamAddFeedback.textContent = '';
+        teamAddFeedback.hidden = true;
+        teamAddFeedback.setAttribute('hidden', '');
+        return;
+      }
+
+      teamAddFeedback.textContent = message;
+      teamAddFeedback.hidden = false;
+      teamAddFeedback.removeAttribute('hidden');
+
+      if (type === 'error') {
+        teamAddFeedback.classList.add('form-feedback--error');
+      } else if (type === 'success') {
+        teamAddFeedback.classList.add('form-feedback--success');
+      }
+    }
+
+    function showOnboardingLockNotice() {
+      if (!(homeOnboardingLock instanceof HTMLElement)) {
+        return;
+      }
+      homeOnboardingLock.hidden = false;
+      homeOnboardingLock.removeAttribute('hidden');
+    }
+
+    function hideOnboardingLockNotice() {
+      if (!(homeOnboardingLock instanceof HTMLElement)) {
+        return;
+      }
+      homeOnboardingLock.hidden = true;
+      homeOnboardingLock.setAttribute('hidden', '');
+    }
+
     function renderHomeTeams() {
       const teams = Array.isArray(data.teams) ? data.teams.slice() : [];
       const currentTeamIdValue = typeof data.currentTeamId === 'string' ? data.currentTeamId : '';
@@ -5239,6 +5532,7 @@
             }
           }
         }
+        updateOnboardingState();
         return;
       }
 
@@ -5249,6 +5543,7 @@
           homeTeamsEmpty.hidden = false;
           homeTeamsEmpty.removeAttribute('hidden');
         }
+        updateOnboardingState();
         return;
       }
 
@@ -5316,48 +5611,78 @@
       });
 
       homeTeamsList.appendChild(fragment);
+      updateOnboardingState();
     }
 
     function addTeamMembership(name, role) {
-      const normalizedName = typeof name === 'string' ? name.trim() : '';
-      const normalizedRole = typeof role === 'string' ? role.trim() : '';
+      const nameValue = typeof name === 'string' ? name.trim() : '';
+      const roleValue = typeof role === 'string' ? role.trim() : '';
 
-      if (!normalizedName) {
+      if (!nameValue) {
         setHomeTeamFeedback("Veuillez indiquer le nom de l'équipe.", 'error');
         return false;
       }
 
-      const teams = Array.isArray(data.teams) ? data.teams.slice() : [];
-      const alreadyExists = teams.some(
-        (team) =>
-          team &&
-          typeof team === 'object' &&
-          typeof team.name === 'string' &&
-          team.name.trim().toLowerCase() === normalizedName.toLowerCase(),
-      );
-
-      if (alreadyExists) {
-        setHomeTeamFeedback('Cette équipe est déjà enregistrée.', 'error');
+      const normalizedName = nameValue.toLowerCase();
+      const existingTeam = findTeamByName(teamStore, normalizedName);
+      if (existingTeam) {
+        setHomeTeamFeedback('Ce nom est déjà utilisé par une autre équipe.', 'error');
         return false;
       }
 
-      const newTeam = {
-        id: generateId('user-team'),
-        name: normalizedName,
-        role: normalizedRole || 'Membre',
+      const teamId = generateId('team');
+      const newTeamRecord = {
+        id: teamId,
+        name: nameValue,
+        owner: currentUser,
+        members: [currentUser],
+        invitations: [],
       };
 
-      teams.push(newTeam);
-      data.teams = teams;
+      if (!teamStore || typeof teamStore !== 'object') {
+        teamStore = loadTeamStore();
+      }
+      teamStore.teams[teamId] = normalizeTeamEntry(newTeamRecord) || newTeamRecord;
+      saveTeamStore(teamStore);
 
-      if (!data.currentTeamId) {
-        data.currentTeamId = newTeam.id;
+      if (!Array.isArray(data.teams)) {
+        data.teams = [];
+      }
+
+      const newTeam = {
+        id: teamId,
+        name: nameValue,
+        role: roleValue || 'Propriétaire',
+      };
+
+      data.teams.push(newTeam);
+      data.currentTeamId = teamId;
+      data.panelOwner = currentUser;
+
+      if (!Array.isArray(data.teamMembers)) {
+        data.teamMembers = [currentUser];
+      } else {
+        if (!data.teamMembers.includes(currentUser)) {
+          data.teamMembers.unshift(currentUser);
+        }
+        data.teamMembers = Array.from(
+          new Set(
+            data.teamMembers
+              .map((member) => (typeof member === 'string' ? member.trim() : ''))
+              .filter(Boolean),
+          ),
+        );
       }
 
       data.lastUpdated = new Date().toISOString();
       saveDataForUser(currentUser, data);
+      rebuildTeamCaches();
+      synchronizeOwnedTeamMembers();
       renderHomeTeams();
-      setHomeTeamFeedback(`L'équipe « ${newTeam.name} » a été ajoutée.`, 'success');
+      renderTeamPage();
+      renderTeamSubscription();
+      updateOnboardingState();
+      setHomeTeamFeedback(`L'équipe « ${newTeam.name} » a été créée.`, 'success');
       return true;
     }
 
@@ -5382,6 +5707,7 @@
       data.lastUpdated = new Date().toISOString();
       saveDataForUser(currentUser, data);
       renderHomeTeams();
+      updateOnboardingState();
       setHomeTeamFeedback(`« ${target.name} » est désormais votre équipe active.`, 'success');
       return true;
     }
@@ -5392,18 +5718,20 @@
         return false;
       }
 
-      if (data.teams.length <= 1) {
+      const targetTeam = data.teams.find((team) => team && team.id === teamId);
+      if (!targetTeam) {
+        setHomeTeamFeedback("Équipe introuvable.", 'error');
+        return false;
+      }
+
+      const teamRecord = getTeamById(teamStore, teamId);
+      const isOwnerOfTeam = teamRecord && teamRecord.owner === currentUser;
+      if (isOwnerOfTeam && data.teams.length <= 1) {
         setHomeTeamFeedback('Vous devez conserver au moins une équipe.', 'error');
         return false;
       }
 
-      const previousLength = data.teams.length;
       data.teams = data.teams.filter((team) => team && team.id !== teamId);
-
-      if (data.teams.length === previousLength) {
-        setHomeTeamFeedback("Équipe introuvable.", 'error');
-        return false;
-      }
 
       if (!data.teams.some((team) => team && team.id === data.currentTeamId)) {
         data.currentTeamId = data.teams[0] ? data.teams[0].id : '';
@@ -5411,35 +5739,54 @@
 
       data.lastUpdated = new Date().toISOString();
       saveDataForUser(currentUser, data);
+
+      if (teamRecord && !isOwnerOfTeam) {
+        teamRecord.members = teamRecord.members.filter((member) => member !== currentUser);
+        teamStore.teams[teamRecord.id] = normalizeTeamEntry(teamRecord) || teamRecord;
+        saveTeamStore(teamStore);
+
+        const ownerData = loadDataForUser(teamRecord.owner);
+        if (Array.isArray(ownerData.teamMembers)) {
+          const previousCount = ownerData.teamMembers.length;
+          ownerData.teamMembers = ownerData.teamMembers.filter((member) => member !== currentUser);
+          if (ownerData.teamMembers.length !== previousCount) {
+            ownerData.lastUpdated = new Date().toISOString();
+            saveDataForUser(teamRecord.owner, ownerData);
+          }
+        }
+      }
+
       renderHomeTeams();
+      renderTeamPage();
+      updateOnboardingState();
       setHomeTeamFeedback('Équipe retirée avec succès.', 'success');
       return true;
     }
 
-    function renderHomeSubscription() {
+    function renderTeamSubscription() {
       const plan = getSubscriptionPlan(data.subscription);
 
-      if (homeSubscriptionNameEl) {
-        homeSubscriptionNameEl.textContent = plan.name;
+      if (teamSubscriptionNameEl) {
+        teamSubscriptionNameEl.textContent = plan.name;
       }
 
-      if (homeSubscriptionPriceEl) {
-        homeSubscriptionPriceEl.textContent = plan.priceLabel;
+      if (teamSubscriptionPriceEl) {
+        teamSubscriptionPriceEl.textContent = plan.priceLabel;
       }
 
-      if (homeSubscriptionContactLimitEl) {
-        homeSubscriptionContactLimitEl.textContent = numberFormatter.format(
+      if (teamSubscriptionContactLimitEl) {
+        teamSubscriptionContactLimitEl.textContent = numberFormatter.format(
           Number.isFinite(plan.contactLimit) ? plan.contactLimit : 0,
         );
       }
 
-      if (homeSubscriptionTaskLimitEl) {
-        homeSubscriptionTaskLimitEl.textContent = numberFormatter.format(
+      if (teamSubscriptionTaskLimitEl) {
+        teamSubscriptionTaskLimitEl.textContent = numberFormatter.format(
           Number.isFinite(plan.taskLimit) ? plan.taskLimit : 0,
         );
       }
 
-      if (homeSubscriptionSelect instanceof HTMLSelectElement) {
+      if (teamSubscriptionSelect instanceof HTMLSelectElement) {
         const selectedValue = plan.id;
         const fragment = document.createDocumentFragment();
 
@@ -5454,13 +5801,13 @@
           fragment.appendChild(option);
         });
 
-        homeSubscriptionSelect.innerHTML = '';
-        homeSubscriptionSelect.appendChild(fragment);
-        homeSubscriptionSelect.value = selectedValue;
+        teamSubscriptionSelect.innerHTML = '';
+        teamSubscriptionSelect.appendChild(fragment);
+        teamSubscriptionSelect.value = selectedValue;
       }
 
-      if (homeSubscriptionFeaturesList) {
-        homeSubscriptionFeaturesList.innerHTML = '';
+      if (teamSubscriptionFeaturesList) {
+        teamSubscriptionFeaturesList.innerHTML = '';
         const features = Array.isArray(plan.features) ? plan.features : [];
         const fragment = document.createDocumentFragment();
 
@@ -5476,8 +5823,401 @@
           });
         }
 
-        homeSubscriptionFeaturesList.appendChild(fragment);
+        teamSubscriptionFeaturesList.appendChild(fragment);
       }
+    }
+
+    function userHasTeamMembership() {
+      return Array.isArray(data.teams)
+        ? data.teams.some((team) => team && typeof team.id === 'string' && team.id)
+        : false;
+    }
+
+    function updateOnboardingState() {
+      const hasTeam = userHasTeamMembership();
+      onboardingLocked = !hasTeam;
+
+      if (onboardingLocked) {
+        showOnboardingLockNotice();
+      } else {
+        hideOnboardingLockNotice();
+      }
+
+      topbarButtons.forEach((button) => {
+        if (!(button instanceof HTMLButtonElement)) {
+          return;
+        }
+        const target = button.dataset.topTarget || '';
+        const shouldDisable = onboardingLocked && target !== 'home';
+        button.disabled = shouldDisable;
+        button.setAttribute('aria-disabled', shouldDisable ? 'true' : 'false');
+        button.classList.toggle('topbar-button--disabled', shouldDisable);
+      });
+    }
+
+    function getOwnedTeam() {
+      if (!teamStore || !teamStore.teams) {
+        return null;
+      }
+      return (
+        Object.values(teamStore.teams).find(
+          (team) => team && typeof team.owner === 'string' && team.owner === currentUser,
+        ) || null
+      );
+    }
+
+    function synchronizeOwnedTeamMembers() {
+      const ownedTeam = getOwnedTeam();
+      if (!ownedTeam) {
+        return;
+      }
+
+      const targetMembers = new Set(
+        Array.isArray(ownedTeam.members)
+          ? ownedTeam.members
+              .map((member) => (typeof member === 'string' ? member.trim() : ''))
+              .filter(Boolean)
+          : [],
+      );
+      targetMembers.add(currentUser);
+
+      const currentMembers = new Set(
+        Array.isArray(data.teamMembers)
+          ? data.teamMembers
+              .map((member) => (typeof member === 'string' ? member.trim() : ''))
+              .filter(Boolean)
+          : [],
+      );
+
+      let changed = false;
+      targetMembers.forEach((member) => {
+        if (!currentMembers.has(member)) {
+          changed = true;
+        }
+      });
+      currentMembers.forEach((member) => {
+        if (!targetMembers.has(member)) {
+          changed = true;
+        }
+      });
+
+      if (!changed) {
+        return;
+      }
+
+      data.teamMembers = Array.from(targetMembers);
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+      rebuildTeamCaches();
+    }
+
+    function renderHomeInvitations() {
+      if (!(homeInvitationsList instanceof HTMLElement)) {
+        if (homeInvitationsEmpty) {
+          homeInvitationsEmpty.hidden = false;
+          homeInvitationsEmpty.removeAttribute('hidden');
+        }
+        return;
+      }
+
+      const invitations = getPendingInvitationsForEmail(teamStore, currentUserEmail);
+      homeInvitationsList.innerHTML = '';
+
+      if (!Array.isArray(invitations) || invitations.length === 0) {
+        if (homeInvitationsEmpty) {
+          homeInvitationsEmpty.hidden = false;
+          homeInvitationsEmpty.removeAttribute('hidden');
+        }
+        return;
+      }
+
+      if (homeInvitationsEmpty) {
+        homeInvitationsEmpty.hidden = true;
+        if (!homeInvitationsEmpty.hasAttribute('hidden')) {
+          homeInvitationsEmpty.setAttribute('hidden', '');
+        }
+      }
+
+      const fragment = document.createDocumentFragment();
+      invitations.forEach((invitation) => {
+        const item = document.createElement('li');
+        item.className = 'home-invitation';
+
+        const header = document.createElement('div');
+        header.className = 'home-invitation-header';
+
+        const title = document.createElement('h3');
+        title.className = 'home-invitation-title';
+        title.textContent = invitation.teamName || 'Équipe';
+        header.appendChild(title);
+
+        if (invitation.invitedBy) {
+          const meta = document.createElement('p');
+          meta.className = 'home-invitation-meta';
+          const date = invitation.createdAt ? new Date(invitation.createdAt) : null;
+          const dateLabel = date && !Number.isNaN(date.getTime()) ? newsDateFormatter.format(date) : '';
+          meta.textContent = dateLabel
+            ? `Invité par ${invitation.invitedBy} · ${dateLabel}`
+            : `Invité par ${invitation.invitedBy}`;
+          header.appendChild(meta);
+        }
+
+        item.appendChild(header);
+
+        const actions = document.createElement('div');
+        actions.className = 'home-invitation-actions';
+
+        const acceptButton = document.createElement('button');
+        acceptButton.type = 'button';
+        acceptButton.className = 'home-invitation-button home-invitation-button--accept';
+        acceptButton.dataset.action = 'home-invitation-accept';
+        acceptButton.dataset.invitationId = invitation.invitationId;
+        acceptButton.dataset.teamId = invitation.teamId;
+        acceptButton.textContent = 'Rejoindre';
+        actions.appendChild(acceptButton);
+
+        const declineButton = document.createElement('button');
+        declineButton.type = 'button';
+        declineButton.className = 'home-invitation-button home-invitation-button--decline';
+        declineButton.dataset.action = 'home-invitation-decline';
+        declineButton.dataset.invitationId = invitation.invitationId;
+        declineButton.dataset.teamId = invitation.teamId;
+        declineButton.textContent = 'Refuser';
+        actions.appendChild(declineButton);
+
+        item.appendChild(actions);
+        fragment.appendChild(item);
+      });
+
+      homeInvitationsList.appendChild(fragment);
+    }
+
+    function renderTeamPendingInvitations(team) {
+      if (!(teamPendingList instanceof HTMLElement)) {
+        return;
+      }
+
+      teamPendingList.innerHTML = '';
+      const invitations = team && Array.isArray(team.invitations) ? team.invitations : [];
+
+      if (!invitations.length) {
+        if (teamPendingEmpty) {
+          teamPendingEmpty.hidden = false;
+          teamPendingEmpty.removeAttribute('hidden');
+        }
+        return;
+      }
+
+      if (teamPendingEmpty) {
+        teamPendingEmpty.hidden = true;
+        if (!teamPendingEmpty.hasAttribute('hidden')) {
+          teamPendingEmpty.setAttribute('hidden', '');
+        }
+      }
+
+      const fragment = document.createDocumentFragment();
+      invitations.forEach((invitation) => {
+        const item = document.createElement('li');
+        item.className = 'category-item';
+
+        const main = document.createElement('div');
+        main.className = 'category-main';
+
+        const title = document.createElement('h3');
+        title.className = 'category-title';
+        title.textContent = invitation.email;
+        main.appendChild(title);
+
+        if (invitation.createdAt) {
+          const description = document.createElement('p');
+          description.className = 'category-description';
+          const inviteDate = new Date(invitation.createdAt);
+          if (!Number.isNaN(inviteDate.getTime())) {
+            description.textContent = `Invité le ${newsDateFormatter.format(inviteDate)}`;
+          } else {
+            description.textContent = "Invitation envoyée";
+          }
+          main.appendChild(description);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'category-actions';
+
+        const cancelButton = document.createElement('button');
+        cancelButton.type = 'button';
+        cancelButton.className = 'category-button category-button--danger';
+        cancelButton.dataset.action = 'team-cancel-invite';
+        cancelButton.dataset.invitationId = invitation.id;
+        cancelButton.textContent = 'Annuler';
+        actions.appendChild(cancelButton);
+
+        item.append(main, actions);
+        fragment.appendChild(item);
+      });
+
+      teamPendingList.appendChild(fragment);
+    }
+
+    function inviteTeamMemberByEmail(email) {
+      const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      if (!normalizedEmail) {
+        setTeamAddFeedback("Indiquez l'adresse mail du membre à inviter.", 'error');
+        return false;
+      }
+
+      const ownedTeam = getOwnedTeam();
+      if (!ownedTeam) {
+        setTeamAddFeedback('Créez d’abord votre équipe depuis la page d’accueil.', 'error');
+        return false;
+      }
+
+      if (ownedTeam.members.some((member) => member === currentUser && normalizedEmail === currentUserEmail)) {
+        setTeamAddFeedback('Vous êtes déjà membre de cette équipe.', 'error');
+        return false;
+      }
+
+      userStore = loadUserStore();
+      const usersObj = userStore && userStore.users && typeof userStore.users === 'object' ? userStore.users : {};
+      const matchingEntry = Object.entries(usersObj).find(([, details]) => {
+        if (!details || typeof details !== 'object') {
+          return false;
+        }
+        const detailEmail = typeof details.email === 'string' ? details.email.trim().toLowerCase() : '';
+        return detailEmail === normalizedEmail;
+      });
+
+      if (!matchingEntry) {
+        setTeamAddFeedback("Aucun compte n'est associé à cette adresse mail.", 'error');
+        return false;
+      }
+
+      const [targetUsername] = matchingEntry;
+      if (ownedTeam.members.includes(targetUsername)) {
+        setTeamAddFeedback('Cet utilisateur fait déjà partie de votre équipe.', 'error');
+        return false;
+      }
+
+      if (
+        ownedTeam.invitations.some(
+          (invitation) => invitation && invitation.email === normalizedEmail,
+        )
+      ) {
+        setTeamAddFeedback('Une invitation est déjà en attente pour cette adresse mail.', 'error');
+        return false;
+      }
+
+      ownedTeam.invitations.push({
+        id: generateId('team-invite'),
+        email: normalizedEmail,
+        username: targetUsername,
+        invitedBy: currentUser,
+        createdAt: new Date().toISOString(),
+      });
+
+      teamStore.teams[ownedTeam.id] = normalizeTeamEntry(ownedTeam) || ownedTeam;
+      saveTeamStore(teamStore);
+
+      renderTeamPendingInvitations(getOwnedTeam());
+      renderHomeInvitations();
+      setTeamAddFeedback(`Invitation envoyée à ${normalizedEmail}.`, 'success');
+      return true;
+    }
+
+    function cancelTeamInvitation(invitationId) {
+      const ownedTeam = getOwnedTeam();
+      if (!ownedTeam) {
+        setTeamAddFeedback('Aucune équipe à gérer.', 'error');
+        return false;
+      }
+
+      const previousLength = ownedTeam.invitations.length;
+      ownedTeam.invitations = ownedTeam.invitations.filter(
+        (invitation) => invitation && invitation.id !== invitationId,
+      );
+
+      if (ownedTeam.invitations.length === previousLength) {
+        setTeamAddFeedback("Invitation introuvable.", 'error');
+        return false;
+      }
+
+      teamStore.teams[ownedTeam.id] = normalizeTeamEntry(ownedTeam) || ownedTeam;
+      saveTeamStore(teamStore);
+      renderTeamPendingInvitations(getOwnedTeam());
+      setTeamAddFeedback('Invitation annulée.', 'success');
+      return true;
+    }
+
+    function acceptTeamInvitation(teamId, invitationId) {
+      const team = getTeamById(teamStore, teamId);
+      if (!team) {
+        setHomeTeamFeedback("Équipe introuvable.", 'error');
+        return false;
+      }
+
+      const invitation = team.invitations.find((entry) => entry && entry.id === invitationId);
+      const normalizedEmail = currentUserEmail.toLowerCase();
+      if (!invitation || invitation.email !== normalizedEmail) {
+        setHomeTeamFeedback("Invitation introuvable.", 'error');
+        return false;
+      }
+
+      team.invitations = team.invitations.filter((entry) => entry && entry.id !== invitationId);
+      if (!team.members.includes(currentUser)) {
+        team.members.push(currentUser);
+      }
+
+      teamStore.teams[team.id] = normalizeTeamEntry(team) || team;
+      saveTeamStore(teamStore);
+
+      if (!Array.isArray(data.teams)) {
+        data.teams = [];
+      }
+      if (!data.teams.some((entry) => entry && entry.id === team.id)) {
+        data.teams.push({ id: team.id, name: team.name, role: 'Membre' });
+      }
+      if (!data.currentTeamId) {
+        data.currentTeamId = team.id;
+      }
+      if (team.owner && team.owner !== currentUser) {
+        data.panelOwner = team.owner;
+      }
+      data.lastUpdated = new Date().toISOString();
+      saveDataForUser(currentUser, data);
+
+      const ownerData = loadDataForUser(team.owner);
+      if (!Array.isArray(ownerData.teamMembers)) {
+        ownerData.teamMembers = [];
+      }
+      if (!ownerData.teamMembers.includes(currentUser)) {
+        ownerData.teamMembers.push(currentUser);
+        ownerData.teamMembers = Array.from(new Set(ownerData.teamMembers));
+        ownerData.lastUpdated = new Date().toISOString();
+        saveDataForUser(team.owner, ownerData);
+      }
+
+      renderHomeTeams();
+      renderHomeInvitations();
+      updateOnboardingState();
+      setHomeTeamFeedback(`Vous avez rejoint l'équipe « ${team.name} ».`, 'success');
+      return true;
+    }
+
+    function declineTeamInvitation(teamId, invitationId) {
+      const team = getTeamById(teamStore, teamId);
+      if (!team) {
+        return false;
+      }
+
+      const before = team.invitations.length;
+      team.invitations = team.invitations.filter((entry) => entry && entry.id !== invitationId);
+      if (team.invitations.length === before) {
+        return false;
+      }
+
+      teamStore.teams[team.id] = normalizeTeamEntry(team) || team;
+      saveTeamStore(teamStore);
+      renderHomeInvitations();
+      return true;
     }
 
     function renderHomeDirectoryLimit() {
@@ -12215,6 +12955,164 @@
     }
   }
 
+  function loadTeamStore() {
+    try {
+      const stored = window.localStorage.getItem(TEAM_STORE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === 'object') {
+          const teamsObj = parsed.teams && typeof parsed.teams === 'object' ? parsed.teams : {};
+          const normalizedTeams = {};
+          Object.keys(teamsObj).forEach((teamId) => {
+            const normalized = normalizeTeamEntry(teamsObj[teamId]);
+            if (normalized && normalized.id) {
+              normalizedTeams[normalized.id] = normalized;
+            }
+          });
+          return { teams: normalizedTeams };
+        }
+      }
+    } catch (error) {
+      console.warn('Impossible de charger les équipes :', error);
+    }
+
+    return { teams: {} };
+  }
+
+  function saveTeamStore(store) {
+    try {
+      window.localStorage.setItem(TEAM_STORE_KEY, JSON.stringify(store));
+    } catch (error) {
+      console.warn('Impossible de sauvegarder les équipes :', error);
+    }
+  }
+
+  function normalizeTeamEntry(raw) {
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+
+    const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+    const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+    const owner = typeof raw.owner === 'string' ? raw.owner.trim() : '';
+
+    if (!id || !name || !owner) {
+      return null;
+    }
+
+    const memberSet = new Set();
+    const members = Array.isArray(raw.members) ? raw.members : [];
+    members
+      .map((member) => (typeof member === 'string' ? member.trim() : ''))
+      .filter(Boolean)
+      .forEach((member) => memberSet.add(member));
+    memberSet.add(owner);
+
+    const invitations = Array.isArray(raw.invitations) ? raw.invitations : [];
+    const normalizedInvitations = invitations
+      .map((invitation) => normalizeTeamInvitation(invitation))
+      .filter(Boolean);
+
+    return {
+      id,
+      name,
+      owner,
+      members: Array.from(memberSet),
+      invitations: normalizedInvitations,
+    };
+  }
+
+  function normalizeTeamInvitation(raw) {
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+
+    const id = typeof raw.id === 'string' ? raw.id.trim() : '';
+    const email = typeof raw.email === 'string' ? raw.email.trim().toLowerCase() : '';
+    const username = typeof raw.username === 'string' ? raw.username.trim() : '';
+    const invitedBy = typeof raw.invitedBy === 'string' ? raw.invitedBy.trim() : '';
+    const createdAt =
+      typeof raw.createdAt === 'string' && raw.createdAt ? raw.createdAt : new Date().toISOString();
+
+    if (!id || !email) {
+      return null;
+    }
+
+    return {
+      id,
+      email,
+      username,
+      invitedBy,
+      createdAt,
+    };
+  }
+
+  function findTeamByName(store, name) {
+    if (!store || !store.teams) {
+      return null;
+    }
+
+    const normalizedName = typeof name === 'string' ? name.trim().toLowerCase() : '';
+    if (!normalizedName) {
+      return null;
+    }
+
+    const teams = Object.values(store.teams);
+    return (
+      teams.find(
+        (team) =>
+          team &&
+          typeof team.name === 'string' &&
+          team.name.trim().toLowerCase() === normalizedName,
+      ) || null
+    );
+  }
+
+  function getTeamById(store, teamId) {
+    if (!store || !store.teams) {
+      return null;
+    }
+
+    const key = typeof teamId === 'string' ? teamId.trim() : '';
+    if (!key) {
+      return null;
+    }
+
+    return store.teams[key] || null;
+  }
+
+  function getPendingInvitationsForEmail(store, email) {
+    if (!store || !store.teams) {
+      return [];
+    }
+
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    if (!normalizedEmail) {
+      return [];
+    }
+
+    const results = [];
+    Object.values(store.teams).forEach((team) => {
+      if (!team || !Array.isArray(team.invitations)) {
+        return;
+      }
+      team.invitations.forEach((invitation) => {
+        if (invitation && invitation.email === normalizedEmail) {
+          results.push({
+            teamId: team.id,
+            teamName: team.name,
+            invitationId: invitation.id,
+            invitedBy: invitation.invitedBy,
+            createdAt: invitation.createdAt,
+            username: invitation.username,
+          });
+        }
+      });
+    });
+
+    return results;
+  }
+
   function loadNewsStore() {
     try {
       const stored = window.localStorage.getItem(NEWS_STORE_KEY);
@@ -12315,6 +13213,33 @@
       window.localStorage.removeItem(ACTIVE_USER_KEY);
     } catch (error) {
       console.warn("Impossible de réinitialiser l'utilisateur actif :", error);
+    }
+  }
+
+  function saveImpersonationAdmin(username) {
+    try {
+      if (username) {
+        window.localStorage.setItem(IMPERSONATION_ADMIN_KEY, username);
+      }
+    } catch (error) {
+      console.warn("Impossible d'enregistrer l'administrateur d'origine :", error);
+    }
+  }
+
+  function loadImpersonationAdmin() {
+    try {
+      return window.localStorage.getItem(IMPERSONATION_ADMIN_KEY);
+    } catch (error) {
+      console.warn("Impossible de charger l'administrateur d'origine :", error);
+      return null;
+    }
+  }
+
+  function clearImpersonationAdmin() {
+    try {
+      window.localStorage.removeItem(IMPERSONATION_ADMIN_KEY);
+    } catch (error) {
+      console.warn("Impossible de réinitialiser l'administrateur d'origine :", error);
     }
   }
 
