@@ -28,5 +28,6 @@ $_SESSION['uid'] = (int)$user['id'];
 echo json_encode([
   'id' => (int)$user['id'],
   'username' => $user['username'],
+  'email' => $user['email'],
   'active_team_id' => $user['active_team_id'] ? (int)$user['active_team_id'] : null
 ]);
