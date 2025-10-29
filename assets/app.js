@@ -454,6 +454,8 @@
 
     let userStore = loadUserStore();
     let teamStore = loadTeamStore();
+    let ownedInvitations = [];
+    let receivedInvitations = [];
 
     const authenticatedUserRecord =
       userStore &&
@@ -489,6 +491,8 @@
       typeof sessionUser.email === 'string' && sessionUser.email.trim()
         ? sessionUser.email.trim()
         : '';
+
+    await refreshTeamInvitations();
     const normalizedAdminEmail = SUPER_ADMIN_EMAIL.toLowerCase();
     const isSuperAdmin = currentUserEmail.toLowerCase() === normalizedAdminEmail;
     const impersonationExitButton = document.getElementById('impersonation-exit-button');
@@ -987,7 +991,7 @@
     }
 
     if (homeInvitationsList instanceof HTMLElement) {
-      homeInvitationsList.addEventListener('click', (event) => {
+      homeInvitationsList.addEventListener('click', async (event) => {
         const target =
           event.target instanceof HTMLElement
             ? event.target.closest('button[data-action]')
@@ -1004,9 +1008,9 @@
         }
 
         if (action === 'home-invitation-accept') {
-          acceptTeamInvitation(teamId, invitationId);
+          await acceptTeamInvitation(teamId, invitationId);
         } else if (action === 'home-invitation-decline') {
-          declineTeamInvitation(teamId, invitationId);
+          await declineTeamInvitation(teamId, invitationId);
         }
       });
     }
@@ -2292,11 +2296,11 @@
       const addForm = document.getElementById('team-add-form');
       const emailInput = document.getElementById('team-user-email');
       if (addForm instanceof HTMLFormElement) {
-        addForm.addEventListener('submit', (event) => {
+        addForm.addEventListener('submit', async (event) => {
           event.preventDefault();
           const formData = new FormData(addForm);
           const email = (formData.get('email') || '').toString().trim();
-          const invited = inviteTeamMemberByEmail(email);
+          const invited = await inviteTeamMemberByEmail(email);
           if (invited) {
             addForm.reset();
             if (emailInput instanceof HTMLInputElement) {
@@ -2323,7 +2327,7 @@
       }
 
       if (teamPendingList instanceof HTMLElement) {
-        teamPendingList.addEventListener('click', (event) => {
+        teamPendingList.addEventListener('click', async (event) => {
           const target =
             event.target instanceof Element ? event.target.closest('button[data-action]') : null;
           if (!(target instanceof HTMLButtonElement)) {
@@ -2332,7 +2336,7 @@
           if (target.dataset.action === 'team-cancel-invite') {
             const invitationId = target.dataset.invitationId || '';
             if (invitationId) {
-              cancelTeamInvitation(invitationId);
+              await cancelTeamInvitation(invitationId);
             }
           }
         });
@@ -5910,6 +5914,154 @@
       rebuildTeamCaches();
     }
 
+    async function refreshTeamInvitations(showErrors = false) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/team_invitations.php`, {
+          credentials: 'include',
+        });
+
+        if (response.status === 401) {
+          ownedInvitations = [];
+          receivedInvitations = [];
+          applyInvitationsToTeamStore();
+          return;
+        }
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(`invitations_fetch_failed:${response.status}:${message}`);
+        }
+
+        const payload = await response.json();
+        ownedInvitations = Array.isArray(payload && payload.owned) ? payload.owned : [];
+        receivedInvitations = Array.isArray(payload && payload.received) ? payload.received : [];
+
+        applyInvitationsToTeamStore();
+        renderTeamPendingInvitations(getOwnedTeam());
+        renderHomeInvitations();
+      } catch (error) {
+        console.error('Impossible de récupérer les invitations :', error);
+        if (showErrors) {
+          setTeamAddFeedback('Impossible de charger les invitations. Veuillez réessayer plus tard.', 'error');
+        }
+      }
+    }
+
+    function applyInvitationsToTeamStore() {
+      if (!teamStore || typeof teamStore !== 'object') {
+        teamStore = { teams: {} };
+      }
+
+      if (!teamStore.teams || typeof teamStore.teams !== 'object') {
+        teamStore.teams = {};
+      }
+
+      const invitationMap = new Map();
+
+      function collectInvitations(list) {
+        if (!Array.isArray(list)) {
+          return;
+        }
+        list.forEach((record) => {
+          if (!record || typeof record !== 'object') {
+            return;
+          }
+          const teamId = record.team_id !== undefined ? String(record.team_id) : '';
+          if (!teamId) {
+            return;
+          }
+          let entry = invitationMap.get(teamId);
+          if (!entry) {
+            entry = {
+              teamName: typeof record.team_name === 'string' ? record.team_name : '',
+              teamOwner: typeof record.team_owner === 'string' ? record.team_owner : '',
+              invitations: [],
+            };
+            invitationMap.set(teamId, entry);
+          } else {
+            if (typeof record.team_name === 'string' && record.team_name) {
+              entry.teamName = record.team_name;
+            }
+            if (typeof record.team_owner === 'string' && record.team_owner) {
+              entry.teamOwner = record.team_owner;
+            }
+          }
+
+          const formatted = buildInvitationFromApi(record);
+          if (formatted) {
+            entry.invitations.push(formatted);
+          }
+        });
+      }
+
+      collectInvitations(ownedInvitations);
+      collectInvitations(receivedInvitations);
+
+      const affectedTeamIds = new Set(Object.keys(teamStore.teams || {}));
+      invitationMap.forEach((value, key) => {
+        affectedTeamIds.add(key);
+      });
+
+      affectedTeamIds.forEach((teamId) => {
+        const info = invitationMap.get(teamId);
+        let teamEntry = teamStore.teams[teamId];
+        if (!teamEntry) {
+          teamEntry = {
+            id: teamId,
+            name: info && info.teamName ? info.teamName : 'Équipe',
+            owner: info && info.teamOwner ? info.teamOwner : '',
+            members: [],
+            invitations: [],
+          };
+        }
+
+        if (info) {
+          if (info.teamName) {
+            teamEntry.name = info.teamName;
+          }
+          if (info.teamOwner) {
+            teamEntry.owner = info.teamOwner;
+          }
+          teamEntry.invitations = info.invitations.map((invitation) => ({ ...invitation }));
+        } else {
+          teamEntry.invitations = [];
+        }
+
+        teamStore.teams[teamId] = teamEntry;
+      });
+    }
+
+    function buildInvitationFromApi(record) {
+      if (!record || typeof record !== 'object') {
+        return null;
+      }
+
+      const id = record.id !== undefined ? String(record.id) : '';
+      const email = typeof record.email === 'string' ? record.email.trim().toLowerCase() : '';
+
+      if (!id || !email) {
+        return null;
+      }
+
+      const invitedBy =
+        typeof record.invited_by === 'string' && record.invited_by
+          ? record.invited_by
+          : typeof record.team_owner === 'string' && record.team_owner
+            ? record.team_owner
+            : '';
+
+      const createdAt = typeof record.created_at === 'string' ? record.created_at : '';
+      const username = typeof record.invited_username === 'string' ? record.invited_username : '';
+
+      return {
+        id,
+        email,
+        username,
+        invitedBy,
+        createdAt,
+      };
+    }
+
     function renderHomeInvitations() {
       if (!(homeInvitationsList instanceof HTMLElement)) {
         if (homeInvitationsEmpty) {
@@ -6057,7 +6209,7 @@
       teamPendingList.appendChild(fragment);
     }
 
-    function inviteTeamMemberByEmail(email) {
+    async function inviteTeamMemberByEmail(email) {
       const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
       if (!normalizedEmail) {
         setTeamAddFeedback("Indiquez l'adresse mail du membre à inviter.", 'error');
@@ -6070,153 +6222,268 @@
         return false;
       }
 
-      if (ownedTeam.members.some((member) => member === currentUser && normalizedEmail === currentUserEmail)) {
+      const normalizedCurrentEmail = typeof currentUserEmail === 'string' ? currentUserEmail.toLowerCase() : '';
+      if (normalizedEmail === normalizedCurrentEmail) {
         setTeamAddFeedback('Vous êtes déjà membre de cette équipe.', 'error');
         return false;
       }
 
-      userStore = loadUserStore();
-      const usersObj = userStore && userStore.users && typeof userStore.users === 'object' ? userStore.users : {};
-      const matchingEntry = Object.entries(usersObj).find(([, details]) => {
-        if (!details || typeof details !== 'object') {
-          return false;
-        }
-        const detailEmail = typeof details.email === 'string' ? details.email.trim().toLowerCase() : '';
-        return detailEmail === normalizedEmail;
-      });
-
-      if (!matchingEntry) {
-        setTeamAddFeedback("Aucun compte n'est associé à cette adresse mail.", 'error');
-        return false;
-      }
-
-      const [targetUsername] = matchingEntry;
-      if (ownedTeam.members.includes(targetUsername)) {
-        setTeamAddFeedback('Cet utilisateur fait déjà partie de votre équipe.', 'error');
-        return false;
-      }
-
       if (
-        ownedTeam.invitations.some(
-          (invitation) => invitation && invitation.email === normalizedEmail,
-        )
+        Array.isArray(ownedTeam.invitations) &&
+        ownedTeam.invitations.some((invitation) => invitation && invitation.email === normalizedEmail)
       ) {
         setTeamAddFeedback('Une invitation est déjà en attente pour cette adresse mail.', 'error');
         return false;
       }
 
-      ownedTeam.invitations.push({
-        id: generateId('team-invite'),
-        email: normalizedEmail,
-        username: targetUsername,
-        invitedBy: currentUser,
-        createdAt: new Date().toISOString(),
-      });
+      try {
+        const response = await fetch(`${API_BASE_URL}/team_invitations.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ email: normalizedEmail }),
+        });
 
-      teamStore.teams[ownedTeam.id] = normalizeTeamEntry(ownedTeam) || ownedTeam;
-      saveTeamStore(teamStore);
+        let payload = null;
+        try {
+          payload = await response.clone().json();
+        } catch (error) {
+          payload = null;
+        }
 
-      renderTeamPendingInvitations(getOwnedTeam());
-      renderHomeInvitations();
-      setTeamAddFeedback(`Invitation envoyée à ${normalizedEmail}.`, 'success');
-      return true;
-    }
+        if (response.status === 404) {
+          setTeamAddFeedback("Aucun compte n'est associé à cette adresse mail.", 'error');
+          return false;
+        }
 
-    function cancelTeamInvitation(invitationId) {
-      const ownedTeam = getOwnedTeam();
-      if (!ownedTeam) {
-        setTeamAddFeedback('Aucune équipe à gérer.', 'error');
+        if (response.status === 409) {
+          const code = payload && payload.error;
+          if (code === 'already_member') {
+            setTeamAddFeedback('Cet utilisateur fait déjà partie de votre équipe.', 'error');
+          } else if (code === 'already_pending') {
+            setTeamAddFeedback('Une invitation est déjà en attente pour cette adresse mail.', 'error');
+          } else if (code === 'no_active_team') {
+            setTeamAddFeedback('Créez d’abord votre équipe depuis la page d’accueil.', 'error');
+          } else {
+            setTeamAddFeedback("Impossible d'envoyer cette invitation pour le moment.", 'error');
+          }
+          return false;
+        }
+
+        if (response.status === 403) {
+          setTeamAddFeedback("Vous n'avez pas les droits nécessaires pour inviter ce membre.", 'error');
+          return false;
+        }
+
+        if (!response.ok) {
+          const message = payload && payload.error ? payload.error : await response.text();
+          throw new Error(message || 'invitation_failed');
+        }
+
+        await refreshTeamInvitations();
+
+        const targetEmail =
+          payload && typeof payload.email === 'string' && payload.email.trim()
+            ? payload.email.trim().toLowerCase()
+            : normalizedEmail;
+        setTeamAddFeedback(`Invitation envoyée à ${targetEmail}.`, 'success');
+        return true;
+      } catch (error) {
+        console.error("Impossible d'envoyer l'invitation :", error);
+        setTeamAddFeedback("Impossible d'envoyer cette invitation pour le moment.", 'error');
         return false;
       }
+    }
 
-      const previousLength = ownedTeam.invitations.length;
-      ownedTeam.invitations = ownedTeam.invitations.filter(
-        (invitation) => invitation && invitation.id !== invitationId,
-      );
-
-      if (ownedTeam.invitations.length === previousLength) {
+    async function cancelTeamInvitation(invitationId) {
+      const numericId = Number.parseInt(invitationId, 10);
+      if (!Number.isFinite(numericId)) {
         setTeamAddFeedback("Invitation introuvable.", 'error');
         return false;
       }
 
-      teamStore.teams[ownedTeam.id] = normalizeTeamEntry(ownedTeam) || ownedTeam;
-      saveTeamStore(teamStore);
-      renderTeamPendingInvitations(getOwnedTeam());
-      setTeamAddFeedback('Invitation annulée.', 'success');
-      return true;
-    }
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/team_invitations.php?id=${encodeURIComponent(numericId)}`,
+          {
+            method: 'DELETE',
+            credentials: 'include',
+          },
+        );
 
-    function acceptTeamInvitation(teamId, invitationId) {
-      const team = getTeamById(teamStore, teamId);
-      if (!team) {
-        setHomeTeamFeedback("Équipe introuvable.", 'error');
+        let payload = null;
+        try {
+          payload = await response.clone().json();
+        } catch (error) {
+          payload = null;
+        }
+
+        if (response.status === 404) {
+          setTeamAddFeedback("Invitation introuvable.", 'error');
+          await refreshTeamInvitations();
+          return false;
+        }
+
+        if (response.status === 403) {
+          setTeamAddFeedback("Vous ne pouvez pas annuler cette invitation.", 'error');
+          return false;
+        }
+
+        if (response.status === 409) {
+          setTeamAddFeedback('Cette invitation a déjà été traitée.', 'error');
+          await refreshTeamInvitations();
+          return false;
+        }
+
+        if (!response.ok) {
+          const message = payload && payload.error ? payload.error : await response.text();
+          throw new Error(message || 'cancel_failed');
+        }
+
+        await refreshTeamInvitations();
+        setTeamAddFeedback('Invitation annulée.', 'success');
+        return true;
+      } catch (error) {
+        console.error("Impossible d'annuler l'invitation :", error);
+        setTeamAddFeedback("Impossible d'annuler cette invitation pour le moment.", 'error');
         return false;
       }
+    }
 
-      const invitation = team.invitations.find((entry) => entry && entry.id === invitationId);
-      const normalizedEmail = currentUserEmail.toLowerCase();
-      if (!invitation || invitation.email !== normalizedEmail) {
+    async function acceptTeamInvitation(teamId, invitationId) {
+      const numericId = Number.parseInt(invitationId, 10);
+      if (!Number.isFinite(numericId)) {
         setHomeTeamFeedback("Invitation introuvable.", 'error');
         return false;
       }
 
-      team.invitations = team.invitations.filter((entry) => entry && entry.id !== invitationId);
-      if (!team.members.includes(currentUser)) {
-        team.members.push(currentUser);
-      }
+      try {
+        const response = await fetch(`${API_BASE_URL}/team_invitations.php`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ invitation_id: numericId, action: 'accept' }),
+        });
 
-      teamStore.teams[team.id] = normalizeTeamEntry(team) || team;
-      saveTeamStore(teamStore);
+        let payload = null;
+        try {
+          payload = await response.clone().json();
+        } catch (error) {
+          payload = null;
+        }
 
-      if (!Array.isArray(data.teams)) {
-        data.teams = [];
-      }
-      if (!data.teams.some((entry) => entry && entry.id === team.id)) {
-        data.teams.push({ id: team.id, name: team.name, role: 'Membre' });
-      }
-      if (!data.currentTeamId) {
-        data.currentTeamId = team.id;
-      }
-      if (team.owner && team.owner !== currentUser) {
-        data.panelOwner = team.owner;
-      }
-      data.lastUpdated = new Date().toISOString();
-      saveDataForUser(currentUser, data);
+        if (response.status === 404) {
+          setHomeTeamFeedback("Invitation introuvable.", 'error');
+          await refreshTeamInvitations();
+          return false;
+        }
 
-      const ownerData = loadDataForUser(team.owner);
-      if (!Array.isArray(ownerData.teamMembers)) {
-        ownerData.teamMembers = [];
-      }
-      if (!ownerData.teamMembers.includes(currentUser)) {
-        ownerData.teamMembers.push(currentUser);
-        ownerData.teamMembers = Array.from(new Set(ownerData.teamMembers));
-        ownerData.lastUpdated = new Date().toISOString();
-        saveDataForUser(team.owner, ownerData);
-      }
+        if (response.status === 409) {
+          setHomeTeamFeedback('Cette invitation n’est plus valide.', 'error');
+          await refreshTeamInvitations();
+          return false;
+        }
 
-      renderHomeTeams();
-      renderHomeInvitations();
-      updateOnboardingState();
-      setHomeTeamFeedback(`Vous avez rejoint l'équipe « ${team.name} ».`, 'success');
-      return true;
+        if (response.status === 403) {
+          setHomeTeamFeedback("Vous ne pouvez pas accepter cette invitation.", 'error');
+          return false;
+        }
+
+        if (!response.ok) {
+          const message = payload && payload.error ? payload.error : await response.text();
+          throw new Error(message || 'accept_failed');
+        }
+
+        await refreshTeamInvitations();
+
+        const teamInfo = payload && typeof payload === 'object' ? payload.team : null;
+        const acceptedTeamId = teamInfo && teamInfo.id ? String(teamInfo.id) : String(teamId);
+        const acceptedTeamName = teamInfo && teamInfo.name ? teamInfo.name : 'Équipe';
+        const acceptedTeamOwner = teamInfo && teamInfo.owner ? teamInfo.owner : '';
+        const acceptedTeamRole = teamInfo && teamInfo.role ? teamInfo.role : 'Membre';
+
+        let teamRecord = getTeamById(teamStore, acceptedTeamId);
+        if (!teamRecord) {
+          teamRecord = {
+            id: acceptedTeamId,
+            name: acceptedTeamName,
+            owner: acceptedTeamOwner,
+            members: [],
+            invitations: [],
+          };
+        }
+
+        if (!Array.isArray(teamRecord.members)) {
+          teamRecord.members = [];
+        }
+        if (!teamRecord.members.includes(currentUser)) {
+          teamRecord.members.push(currentUser);
+        }
+        teamRecord.invitations = Array.isArray(teamRecord.invitations)
+          ? teamRecord.invitations.filter((entry) => entry && entry.id !== invitationId)
+          : [];
+
+        teamStore.teams[acceptedTeamId] = normalizeTeamEntry(teamRecord) || teamRecord;
+        saveTeamStore(teamStore);
+
+        if (!Array.isArray(data.teams)) {
+          data.teams = [];
+        }
+        if (!data.teams.some((entry) => entry && entry.id === acceptedTeamId)) {
+          data.teams.push({ id: acceptedTeamId, name: acceptedTeamName, role: acceptedTeamRole });
+        }
+        data.currentTeamId = acceptedTeamId;
+        if (acceptedTeamOwner && acceptedTeamOwner !== currentUser) {
+          data.panelOwner = acceptedTeamOwner;
+        }
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+
+        renderHomeTeams();
+        renderHomeInvitations();
+        updateOnboardingState();
+        setHomeTeamFeedback(`Vous avez rejoint l'équipe « ${acceptedTeamName} ».`, 'success');
+        return true;
+      } catch (error) {
+        console.error("Impossible d'accepter l'invitation :", error);
+        setHomeTeamFeedback("Impossible de traiter cette invitation pour le moment.", 'error');
+        return false;
+      }
     }
 
-    function declineTeamInvitation(teamId, invitationId) {
-      const team = getTeamById(teamStore, teamId);
-      if (!team) {
+    async function declineTeamInvitation(teamId, invitationId) {
+      const numericId = Number.parseInt(invitationId, 10);
+      if (!Number.isFinite(numericId)) {
         return false;
       }
 
-      const before = team.invitations.length;
-      team.invitations = team.invitations.filter((entry) => entry && entry.id !== invitationId);
-      if (team.invitations.length === before) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/team_invitations.php`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ invitation_id: numericId, action: 'decline' }),
+        });
+
+        if (response.status === 404 || response.status === 409) {
+          await refreshTeamInvitations();
+          return false;
+        }
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || 'decline_failed');
+        }
+
+        await refreshTeamInvitations();
+        renderHomeInvitations();
+        setHomeTeamFeedback('Invitation refusée.', 'success');
+        return true;
+      } catch (error) {
+        console.error('Impossible de refuser cette invitation :', error);
+        setHomeTeamFeedback('Impossible de refuser cette invitation pour le moment.', 'error');
         return false;
       }
-
-      teamStore.teams[team.id] = normalizeTeamEntry(team) || team;
-      saveTeamStore(teamStore);
-      renderHomeInvitations();
-      return true;
     }
 
     function renderHomeDirectoryLimit() {
