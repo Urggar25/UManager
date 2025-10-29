@@ -1526,8 +1526,83 @@
         </div>
       </li>
     </template>
+	
+	<script>
+	/* === auth.js compact === */
+	(() => {
+	  const SESSION_KEY="um_session", USERNAME_KEY="um_username";
+	  const q = (s)=>document.querySelector(s);
+	  function isAuthenticated(){ return !!localStorage.getItem(SESSION_KEY); }
+	  function getUsername(){ return localStorage.getItem(USERNAME_KEY)||"—"; }
+	  function login({username}){ localStorage.setItem(SESSION_KEY,"1"); localStorage.setItem(USERNAME_KEY, username||"Utilisateur"); location.reload(); }
+	  function logout(){ localStorage.removeItem(SESSION_KEY); localStorage.removeItem(USERNAME_KEY); document.getElementById("auth-overlay").hidden=false; document.querySelector(".app").hidden=true; }
+	  function initAuthUI(){
+		if(!isAuthenticated()){
+		  document.getElementById("auth-overlay").hidden=false;
+		  document.querySelector(".app").hidden=true;
+		  return;
+		}
+		const userEl=q("#current-username"); if(userEl) userEl.textContent=getUsername();
+	  }
+	  window.Auth={isAuthenticated,getUsername,login,logout,initAuthUI};
+	})();
+	</script>
+
+	<script>
+	/* === auth.js compact === */
+	(() => {
+	  const SESSION_KEY="um_session", USERNAME_KEY="um_username";
+	  const q = (s)=>document.querySelector(s);
+	  function isAuthenticated(){ return !!localStorage.getItem(SESSION_KEY); }
+	  function getUsername(){ return localStorage.getItem(USERNAME_KEY)||"—"; }
+	  function login({username}){ localStorage.setItem(SESSION_KEY,"1"); localStorage.setItem(USERNAME_KEY, username||"Utilisateur"); location.reload(); }
+	  function logout(){ localStorage.removeItem(SESSION_KEY); localStorage.removeItem(USERNAME_KEY); document.getElementById("auth-overlay").hidden=false; document.querySelector(".app").hidden=true; }
+	  function initAuthUI(){
+		if(!isAuthenticated()){
+		  document.getElementById("auth-overlay").hidden=false;
+		  document.querySelector(".app").hidden=true;
+		  return;
+		}
+		const userEl=q("#current-username"); if(userEl) userEl.textContent=getUsername();
+	  }
+	  window.Auth={isAuthenticated,getUsername,login,logout,initAuthUI};
+	})();
+	</script>
+
+	
     <script src="assets/app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="assets/importContacts.js"></script>
+
+	<script>
+	// Initialise la protection + remplit le pseudo
+	window.Auth.initAuthUI();
+
+	// Trouve l'élément qui affiche le pseudo
+	const userEl = document.getElementById("current-username");
+
+	// Si trouvé : crée/branche le bouton juste à droite
+	if (userEl && !document.getElementById("logout-button")) {
+	  // Assure un conteneur en inline-flex pour l’alignement
+	  const parent = userEl.parentElement;
+	  if (parent && !parent.classList.contains("topbar-user")) {
+		parent.classList.add("connected-wrap"); // classe de secours pour le CSS
+	  }
+
+	  const btn = document.createElement("button");
+	  btn.id = "logout-button";
+	  btn.type = "button";
+	  btn.className = "logout-btn";
+	  btn.textContent = "Se déconnecter";
+
+	  // Injection à droite du pseudo
+	  parent.appendChild(btn);
+
+	  // Action : affiche l’overlay de connexion et masque l’app (défini dans ton bloc Option B)
+	  btn.addEventListener("click", () => window.Auth.logout());
+	}
+	</script>
+
+
   </body>
 </html>
