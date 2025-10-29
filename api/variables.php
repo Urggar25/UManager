@@ -2,6 +2,8 @@
 require __DIR__.'/config.php';
 $user = require_auth($pdo);
 
+ensure_team_variables_schema($pdo);
+
 $teamId = current_team_id($pdo, (int)$user['id']);
 if (!$teamId) {
   http_response_code(409);
@@ -70,3 +72,24 @@ if ($method === 'DELETE') {
 
 http_response_code(405);
 echo json_encode(['error' => 'method_not_allowed']);
+
+function ensure_team_variables_schema(PDO $pdo): void {
+  try {
+    $pdo->exec(
+      "CREATE TABLE IF NOT EXISTS team_variables (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_id INT NOT NULL,
+        k VARCHAR(191) NOT NULL,
+        v LONGTEXT NOT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_team_variable (team_id, k),
+        INDEX idx_team_variable_team (team_id),
+        CONSTRAINT fk_team_variables_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+  } catch (Throwable $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'schema_setup_failed']);
+    exit;
+  }
+}
