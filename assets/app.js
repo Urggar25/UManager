@@ -343,6 +343,9 @@
     saveSessionUserInfo(sessionUser);
 
     const authenticatedUsername = sessionUser.username;
+    const authenticatedUserId = Number.isFinite(Number(sessionUser.id))
+      ? Number(sessionUser.id)
+      : null;
     const storedActiveUser = loadActiveUser();
     let currentUser = authenticatedUsername;
 
@@ -410,6 +413,9 @@
     const adminImpersonateForm = document.getElementById('admin-impersonate-form');
     const adminImpersonateSelect = document.getElementById('admin-impersonate-select');
     const adminImpersonateFeedback = document.getElementById('admin-impersonate-feedback');
+    const adminAccountsList = document.getElementById('admin-accounts-list');
+    const adminAccountsEmpty = document.getElementById('admin-accounts-empty');
+    const adminAccountsFeedback = document.getElementById('admin-accounts-feedback');
     const homeNewsUpdatedDefault = homeNewsUpdatedEl ? homeNewsUpdatedEl.textContent || '' : '';
     const adminArticleFeedbackDefault =
       adminArticleFeedback ? adminArticleFeedback.textContent || '' : '';
@@ -445,6 +451,13 @@
       adminImpersonateFeedback.setAttribute('hidden', '');
     }
 
+    if (adminAccountsFeedback) {
+      adminAccountsFeedback.textContent = '';
+      adminAccountsFeedback.hidden = true;
+      adminAccountsFeedback.setAttribute('hidden', '');
+      adminAccountsFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+    }
+
     try {
       await ensureRemoteVariablesLoaded();
     } catch (error) {
@@ -469,6 +482,12 @@
     let teamStore = loadTeamStore();
     let ownedInvitations = [];
     let receivedInvitations = [];
+    let adminAccounts = [];
+    let adminAccountsLoaded = false;
+    let adminAccountsLoadingPromise = null;
+
+    applyServerTeams(sessionUser);
+    synchronizeOwnedTeamMembers();
 
     const authenticatedUserRecord =
       userStore &&
@@ -918,7 +937,9 @@
     renderHomeNews();
     if (isSuperAdmin) {
       renderAdminNewsList();
-      renderAdminUserOptions();
+      renderAdminImpersonateOptions();
+      await ensureAdminAccountsLoaded();
+      renderAdminAccountList();
     }
 
     normalizeCategoryOrders();
@@ -1129,6 +1150,40 @@
       });
     }
 
+    if (adminAccountsList instanceof HTMLElement && isSuperAdmin) {
+      adminAccountsList.addEventListener('click', async (event) => {
+        const target =
+          event.target instanceof HTMLElement
+            ? event.target.closest('button[data-action="admin-account-delete"]')
+            : null;
+        if (!(target instanceof HTMLButtonElement)) {
+          return;
+        }
+
+        const userIdValue = target.dataset.userId || '';
+        const usernameValue = target.dataset.username || '';
+        const numericUserId = Number.parseInt(userIdValue, 10);
+        if (!Number.isFinite(numericUserId) || numericUserId <= 0) {
+          return;
+        }
+
+        const confirmationMessage = usernameValue
+          ? `Supprimer le compte « ${usernameValue} » ? Cette action est définitive.`
+          : 'Supprimer ce compte ? Cette action est définitive.';
+        if (!window.confirm(confirmationMessage)) {
+          return;
+        }
+
+        target.disabled = true;
+        target.setAttribute('aria-busy', 'true');
+        const success = await deleteAdminAccount(numericUserId, usernameValue);
+        if (!success) {
+          target.disabled = false;
+          target.removeAttribute('aria-busy');
+        }
+      });
+    }
+
     document.addEventListener('umanager:data-changed', (event) => {
       const detail = event && typeof event === 'object' ? event.detail : null;
       if (detail && detail.section === 'contacts') {
@@ -1139,7 +1194,14 @@
     document.addEventListener('umanager:page-changed', (event) => {
       const detail = event && typeof event === 'object' ? event.detail : null;
       if (detail && detail.pageId === 'administration' && isSuperAdmin) {
-        renderAdminUserOptions();
+        renderAdminImpersonateOptions();
+        ensureAdminAccountsLoaded()
+          .then(() => {
+            renderAdminAccountList();
+          })
+          .catch((error) => {
+            console.error('Impossible de charger les comptes administrateur :', error);
+          });
       }
     });
 
@@ -5882,6 +5944,153 @@
       );
     }
 
+    function applyServerTeams(sessionInfo) {
+      if (!sessionInfo || typeof sessionInfo !== 'object') {
+        return;
+      }
+
+      if (!teamStore || typeof teamStore !== 'object') {
+        teamStore = { teams: {} };
+      }
+
+      if (!teamStore.teams || typeof teamStore.teams !== 'object') {
+        teamStore.teams = {};
+      }
+
+      const serverTeams = Array.isArray(sessionInfo.teams) ? sessionInfo.teams : [];
+      const activeTeamIdFromServer =
+        sessionInfo.active_team_id !== undefined && sessionInfo.active_team_id !== null
+          ? String(sessionInfo.active_team_id)
+          : '';
+
+      if (serverTeams.length === 0 && !activeTeamIdFromServer) {
+        return;
+      }
+
+      const serverTeamIds = new Set();
+      const updatedTeams = new Map();
+      let teamStoreChanged = false;
+
+      serverTeams.forEach((team) => {
+        if (!team || typeof team !== 'object') {
+          return;
+        }
+
+        const rawId = team.id !== undefined ? team.id : null;
+        const teamId = rawId !== null ? String(rawId) : '';
+        if (!teamId) {
+          return;
+        }
+
+        serverTeamIds.add(teamId);
+
+        const teamName =
+          typeof team.name === 'string' && team.name.trim() ? team.name.trim() : 'Équipe';
+        const rawRole = typeof team.role === 'string' ? team.role.trim() : '';
+        const lowerRole = rawRole.toLowerCase();
+        let displayRole = rawRole;
+        if (lowerRole === 'owner') {
+          displayRole = 'Propriétaire';
+        } else if (lowerRole === 'member') {
+          displayRole = 'Membre';
+        }
+
+        updatedTeams.set(teamId, {
+          id: teamId,
+          name: teamName,
+          role: displayRole || (data.panelOwner === currentUser ? 'Propriétaire' : 'Membre'),
+        });
+
+        const existingEntry = teamStore.teams[teamId];
+        const nextEntry = existingEntry ? { ...existingEntry } : { id: teamId };
+        let entryChanged = !existingEntry;
+
+        if (nextEntry.name !== teamName) {
+          nextEntry.name = teamName;
+          entryChanged = true;
+        }
+
+        if (!nextEntry.owner || lowerRole === 'owner') {
+          const ownerName =
+            lowerRole === 'owner'
+              ? currentUser
+              : nextEntry.owner || data.panelOwner || currentUser;
+          if (nextEntry.owner !== ownerName) {
+            nextEntry.owner = ownerName;
+            entryChanged = true;
+          }
+        }
+
+        if (!Array.isArray(nextEntry.members)) {
+          nextEntry.members = [];
+        }
+        if (!nextEntry.members.includes(currentUser)) {
+          nextEntry.members.push(currentUser);
+          entryChanged = true;
+        }
+
+        if (!Array.isArray(nextEntry.invitations)) {
+          nextEntry.invitations = [];
+        }
+
+        const normalizedEntry = normalizeTeamEntry(nextEntry) || nextEntry;
+        teamStore.teams[teamId] = normalizedEntry;
+        if (entryChanged) {
+          teamStoreChanged = true;
+        }
+      });
+
+      const previousTeams = Array.isArray(data.teams) ? data.teams : [];
+      const normalizedTeams = Array.from(updatedTeams.values()).sort((a, b) =>
+        a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }),
+      );
+
+      const currentTeamsMap = new Map(
+        previousTeams
+          .filter((team) => team && team.id)
+          .map((team) => [team.id, { name: team.name, role: team.role || '' }]),
+      );
+
+      let dataChanged = false;
+      if (currentTeamsMap.size !== normalizedTeams.length) {
+        dataChanged = true;
+      } else {
+        for (const team of normalizedTeams) {
+          const existing = currentTeamsMap.get(team.id);
+          if (!existing || existing.name !== team.name || existing.role !== (team.role || '')) {
+            dataChanged = true;
+            break;
+          }
+        }
+      }
+
+      if (dataChanged) {
+        data.teams = normalizedTeams;
+      }
+
+      if (activeTeamIdFromServer && data.currentTeamId !== activeTeamIdFromServer) {
+        data.currentTeamId = activeTeamIdFromServer;
+        dataChanged = true;
+      }
+
+      if (dataChanged) {
+        data.lastUpdated = new Date().toISOString();
+        saveDataForUser(currentUser, data);
+      }
+
+      Object.keys(teamStore.teams).forEach((teamId) => {
+        if (teamId && !serverTeamIds.has(teamId)) {
+          delete teamStore.teams[teamId];
+          teamStoreChanged = true;
+        }
+      });
+
+      if (teamStoreChanged) {
+        saveTeamStore(teamStore);
+        rebuildTeamCaches();
+      }
+    }
+
     function synchronizeOwnedTeamMembers() {
       const ownedTeam = getOwnedTeam();
       if (!ownedTeam) {
@@ -6836,7 +7045,7 @@
       adminNewsList.appendChild(fragment);
     }
 
-    function renderAdminUserOptions() {
+    function renderAdminImpersonateOptions() {
       if (!(adminImpersonateSelect instanceof HTMLSelectElement)) {
         return;
       }
@@ -6868,6 +7077,345 @@
         option.textContent = email ? `${username} (${email})` : username;
         adminImpersonateSelect.appendChild(option);
       });
+    }
+
+    function clearAdminAccountsFeedback() {
+      if (!(adminAccountsFeedback instanceof HTMLElement)) {
+        return;
+      }
+
+      adminAccountsFeedback.textContent = '';
+      adminAccountsFeedback.hidden = true;
+      adminAccountsFeedback.setAttribute('hidden', '');
+      adminAccountsFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+    }
+
+    function setAdminAccountsFeedback(message, status = 'info') {
+      if (!(adminAccountsFeedback instanceof HTMLElement)) {
+        return;
+      }
+
+      if (!message) {
+        clearAdminAccountsFeedback();
+        return;
+      }
+
+      adminAccountsFeedback.textContent = message;
+      adminAccountsFeedback.hidden = false;
+      adminAccountsFeedback.removeAttribute('hidden');
+      adminAccountsFeedback.classList.remove('form-feedback--error', 'form-feedback--success');
+      if (status === 'error') {
+        adminAccountsFeedback.classList.add('form-feedback--error');
+      } else if (status === 'success') {
+        adminAccountsFeedback.classList.add('form-feedback--success');
+      }
+    }
+
+    function renderAdminAccountList() {
+      if (!(adminAccountsList instanceof HTMLElement)) {
+        return;
+      }
+
+      adminAccountsList.innerHTML = '';
+
+      const records = Array.isArray(adminAccounts) ? adminAccounts.slice() : [];
+
+      if (records.length === 0) {
+        if (adminAccountsEmpty) {
+          adminAccountsEmpty.hidden = false;
+          adminAccountsEmpty.removeAttribute('hidden');
+        }
+        return;
+      }
+
+      if (adminAccountsEmpty) {
+        adminAccountsEmpty.hidden = true;
+        if (!adminAccountsEmpty.hasAttribute('hidden')) {
+          adminAccountsEmpty.setAttribute('hidden', '');
+        }
+      }
+
+      records.sort((a, b) => {
+        const left = a && typeof a.username === 'string' ? a.username : '';
+        const right = b && typeof b.username === 'string' ? b.username : '';
+        return left.localeCompare(right, 'fr', { sensitivity: 'base' });
+      });
+
+      const fragment = document.createDocumentFragment();
+
+      records.forEach((account) => {
+        if (!account || typeof account !== 'object') {
+          return;
+        }
+
+        const accountId = Number(account.id);
+        const username =
+          typeof account.username === 'string' && account.username.trim()
+            ? account.username.trim()
+            : 'Compte';
+        const email = typeof account.email === 'string' ? account.email.trim() : '';
+        const teamCount = Number(account.team_count) || 0;
+        const ownedTeamCount = Number(account.owned_team_count) || 0;
+        const isSuperAdminAccount = Boolean(account.is_super_admin);
+        const isCurrentAccount =
+          authenticatedUserId !== null && Number.isFinite(accountId) && accountId === authenticatedUserId;
+
+        const disableReasons = [];
+        if (isSuperAdminAccount) {
+          disableReasons.push('Ce compte principal ne peut pas être supprimé.');
+        }
+        if (isCurrentAccount) {
+          disableReasons.push('Vous ne pouvez pas supprimer votre propre compte.');
+        }
+        if (ownedTeamCount > 0) {
+          disableReasons.push('Réattribuez les équipes avant de supprimer ce compte.');
+        }
+        if (!Number.isFinite(accountId) || accountId <= 0) {
+          disableReasons.push('Identifiant de compte invalide.');
+        }
+
+        const item = document.createElement('li');
+        item.className = 'category-item admin-account-item';
+
+        const main = document.createElement('div');
+        main.className = 'category-main';
+
+        const title = document.createElement('h3');
+        title.className = 'category-title';
+        title.textContent = username;
+        main.appendChild(title);
+
+        const description = document.createElement('p');
+        description.className = 'category-description';
+        if (email) {
+          description.textContent = email;
+        } else {
+          description.textContent = 'Aucune adresse mail renseignée.';
+          description.classList.add('category-description--empty');
+        }
+        main.appendChild(description);
+
+        const metaParts = [];
+        if (teamCount > 0) {
+          metaParts.push(teamCount > 1 ? `${teamCount} équipes` : '1 équipe');
+        } else {
+          metaParts.push('Aucune équipe');
+        }
+        if (ownedTeamCount > 0) {
+          metaParts.push(
+            ownedTeamCount > 1
+              ? `${ownedTeamCount} équipes fondées`
+              : 'Fondateur d’une équipe',
+          );
+        }
+        if (account.active_team_id) {
+          metaParts.push(`Équipe active #${account.active_team_id}`);
+        }
+
+        if (metaParts.length > 0) {
+          const meta = document.createElement('p');
+          meta.className = 'admin-account-meta';
+          meta.textContent = metaParts.join(' · ');
+          main.appendChild(meta);
+        }
+
+        if (disableReasons.length > 0) {
+          const warning = document.createElement('p');
+          warning.className = 'admin-account-warning';
+          warning.textContent = disableReasons[0];
+          main.appendChild(warning);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'category-actions admin-account-actions';
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'category-button category-button--danger';
+        deleteButton.dataset.action = 'admin-account-delete';
+        deleteButton.dataset.userId = Number.isFinite(accountId) ? String(accountId) : '';
+        deleteButton.dataset.username = username;
+        deleteButton.textContent = 'Supprimer';
+
+        if (disableReasons.length > 0) {
+          deleteButton.disabled = true;
+          deleteButton.setAttribute('aria-disabled', 'true');
+          deleteButton.title = disableReasons[0];
+        } else {
+          deleteButton.disabled = false;
+          deleteButton.removeAttribute('aria-disabled');
+          deleteButton.removeAttribute('title');
+        }
+
+        actions.appendChild(deleteButton);
+        item.append(main, actions);
+        fragment.appendChild(item);
+      });
+
+      adminAccountsList.appendChild(fragment);
+    }
+
+    async function ensureAdminAccountsLoaded(forceReload = false) {
+      if (!isSuperAdmin) {
+        return false;
+      }
+
+      if (forceReload) {
+        adminAccountsLoaded = false;
+      }
+
+      if (adminAccountsLoadingPromise) {
+        try {
+          await adminAccountsLoadingPromise;
+        } catch (error) {
+          console.error('Impossible de récupérer les comptes administrateur :', error);
+        }
+        if (!forceReload) {
+          return adminAccountsLoaded;
+        }
+      }
+
+      if (adminAccountsLoaded && !forceReload) {
+        return true;
+      }
+
+      let loadSucceeded = false;
+
+      adminAccountsLoadingPromise = (async () => {
+        clearAdminAccountsFeedback();
+        try {
+          const response = await fetch(`${API_BASE_URL}/admin_users.php`, {
+            credentials: 'include',
+          });
+
+          if (response.status === 403) {
+            adminAccounts = [];
+            adminAccountsLoaded = true;
+            setAdminAccountsFeedback(
+              "Vous n'avez pas les droits nécessaires pour consulter cette liste.",
+              'error',
+            );
+            renderAdminAccountList();
+            loadSucceeded = true;
+            return;
+          }
+
+          if (!response.ok) {
+            const message = await response.text();
+            throw new Error(`admin_users_fetch_failed:${response.status}:${message}`);
+          }
+
+          const payload = await response.json();
+          adminAccounts = Array.isArray(payload && payload.users) ? payload.users : [];
+          adminAccountsLoaded = true;
+          renderAdminAccountList();
+          loadSucceeded = true;
+        } catch (error) {
+          adminAccountsLoaded = false;
+          console.error('Impossible de récupérer les comptes administrateur :', error);
+          setAdminAccountsFeedback(
+            'Impossible de charger la liste des comptes. Veuillez réessayer plus tard.',
+            'error',
+          );
+          loadSucceeded = false;
+        } finally {
+          adminAccountsLoadingPromise = null;
+        }
+      })();
+
+      await adminAccountsLoadingPromise;
+      return loadSucceeded;
+    }
+
+    async function deleteAdminAccount(userId, username) {
+      clearAdminAccountsFeedback();
+
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/admin_users.php?id=${encodeURIComponent(userId)}`,
+          {
+            method: 'DELETE',
+            credentials: 'include',
+          },
+        );
+
+        let payload = null;
+        try {
+          payload = await response.clone().json();
+        } catch (error) {
+          payload = null;
+        }
+
+        if (response.status === 404) {
+          setAdminAccountsFeedback('Compte introuvable ou déjà supprimé.', 'error');
+          await ensureAdminAccountsLoaded(true);
+          return false;
+        }
+
+        if (response.status === 409) {
+          const code = payload && typeof payload.error === 'string' ? payload.error : 'conflict';
+          if (code === 'owns_teams') {
+            const count = payload && typeof payload.owned_team_count === 'number'
+              ? payload.owned_team_count
+              : 0;
+            const label = count > 1 ? `${count} équipes` : 'une équipe';
+            setAdminAccountsFeedback(
+              `Ce compte est propriétaire de ${label}. Réattribuez-les avant de le supprimer.`,
+              'error',
+            );
+          } else if (code === 'cannot_delete_self') {
+            setAdminAccountsFeedback('Vous ne pouvez pas supprimer votre propre compte.', 'error');
+          } else if (code === 'cannot_delete_super_admin') {
+            setAdminAccountsFeedback('Le compte principal ne peut pas être supprimé.', 'error');
+          } else {
+            setAdminAccountsFeedback('Impossible de supprimer ce compte pour le moment.', 'error');
+          }
+          await ensureAdminAccountsLoaded(true);
+          return false;
+        }
+
+        if (response.status === 403) {
+          setAdminAccountsFeedback('Vous ne pouvez pas supprimer ce compte.', 'error');
+          return false;
+        }
+
+        if (!response.ok) {
+          const message = payload && typeof payload.error === 'string'
+            ? payload.error
+            : await response.text();
+          throw new Error(message || 'delete_failed');
+        }
+
+        adminAccounts = Array.isArray(adminAccounts)
+          ? adminAccounts.filter((account) => account && Number(account.id) !== userId)
+          : [];
+        renderAdminAccountList();
+
+        if (username) {
+          removeUserFromStore(username);
+          userStore = loadUserStore();
+          renderAdminImpersonateOptions();
+        }
+
+        const successMessage = username
+          ? `Le compte « ${username} » a été supprimé.`
+          : 'Le compte a été supprimé.';
+
+        const refreshed = await ensureAdminAccountsLoaded(true);
+        if (refreshed) {
+          setAdminAccountsFeedback(successMessage, 'success');
+        } else {
+          setAdminAccountsFeedback(
+            `${successMessage} Toutefois, la liste n'a pas pu être rafraîchie automatiquement.`,
+            'error',
+          );
+        }
+        return true;
+      } catch (error) {
+        console.error('Impossible de supprimer le compte :', error);
+        setAdminAccountsFeedback('Impossible de supprimer ce compte pour le moment.', 'error');
+        return false;
+      }
     }
 
     function renderMetrics() {
@@ -13232,6 +13780,22 @@
     };
 
     queueRemoteUpdate(USER_STORE_KEY, payload);
+  }
+
+  function removeUserFromStore(username) {
+    if (!username) {
+      return;
+    }
+
+    const store = loadUserStore();
+    if (!store.users || typeof store.users !== 'object') {
+      return;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(store.users, username)) {
+      delete store.users[username];
+      queueRemoteUpdate(USER_STORE_KEY, { users: { ...store.users } });
+    }
   }
 
   function loadTeamStore() {

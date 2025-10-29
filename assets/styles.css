@@ -2160,6 +2160,31 @@ button {
   font-size: 0.9rem;
 }
 
+.admin-account-item .category-actions {
+  align-items: center;
+}
+
+.admin-account-meta {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary);
+}
+
+.admin-account-warning {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.admin-account-actions {
+  align-items: center;
+}
+
+.admin-account-actions .category-button {
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .home-grid {
     grid-template-columns: 1fr;
