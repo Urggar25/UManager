@@ -121,7 +121,20 @@
     CONTACT_TYPE_OPTIONS.map((option) => [option.value, option]),
   );
 
-  document.addEventListener('DOMContentLoaded', () => {
+  function onDocumentReady(callback) {
+    if (typeof callback !== 'function') {
+      return;
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', callback, { once: true });
+      return;
+    }
+
+    window.requestAnimationFrame(callback);
+  }
+
+  onDocumentReady(() => {
     const isAuthPage = Boolean(
       document.getElementById('login-form') || document.getElementById('register-form'),
     );
