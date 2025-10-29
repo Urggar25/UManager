@@ -1,7 +1,9 @@
 (() => {
   const USER_STORE_KEY = 'umanager-user-store';
   const ACTIVE_USER_KEY = 'umanager-active-user';
+  const SESSION_USER_KEY = 'umanager-session-user';
   const DATA_KEY_PREFIX = 'umanager-data-store:';
+  const API_BASE_URL = 'api';
   const SUPER_ADMIN_EMAIL = 'fasquellesteven@gmail.com';
   const NEWS_STORE_KEY = 'umanager-news-store';
   const NEWS_DISPLAY_LIMIT = 5;
@@ -100,6 +102,14 @@
     REQUIRED_CONTACT_CATEGORIES.map((category) => category.id),
   );
 
+  let remoteVariablesCache = {};
+  let remoteVariablesLoaded = false;
+  let remoteVariablesLoading = null;
+  let remoteVariablesLastError = null;
+  let remoteSaveQueue = {};
+  let remoteDeleteQueue = new Set();
+  let remoteSaveTimer = null;
+
   const CONTACT_TYPE_OPTIONS = [
     { value: 'person', label: 'Personne', badgeClass: 'contact-type-badge--person' },
     { value: 'company', label: 'Entreprise', badgeClass: 'contact-type-badge--company' },
@@ -139,13 +149,17 @@
   }
 
   async function initializeAuthPage() {
-    await ensureDefaultAdmins();
-
-    const activeUser = loadActiveUser();
-    if (activeUser) {
+    const existingSession = await fetchCurrentSession();
+    if (existingSession) {
+      saveSessionUserInfo(existingSession);
+      saveActiveUser(existingSession.username);
       navigateToDashboard();
       return;
     }
+
+    clearActiveUser();
+    clearSessionUserInfo();
+    resetRemoteVariables();
 
     const loginSection = document.getElementById('login-section');
     const registerSection = document.getElementById('register-section');
@@ -180,9 +194,9 @@
         loginError.textContent = '';
       }
       window.requestAnimationFrame(() => {
-        const loginUsername = document.getElementById('login-username');
-        if (loginUsername && typeof loginUsername.focus === 'function') {
-          loginUsername.focus();
+        const loginEmail = document.getElementById('login-email');
+        if (loginEmail && typeof loginEmail.focus === 'function') {
+          loginEmail.focus();
         }
       });
     }
@@ -241,157 +255,90 @@
         }
 
         const formData = new FormData(loginForm);
-        const username = (formData.get('username') || '').toString().trim();
+        const email = (formData.get('email') || '').toString().trim();
         const password = (formData.get('password') || '').toString();
 
-        if (!username || !password) {
-          displayLoginError('Veuillez renseigner vos identifiants.');
+        if (!email || !password) {
+          displayLoginError('Veuillez renseigner votre adresse mail et votre mot de passe.');
           return;
         }
 
-        const store = loadUserStore();
-        const user = store.users[username];
+        try {
+          const response = await fetch(`${API_BASE_URL}/login.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ email, password }),
+          });
 
-        if (!user) {
-          displayLoginError("L'utilisateur n'est pas reconnu.");
-          return;
-        }
-
-        let storedPasswordHash = user.passwordHash;
-
-        if (!storedPasswordHash && typeof user.password === 'string') {
-          if (user.password === password) {
-            try {
-              storedPasswordHash = await hashPassword(password);
-            } catch (error) {
-              console.error('Impossible de générer le hachage du mot de passe :', error);
-              displayLoginError('Une erreur est survenue. Veuillez réessayer.');
+          if (!response.ok) {
+            if (response.status === 401) {
+              displayLoginError('Identifiants incorrects.');
               return;
             }
-            user.passwordHash = storedPasswordHash;
-            delete user.password;
-            saveUserStore(store);
-          } else {
-            displayLoginError('Mot de passe incorrect.');
+            if (response.status === 400) {
+              displayLoginError('Veuillez renseigner tous les champs obligatoires.');
+              return;
+            }
+
+            let serverError = 'Une erreur est survenue. Veuillez réessayer.';
+            try {
+              const payload = await response.json();
+              if (payload && typeof payload.error === 'string') {
+                serverError = traduireErreurAuthentification(payload.error);
+              }
+            } catch (parseError) {
+              // ignore JSON parsing errors
+            }
+            displayLoginError(serverError);
             return;
           }
-        }
 
-        if (!storedPasswordHash) {
-          displayLoginError("L'utilisateur n'est pas reconnu.");
-          return;
-        }
-
-        let passwordHash;
-        try {
-          passwordHash = await hashPassword(password);
+          const payload = await response.json();
+          saveSessionUserInfo(payload);
+          saveActiveUser(payload.username);
+          await ensureRemoteVariablesLoaded(true);
+          loginForm.reset();
+          navigateToDashboard();
         } catch (error) {
-          console.error('Impossible de vérifier le mot de passe :', error);
-          displayLoginError('Une erreur est survenue. Veuillez réessayer.');
-          return;
+          console.error('Impossible de se connecter :', error);
+          displayLoginError('Une erreur réseau est survenue. Veuillez réessayer.');
         }
-
-        if (passwordHash !== storedPasswordHash) {
-          displayLoginError('Mot de passe incorrect.');
-          return;
-        }
-
-        saveActiveUser(username);
-        loginForm.reset();
-        navigateToDashboard();
       });
     }
 
     if (registerForm) {
-      registerForm.addEventListener('submit', async (event) => {
+      registerForm.addEventListener('submit', (event) => {
         event.preventDefault();
         if (registerError) {
-          registerError.textContent = '';
+          registerError.textContent =
+            'La création de compte est gérée par un administrateur. Veuillez contacter le support.';
         }
-
-        const formData = new FormData(registerForm);
-        const username = (formData.get('username') || '').toString().trim();
-        const email = (formData.get('email') || '').toString().trim();
-        const password = (formData.get('password') || '').toString();
-        const confirmPassword = (formData.get('password-confirm') || '').toString();
-
-        if (!username || !email || !password || !confirmPassword) {
-          if (registerError) {
-            registerError.textContent = 'Tous les champs sont obligatoires.';
-          }
-          return;
-        }
-
-        if (!isValidEmail(email)) {
-          if (registerError) {
-            registerError.textContent = 'Veuillez saisir une adresse mail valide.';
-          }
-          return;
-        }
-
-        if (password.length < 6) {
-          if (registerError) {
-            registerError.textContent = 'Le mot de passe doit contenir au moins 6 caractères.';
-          }
-          return;
-        }
-
-        if (password !== confirmPassword) {
-          if (registerError) {
-            registerError.textContent = 'La confirmation du mot de passe ne correspond pas.';
-          }
-          return;
-        }
-
-        const store = loadUserStore();
-        if (store.users[username]) {
-          if (registerError) {
-            registerError.textContent = 'Cet identifiant est déjà utilisé.';
-          }
-          return;
-        }
-
-        const emailExists = Object.values(store.users).some((user) => {
-          if (!user.email) {
-            return false;
-          }
-          return user.email.toLowerCase() === email.toLowerCase();
-        });
-
-        if (emailExists) {
-          if (registerError) {
-            registerError.textContent = 'Cette adresse mail est déjà associée à un compte.';
-          }
-          return;
-        }
-
-        let passwordHash;
-        try {
-          passwordHash = await hashPassword(password);
-        } catch (error) {
-          console.error('Impossible de sécuriser le mot de passe :', error);
-          if (registerError) {
-            registerError.textContent =
-              "Une erreur est survenue lors de la création du compte. Veuillez réessayer.";
-          }
-          return;
-        }
-
-        store.users[username] = {
-          email,
-          passwordHash,
-        };
-
-        saveUserStore(store);
-        saveActiveUser(username);
-        registerForm.reset();
-        navigateToDashboard();
       });
     }
   }
 
   async function initializeDashboardPage() {
-    const currentUser = loadActiveUser();
+    const sessionUser = await fetchCurrentSession();
+    if (!sessionUser) {
+      clearActiveUser();
+      clearSessionUserInfo();
+      navigateToLogin();
+      return;
+    }
+
+    saveSessionUserInfo(sessionUser);
+
+    const authenticatedUsername = sessionUser.username;
+    const storedActiveUser = loadActiveUser();
+    let currentUser = authenticatedUsername;
+
+    if (storedActiveUser && storedActiveUser !== authenticatedUsername) {
+      currentUser = storedActiveUser;
+    } else if (authenticatedUsername) {
+      saveActiveUser(authenticatedUsername);
+    }
+
     if (!currentUser) {
       navigateToLogin();
       return;
@@ -485,8 +432,51 @@
       adminImpersonateFeedback.setAttribute('hidden', '');
     }
 
+    try {
+      await ensureRemoteVariablesLoaded();
+    } catch (error) {
+      if (remoteVariablesLastError === 'unauthorized') {
+        clearActiveUser();
+        clearSessionUserInfo();
+        resetRemoteVariables();
+        navigateToLogin();
+        return;
+      }
+      console.error('Impossible de charger les données distantes :', error);
+    }
+
+    if (remoteVariablesLastError === 'no_active_team' && homeTeamFeedback) {
+      homeTeamFeedback.textContent =
+        "Aucune équipe active n'a été trouvée. Veuillez contacter un administrateur.";
+      homeTeamFeedback.hidden = false;
+      homeTeamFeedback.removeAttribute('hidden');
+    }
+
     let userStore = loadUserStore();
     let teamStore = loadTeamStore();
+
+    const authenticatedUserRecord =
+      userStore &&
+      typeof userStore === 'object' &&
+      userStore.users &&
+      typeof userStore.users === 'object'
+        ? userStore.users[authenticatedUsername]
+        : null;
+
+    if (
+      typeof sessionUser.email === 'string' &&
+      sessionUser.email &&
+      (!authenticatedUserRecord ||
+        typeof authenticatedUserRecord.email !== 'string' ||
+        authenticatedUserRecord.email !== sessionUser.email)
+    ) {
+      userStore.users[authenticatedUsername] = {
+        ...(authenticatedUserRecord || {}),
+        email: sessionUser.email,
+      };
+      saveUserStore(userStore);
+    }
+
     const currentUserRecord =
       userStore &&
       typeof userStore === 'object' &&
@@ -494,20 +484,18 @@
       typeof userStore.users === 'object'
         ? userStore.users[currentUser]
         : null;
+
     const currentUserEmail =
-      currentUserRecord && typeof currentUserRecord.email === 'string'
-        ? currentUserRecord.email.trim()
+      typeof sessionUser.email === 'string' && sessionUser.email.trim()
+        ? sessionUser.email.trim()
         : '';
     const normalizedAdminEmail = SUPER_ADMIN_EMAIL.toLowerCase();
     const isSuperAdmin = currentUserEmail.toLowerCase() === normalizedAdminEmail;
     const impersonationExitButton = document.getElementById('impersonation-exit-button');
     const storedAdminUsername = loadImpersonationAdmin();
-    const isImpersonating =
-      typeof storedAdminUsername === 'string' &&
-      storedAdminUsername &&
-      storedAdminUsername !== currentUser;
+    const isImpersonating = currentUser !== authenticatedUsername;
 
-    if (!isImpersonating && storedAdminUsername && storedAdminUsername === currentUser) {
+    if (!isImpersonating && storedAdminUsername) {
       clearImpersonationAdmin();
     }
 
@@ -516,10 +504,11 @@
         impersonationExitButton.hidden = false;
         impersonationExitButton.removeAttribute('hidden');
         impersonationExitButton.addEventListener('click', () => {
-          if (!storedAdminUsername) {
+          const targetUsername = storedAdminUsername || authenticatedUsername;
+          if (!targetUsername) {
             return;
           }
-          saveActiveUser(storedAdminUsername);
+          saveActiveUser(targetUsername);
           clearImpersonationAdmin();
           window.location.reload();
         });
@@ -929,9 +918,19 @@
     }
 
     if (logoutButton) {
-      logoutButton.addEventListener('click', () => {
+      logoutButton.addEventListener('click', async () => {
+        try {
+          await fetch(`${API_BASE_URL}/logout.php`, {
+            method: 'POST',
+            credentials: 'include',
+          });
+        } catch (error) {
+          console.warn('Impossible de contacter le serveur pour la déconnexion :', error);
+        }
         clearActiveUser();
         clearImpersonationAdmin();
+        clearSessionUserInfo();
+        resetRemoteVariables();
         navigateToLogin();
       });
     }
@@ -12930,61 +12929,61 @@
   }
 
   function loadUserStore() {
-    try {
-      const stored = window.localStorage.getItem(USER_STORE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && typeof parsed === 'object' && parsed.users) {
-          const users = parsed.users && typeof parsed.users === 'object' ? parsed.users : {};
-          return {
-            users: { ...users },
-          };
-        }
-      }
-    } catch (error) {
-      console.warn('Impossible de charger les comptes utilisateurs :', error);
+    const cached = remoteVariablesCache[USER_STORE_KEY];
+    if (cached && typeof cached === 'object' && cached.users && typeof cached.users === 'object') {
+      return {
+        users: { ...cached.users },
+      };
     }
+
     return { users: {} };
   }
 
   function saveUserStore(store) {
-    try {
-      window.localStorage.setItem(USER_STORE_KEY, JSON.stringify(store));
-    } catch (error) {
-      console.warn('Impossible de sauvegarder les comptes utilisateurs :', error);
+    if (!store || typeof store !== 'object') {
+      return;
     }
+
+    const payload = {
+      users:
+        store.users && typeof store.users === 'object'
+          ? { ...store.users }
+          : {},
+    };
+
+    queueRemoteUpdate(USER_STORE_KEY, payload);
   }
 
   function loadTeamStore() {
-    try {
-      const stored = window.localStorage.getItem(TEAM_STORE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && typeof parsed === 'object') {
-          const teamsObj = parsed.teams && typeof parsed.teams === 'object' ? parsed.teams : {};
-          const normalizedTeams = {};
-          Object.keys(teamsObj).forEach((teamId) => {
-            const normalized = normalizeTeamEntry(teamsObj[teamId]);
-            if (normalized && normalized.id) {
-              normalizedTeams[normalized.id] = normalized;
-            }
-          });
-          return { teams: normalizedTeams };
+    const cached = remoteVariablesCache[TEAM_STORE_KEY];
+    if (cached && typeof cached === 'object') {
+      const teamsObj = cached.teams && typeof cached.teams === 'object' ? cached.teams : {};
+      const normalizedTeams = {};
+      Object.keys(teamsObj).forEach((teamId) => {
+        const normalized = normalizeTeamEntry(teamsObj[teamId]);
+        if (normalized && normalized.id) {
+          normalizedTeams[normalized.id] = normalized;
         }
-      }
-    } catch (error) {
-      console.warn('Impossible de charger les équipes :', error);
+      });
+      return { teams: normalizedTeams };
     }
 
     return { teams: {} };
   }
 
   function saveTeamStore(store) {
-    try {
-      window.localStorage.setItem(TEAM_STORE_KEY, JSON.stringify(store));
-    } catch (error) {
-      console.warn('Impossible de sauvegarder les équipes :', error);
+    if (!store || typeof store !== 'object') {
+      return;
     }
+
+    const payload = {
+      teams:
+        store.teams && typeof store.teams === 'object'
+          ? { ...store.teams }
+          : {},
+    };
+
+    queueRemoteUpdate(TEAM_STORE_KEY, payload);
   }
 
   function normalizeTeamEntry(raw) {
@@ -13114,26 +13113,19 @@
   }
 
   function loadNewsStore() {
-    try {
-      const stored = window.localStorage.getItem(NEWS_STORE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && typeof parsed === 'object') {
-          const articles = Array.isArray(parsed.articles) ? parsed.articles : [];
-          const normalizedArticles = articles
-            .map((article) => normalizeNewsArticle(article))
-            .filter(Boolean)
-            .sort((a, b) => {
-              const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
-              const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
-              return dateB.localeCompare(dateA);
-            });
+    const cached = remoteVariablesCache[NEWS_STORE_KEY];
+    if (cached && typeof cached === 'object') {
+      const articles = Array.isArray(cached.articles) ? cached.articles : [];
+      const normalizedArticles = articles
+        .map((article) => normalizeNewsArticle(article))
+        .filter(Boolean)
+        .sort((a, b) => {
+          const dateA = typeof a.createdAt === 'string' ? a.createdAt : '';
+          const dateB = typeof b.createdAt === 'string' ? b.createdAt : '';
+          return dateB.localeCompare(dateA);
+        });
 
-          return { articles: normalizedArticles };
-        }
-      }
-    } catch (error) {
-      console.warn('Impossible de charger les nouveautés :', error);
+      return { articles: normalizedArticles };
     }
 
     return { articles: [] };
@@ -13156,11 +13148,7 @@
         }),
     };
 
-    try {
-      window.localStorage.setItem(NEWS_STORE_KEY, JSON.stringify(payload));
-    } catch (error) {
-      console.warn('Impossible de sauvegarder les nouveautés :', error);
-    }
+    queueRemoteUpdate(NEWS_STORE_KEY, payload);
   }
 
   function normalizeNewsArticle(rawArticle) {
@@ -13216,6 +13204,107 @@
     }
   }
 
+  function saveSessionUserInfo(user) {
+    if (!user || typeof user !== 'object') {
+      return;
+    }
+
+    let serialized = null;
+    try {
+      serialized = JSON.stringify(user);
+    } catch (error) {
+      console.warn('Impossible de sérialiser les informations de session :', error);
+      return;
+    }
+
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.setItem(SESSION_USER_KEY, serialized);
+      }
+    } catch (error) {
+      console.warn('Impossible de stocker la session en mémoire :', error);
+    }
+
+    try {
+      window.localStorage.setItem(SESSION_USER_KEY, serialized);
+    } catch (error) {
+      console.warn('Impossible de persister la session :', error);
+    }
+  }
+
+  function loadSessionUserInfo() {
+    let stored = null;
+    try {
+      if (window.sessionStorage) {
+        stored = window.sessionStorage.getItem(SESSION_USER_KEY);
+      }
+    } catch (error) {
+      console.warn('Impossible de lire la session courante :', error);
+    }
+
+    if (!stored) {
+      try {
+        stored = window.localStorage.getItem(SESSION_USER_KEY);
+      } catch (error) {
+        console.warn('Impossible de lire la session persistée :', error);
+      }
+    }
+
+    if (!stored) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(stored) || null;
+    } catch (error) {
+      console.warn('Impossible de décoder les informations de session :', error);
+      return null;
+    }
+  }
+
+  function clearSessionUserInfo() {
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.removeItem(SESSION_USER_KEY);
+      }
+    } catch (error) {
+      console.warn('Impossible de réinitialiser la session mémoire :', error);
+    }
+
+    try {
+      window.localStorage.removeItem(SESSION_USER_KEY);
+    } catch (error) {
+      console.warn('Impossible de supprimer la session persistée :', error);
+    }
+  }
+
+  async function fetchCurrentSession() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/me.php`, {
+        credentials: 'include',
+      });
+
+      if (response.status === 401) {
+        return null;
+      }
+
+      if (!response.ok) {
+        console.warn('Impossible de récupérer la session utilisateur :', response.status);
+        return null;
+      }
+
+      const payload = await response.json();
+      if (payload && typeof payload === 'object') {
+        saveSessionUserInfo(payload);
+        return payload;
+      }
+    } catch (error) {
+      console.warn('Impossible de contacter le serveur pour récupérer la session :', error);
+    }
+
+    return null;
+  }
+
   function saveImpersonationAdmin(username) {
     try {
       if (username) {
@@ -13243,76 +13332,229 @@
     }
   }
 
-  function loadDataForUser(username) {
-      if (!username) {
-        return cloneDefaultData();
-      }
-
-      const storageKey = `${DATA_KEY_PREFIX}${username}`;
-      try {
-        const stored = window.localStorage.getItem(storageKey);
-        if (stored) {
-          const parsed = JSON.parse(stored) || {};
-          // On préserve TOUT ce qui est présent, puis on normalise les blocs connus
-          const base = typeof parsed === 'object' ? parsed : {};
-
-          return {
-            // préserve tous les champs déjà sauvés (dont panelOwner, teamMembers, etc.)
-            ...base,
-
-            // normalisations sans perdre de données
-            metrics: { ...defaultData.metrics, ...(base.metrics || {}) },
-                        categories: Array.isArray(base.categories) ? base.categories : [],
-                        keywords: Array.isArray(base.keywords) ? base.keywords : [],
-                        contacts: Array.isArray(base.contacts) ? base.contacts : [],
-                        events: Array.isArray(base.events) ? base.events : [],
-                        taskCategories: Array.isArray(base.taskCategories) ? base.taskCategories : [],
-                        tasks: Array.isArray(base.tasks) ? base.tasks : [],
-                        teamChatMessages: Array.isArray(base.teamChatMessages)
-                          ? base.teamChatMessages
-                          : [],
-                        savedSearches: Array.isArray(base.savedSearches)
-                          ? base.savedSearches
-                          : [],
-                        emailTemplates: Array.isArray(base.emailTemplates)
-                          ? base.emailTemplates
-                          : [],
-                        emailCampaigns: Array.isArray(base.emailCampaigns)
-                          ? base.emailCampaigns
-                          : [],
-                        lastUpdated: base.lastUpdated || null,
-
-                        // si jamais ces champs n’existaient pas encore
-                        panelOwner: typeof base.panelOwner === 'string' ? base.panelOwner : '',
-                        teamMembers: Array.isArray(base.teamMembers) ? base.teamMembers : [],
-                        subscription:
-                          typeof base.subscription === 'string'
-                            ? base.subscription
-                            : DEFAULT_SUBSCRIPTION_ID,
-                        teams: Array.isArray(base.teams) ? base.teams : [],
-                        currentTeamId:
-                          typeof base.currentTeamId === 'string' ? base.currentTeamId : '',
-          };
-        }
-      } catch (error) {
-        console.warn('Impossible de charger les données locales :', error);
-      }
-
-      return cloneDefaultData();
+  function traduireErreurAuthentification(code) {
+    switch (code) {
+      case 'missing_fields':
+        return 'Veuillez renseigner tous les champs obligatoires.';
+      case 'invalid_credentials':
+        return 'Identifiants incorrects.';
+      case 'db_connect_failed':
+        return "Le service d'authentification est momentanément indisponible.";
+      default:
+        return 'Une erreur est survenue. Veuillez réessayer.';
     }
+  }
 
+  function resetRemoteVariables() {
+    remoteVariablesCache = {};
+    remoteVariablesLoaded = false;
+    remoteVariablesLastError = null;
+    remoteSaveQueue = {};
+    remoteDeleteQueue = new Set();
+    if (remoteSaveTimer !== null) {
+      window.clearTimeout(remoteSaveTimer);
+      remoteSaveTimer = null;
+    }
+  }
 
-  function saveDataForUser(username, data) {
-    if (!username) {
+  function getDataStorageKey(username) {
+    return `${DATA_KEY_PREFIX}${username}`;
+  }
+
+  async function ensureRemoteVariablesLoaded(forceReload = false) {
+    if (forceReload) {
+      resetRemoteVariables();
+    } else if (remoteVariablesLoaded && remoteVariablesLastError === null) {
       return;
     }
 
-    const storageKey = `${DATA_KEY_PREFIX}${username}`;
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(data));
-    } catch (error) {
-      console.warn('Impossible de sauvegarder les données locales :', error);
+    if (remoteVariablesLoading && !forceReload) {
+      await remoteVariablesLoading;
+      return;
     }
+
+    remoteVariablesLoading = (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/variables.php`, {
+          credentials: 'include',
+        });
+
+        if (response.status === 401) {
+          remoteVariablesLastError = 'unauthorized';
+          throw new Error('unauthorized');
+        }
+
+        if (response.status === 409) {
+          remoteVariablesCache = {};
+          remoteVariablesLoaded = true;
+          remoteVariablesLastError = 'no_active_team';
+          return;
+        }
+
+        if (!response.ok) {
+          const message = await response.text();
+          remoteVariablesLastError = `http_${response.status}`;
+          throw new Error(`variables_fetch_failed:${response.status}:${message}`);
+        }
+
+        const payload = await response.json();
+        remoteVariablesCache = payload && typeof payload === 'object' ? payload : {};
+        remoteVariablesLoaded = true;
+        remoteVariablesLastError = null;
+      } catch (error) {
+        if (remoteVariablesLastError !== 'no_active_team') {
+          remoteVariablesLoaded = false;
+        }
+        throw error;
+      } finally {
+        remoteVariablesLoading = null;
+      }
+    })();
+
+    await remoteVariablesLoading;
+  }
+
+  function queueRemoteUpdate(key, value) {
+    if (!key) {
+      return;
+    }
+
+    const cloned = deepClone(value);
+    remoteVariablesCache[key] = cloned;
+    remoteSaveQueue[key] = cloned;
+    remoteVariablesLoaded = true;
+    remoteVariablesLastError = null;
+    scheduleRemoteFlush();
+  }
+
+  function queueRemoteDelete(key) {
+    if (!key) {
+      return;
+    }
+
+    delete remoteVariablesCache[key];
+    remoteDeleteQueue.add(key);
+    scheduleRemoteFlush();
+  }
+
+  function scheduleRemoteFlush() {
+    if (remoteSaveTimer !== null) {
+      return;
+    }
+
+    remoteSaveTimer = window.setTimeout(() => {
+      remoteSaveTimer = null;
+      flushRemoteQueues().catch((error) => {
+        console.error('Impossible de synchroniser les données distantes :', error);
+        if (remoteSaveTimer === null &&
+          (Object.keys(remoteSaveQueue).length > 0 || remoteDeleteQueue.size > 0)) {
+          scheduleRemoteFlush();
+        }
+      });
+    }, 500);
+  }
+
+  async function flushRemoteQueues() {
+    const payload = { ...remoteSaveQueue };
+    const deletions = Array.from(remoteDeleteQueue);
+    remoteSaveQueue = {};
+    remoteDeleteQueue = new Set();
+
+    try {
+      if (Object.keys(payload).length > 0) {
+        const response = await fetch(`${API_BASE_URL}/variables.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(`variables_save_failed:${response.status}:${message}`);
+        }
+      }
+
+      for (const key of deletions) {
+        const response = await fetch(
+          `${API_BASE_URL}/variables.php?key=${encodeURIComponent(key)}`,
+          {
+            method: 'DELETE',
+            credentials: 'include',
+          },
+        );
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(`variables_delete_failed:${response.status}:${message}`);
+        }
+      }
+    } catch (error) {
+      remoteSaveQueue = { ...payload, ...remoteSaveQueue };
+      deletions.forEach((key) => remoteDeleteQueue.add(key));
+      throw error;
+    }
+  }
+
+  function deepClone(value) {
+    if (value === null || value === undefined) {
+      return value;
+    }
+
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      return value;
+    }
+  }
+
+  function loadDataForUser(username) {
+    if (!username) {
+      return cloneDefaultData();
+    }
+
+    const storageKey = getDataStorageKey(username);
+    const stored = remoteVariablesCache[storageKey];
+    if (stored && typeof stored === 'object') {
+      return normalizeLoadedUserData(stored);
+    }
+
+    return cloneDefaultData();
+  }
+
+  function normalizeLoadedUserData(source) {
+    const baseSource = source && typeof source === 'object' ? source : {};
+    const base = deepClone(baseSource) || {};
+    return {
+      ...base,
+      metrics: { ...defaultData.metrics, ...(base.metrics || {}) },
+      categories: Array.isArray(base.categories) ? base.categories : [],
+      keywords: Array.isArray(base.keywords) ? base.keywords : [],
+      contacts: Array.isArray(base.contacts) ? base.contacts : [],
+      events: Array.isArray(base.events) ? base.events : [],
+      taskCategories: Array.isArray(base.taskCategories) ? base.taskCategories : [],
+      tasks: Array.isArray(base.tasks) ? base.tasks : [],
+      teamChatMessages: Array.isArray(base.teamChatMessages) ? base.teamChatMessages : [],
+      savedSearches: Array.isArray(base.savedSearches) ? base.savedSearches : [],
+      emailTemplates: Array.isArray(base.emailTemplates) ? base.emailTemplates : [],
+      emailCampaigns: Array.isArray(base.emailCampaigns) ? base.emailCampaigns : [],
+      lastUpdated: base.lastUpdated || null,
+      panelOwner: typeof base.panelOwner === 'string' ? base.panelOwner : '',
+      teamMembers: Array.isArray(base.teamMembers) ? base.teamMembers : [],
+      subscription:
+        typeof base.subscription === 'string' ? base.subscription : DEFAULT_SUBSCRIPTION_ID,
+      teams: Array.isArray(base.teams) ? base.teams : [],
+      currentTeamId: typeof base.currentTeamId === 'string' ? base.currentTeamId : '',
+    };
+  }
+
+  function saveDataForUser(username, data) {
+    if (!username || !data || typeof data !== 'object') {
+      return;
+    }
+
+    const storageKey = getDataStorageKey(username);
+    queueRemoteUpdate(storageKey, data);
   }
 
   function cloneDefaultData() {
