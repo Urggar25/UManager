@@ -17,6 +17,7 @@ const DB_HOST = 'localhost';
 const DB_NAME = 'u706630068_up';      // ta BDD affichée à gauche dans phpMyAdmin
 const DB_USER = 'u706630068_app';    // ton utilisateur MySQL
 const DB_PASS = 'Gf2ds7825';            // son mot de passe
+const SUPER_ADMIN_EMAIL = 'fasquellesteven@gmail.com';
 
 try {
   $pdo = new PDO(
@@ -47,4 +48,28 @@ function current_team_id(PDO $pdo, int $uid): ?int {
   $st->execute([$uid]);
   $row = $st->fetch();
   return $row && $row['active_team_id'] ? (int)$row['active_team_id'] : null;
+}
+
+function is_super_admin_user(array $user): bool {
+  if (!isset($user['email'])) {
+    return false;
+  }
+
+  $email = strtolower(trim((string)$user['email']));
+  if ($email === '') {
+    return false;
+  }
+
+  return $email === strtolower(SUPER_ADMIN_EMAIL);
+}
+
+function require_super_admin(PDO $pdo): array {
+  $user = require_auth($pdo);
+  if (!is_super_admin_user($user)) {
+    http_response_code(403);
+    echo json_encode(['error' => 'forbidden']);
+    exit;
+  }
+
+  return $user;
 }
