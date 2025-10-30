@@ -320,12 +320,74 @@
       });
     }
 
+    function displayRegisterError(message) {
+      if (registerError) {
+        registerError.textContent = message;
+      }
+    }
+
     if (registerForm) {
-      registerForm.addEventListener('submit', (event) => {
+      registerForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         if (registerError) {
-          registerError.textContent =
-            'La création de compte est gérée par un administrateur. Veuillez contacter le support.';
+          registerError.textContent = '';
+        }
+
+        const formData = new FormData(registerForm);
+        const username = (formData.get('username') || '').toString().trim();
+        const email = (formData.get('email') || '').toString().trim();
+        const password = (formData.get('password') || '').toString();
+        const confirmPassword = (formData.get('password-confirm') || '').toString();
+
+        if (!username || !email || !password || !confirmPassword) {
+          displayRegisterError('Veuillez renseigner tous les champs obligatoires.');
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          displayRegisterError('Les mots de passe ne correspondent pas.');
+          return;
+        }
+
+        if (password.length < 6) {
+          displayRegisterError('Le mot de passe doit contenir au moins 6 caractères.');
+          return;
+        }
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/register.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ username, email, password }),
+          });
+
+          if (!response.ok) {
+            let serverError =
+              response.status === 400
+                ? 'Veuillez vérifier les informations saisies.'
+                : 'Une erreur est survenue. Veuillez réessayer.';
+            try {
+              const payload = await response.json();
+              if (payload && typeof payload.error === 'string') {
+                serverError = traduireErreurInscription(payload.error);
+              }
+            } catch (parseError) {
+              // ignore JSON parsing errors
+            }
+            displayRegisterError(serverError);
+            return;
+          }
+
+          const payload = await response.json();
+          saveSessionUserInfo(payload);
+          saveActiveUser(payload.username);
+          await ensureRemoteVariablesLoaded(true);
+          registerForm.reset();
+          navigateToDashboard();
+        } catch (error) {
+          console.error('Impossible de créer le compte :', error);
+          displayRegisterError('Une erreur réseau est survenue. Veuillez réessayer.');
         }
       });
     }
@@ -14184,6 +14246,29 @@
         return 'Identifiants incorrects.';
       case 'db_connect_failed':
         return "Le service d'authentification est momentanément indisponible.";
+      default:
+        return 'Une erreur est survenue. Veuillez réessayer.';
+    }
+  }
+
+  function traduireErreurInscription(code) {
+    switch (code) {
+      case 'missing_fields':
+        return 'Veuillez renseigner tous les champs obligatoires.';
+      case 'invalid_username':
+        return "L'identifiant doit comporter entre 3 et 50 caractères et uniquement des lettres, chiffres ou ._-";
+      case 'invalid_email':
+        return "L'adresse mail renseignée n'est pas valide.";
+      case 'password_too_short':
+        return 'Le mot de passe doit contenir au moins 6 caractères.';
+      case 'email_already_used':
+        return 'Cette adresse mail est déjà associée à un compte UManager.';
+      case 'username_already_used':
+        return 'Cet identifiant est déjà utilisé. Veuillez en choisir un autre.';
+      case 'invalid_json':
+        return 'Les données envoyées sont invalides. Veuillez réessayer.';
+      case 'db_connect_failed':
+        return "Le service est momentanément indisponible.";
       default:
         return 'Une erreur est survenue. Veuillez réessayer.';
     }
