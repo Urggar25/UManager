@@ -3,6 +3,7 @@ let importHeaders = [];
 
 const categoriesList = document.getElementById('categories-list');
 const customFieldsContainer = document.getElementById('custom-fields');
+const personCategoriesOverview = document.getElementById('person-categories-overview');
 const peopleBody = document.getElementById('people-body');
 const personCreateResult = document.getElementById('person-create-result');
 
@@ -20,9 +21,27 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
+function initTabs() {
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.tab-panel');
+
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const targetId = tab.dataset.tab;
+
+      tabs.forEach((item) => item.classList.remove('is-active'));
+      panels.forEach((panel) => panel.classList.remove('is-active'));
+
+      tab.classList.add('is-active');
+      document.getElementById(targetId)?.classList.add('is-active');
+    });
+  });
+}
+
 async function loadCategories() {
   categories = await fetchJson('/api/categories');
   renderCategories();
+  renderPersonCategoriesOverview();
   renderCustomFields();
   renderImportMapping();
 }
@@ -62,6 +81,17 @@ function renderCategories() {
     wrap.appendChild(left);
     wrap.appendChild(right);
     categoriesList.appendChild(wrap);
+  });
+}
+
+function renderPersonCategoriesOverview() {
+  personCategoriesOverview.innerHTML = '';
+
+  categories.forEach((category) => {
+    const item = document.createElement('span');
+    item.className = `tag ${category.required ? 'tag-default' : 'tag-user'}`;
+    item.textContent = `${category.label}${category.required ? ' • défaut' : ' • ajout utilisateur'}`;
+    personCategoriesOverview.appendChild(item);
   });
 }
 
@@ -284,6 +314,7 @@ document.getElementById('commit-import').addEventListener('click', () => {
 });
 
 (async function init() {
+  initTabs();
   await loadCategories();
   await loadPeople();
 })();
