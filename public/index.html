@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UManager - Répertoire</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>UManager</h1>
+      <p>Répertoire de personnes avec catégories dynamiques et import Excel.</p>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>Catégories</h2>
+        <form id="add-category-form">
+          <input type="text" id="new-category-label" placeholder="Nouvelle catégorie" required />
+          <button type="submit">Ajouter</button>
+        </form>
+        <div id="categories-list"></div>
+      </section>
+
+      <section class="card">
+        <h2>Ajouter une personne</h2>
+        <form id="person-form">
+          <div class="grid">
+            <label>Nom de naissance* <input id="last_name_birth" required /></label>
+            <label>Prénom* <input id="first_name" required /></label>
+            <label>Date de naissance* <input id="birth_date" type="date" required /></label>
+            <label>Mots-clés (séparés par virgule) <input id="keywords" placeholder="client, premium" /></label>
+          </div>
+
+          <div id="custom-fields" class="grid"></div>
+          <button type="submit">Créer la personne</button>
+        </form>
+        <p class="info" id="person-create-result"></p>
+      </section>
+
+      <section class="card">
+        <h2>Import Excel</h2>
+        <div class="grid">
+          <label>Fichier Excel (.xlsx/.xls)
+            <input id="excel-file" type="file" accept=".xlsx,.xls" />
+          </label>
+          <button id="preview-import" type="button">1) Analyser le fichier</button>
+        </div>
+
+        <div id="import-mapping"></div>
+        <button id="commit-import" type="button" hidden>2) Importer</button>
+        <pre id="import-result" class="info"></pre>
+      </section>
+
+      <section class="card">
+        <h2>Contacts</h2>
+        <input id="search-input" placeholder="Recherche dynamique (nom, prénom, ID, mot-clé)" />
+        <table>
+          <thead>
+            <tr>
+              <th>ID Unique</th>
+              <th>Nom</th>
+              <th>Prénom</th>
+              <th>Date naissance</th>
+              <th>Mots-clés</th>
+              <th>Champs personnalisés</th>
+            </tr>
+          </thead>
+          <tbody id="people-body"></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
