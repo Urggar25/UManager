@@ -1,32 +1,109 @@
 :root {
-  font-family: Arial, sans-serif;
-  color: #1d2433;
-  background: #f4f7fb;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  color: #11203b;
+  background: #f2f5ff;
+  --primary: #2958d1;
+  --primary-soft: #e9efff;
+  --surface: #ffffff;
+  --border: #dce5ff;
+  --text-muted: #5e6d93;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  background: radial-gradient(circle at top right, #dce7ff 0%, #f7f9ff 42%, #eef3ff 100%);
 }
 
-header {
-  background: #1f4c9c;
+.hero {
+  background: linear-gradient(120deg, #1b44b2 0%, #315fd8 48%, #4f7ae7 100%);
   color: white;
-  padding: 1rem 2rem;
+  padding: 2.2rem 1.2rem;
+  box-shadow: 0 10px 25px rgba(36, 73, 160, 0.28);
+}
+
+.hero__content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.hero h1 {
+  margin: 0.1rem 0 0.6rem;
+  font-size: clamp(1.55rem, 2.5vw, 2.3rem);
+}
+
+.hero__eyebrow {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
 }
 
 main {
   max-width: 1200px;
-  margin: 1rem auto;
+  margin: 1.2rem auto;
   padding: 0 1rem 2rem;
-  display: grid;
-  gap: 1rem;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.tab {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: #2b3d69;
+  padding: 0.55rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.tab:hover {
+  transform: translateY(-1px);
+  border-color: #c8d5ff;
+}
+
+.tab.is-active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: 0 8px 20px rgba(41, 88, 209, 0.25);
+}
+
+.tab-panel {
+  display: none;
+}
+
+.tab-panel.is-active {
+  display: block;
 }
 
 .card {
-  background: #fff;
-  border-radius: 10px;
-  padding: 1rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 1.2rem;
+  box-shadow: 0 8px 28px rgba(29, 57, 122, 0.1);
+  border: 1px solid rgba(221, 230, 255, 0.9);
+}
+
+.muted {
+  color: var(--text-muted);
+  margin-top: -0.2rem;
+}
+
+.inline-form {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
 }
 
 .grid {
@@ -40,34 +117,57 @@ label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  font-weight: 500;
 }
 
 input,
 button,
 select {
   font-size: 14px;
-  padding: 0.55rem;
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid #ccd8fc;
+}
+
+input,
+select {
+  background: #fff;
 }
 
 button {
   cursor: pointer;
-  border: 1px solid #c3cde0;
-  border-radius: 6px;
-  background: #eef3ff;
+  background: var(--primary-soft);
+  color: #1f3f94;
+  border: 1px solid #c6d5ff;
+  font-weight: 600;
+}
+
+button:hover {
+  filter: brightness(0.97);
+}
+
+.table-wrap {
+  overflow-x: auto;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 0.8rem;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 th,
 td {
   border: 1px solid #dde4f2;
-  padding: 0.5rem;
+  padding: 0.55rem;
   vertical-align: top;
   text-align: left;
+}
+
+th {
+  background: #f2f6ff;
 }
 
 .info {
@@ -76,16 +176,71 @@ td {
 
 .category-item {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
   align-items: center;
   justify-content: space-between;
   border: 1px solid #dde4f2;
-  border-radius: 6px;
-  padding: 0.5rem;
-  margin-bottom: 0.4rem;
+  border-radius: 10px;
+  padding: 0.6rem;
+  margin-bottom: 0.45rem;
+  background: #fbfcff;
 }
 
 .required {
   font-size: 12px;
   color: #6a7ca6;
   margin-left: 0.5rem;
+}
+
+.category-overview {
+  background: #f7f9ff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.8rem;
+  margin-bottom: 1rem;
+}
+
+.category-overview h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.96rem;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid;
+}
+
+.tag-default {
+  background: #e8f0ff;
+  border-color: #bbceff;
+  color: #2149b5;
+}
+
+.tag-user {
+  background: #eefdf4;
+  border-color: #b7ecc9;
+  color: #0f6e38;
+}
+
+.custom-fields-title {
+  margin: 0.2rem 0 0.5rem;
+  font-weight: 600;
+  color: #3b4f82;
+}
+
+@media (max-width: 640px) {
+  .inline-form {
+    flex-direction: column;
+  }
 }
