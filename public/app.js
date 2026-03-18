@@ -6,6 +6,7 @@ const customFieldsContainer = document.getElementById('custom-fields');
 const personCategoriesOverview = document.getElementById('person-categories-overview');
 const peopleBody = document.getElementById('people-body');
 const personCreateResult = document.getElementById('person-create-result');
+const categoriesCount = document.getElementById('categories-count');
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
@@ -41,6 +42,9 @@ function initTabs() {
 async function loadCategories() {
   categories = await fetchJson('/api/categories');
   renderCategories();
+  if (categoriesCount) {
+    categoriesCount.textContent = String(categories.length);
+  }
   renderPersonCategoriesOverview();
   renderCustomFields();
   renderImportMapping();
@@ -62,6 +66,7 @@ function renderCategories() {
     const input = document.createElement('input');
     input.value = category.label;
     const save = document.createElement('button');
+    save.className = 'btn';
     save.textContent = 'Éditer';
     save.onclick = async () => {
       try {

@@ -7,94 +7,117 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="hero">
-      <div class="hero__content">
-        <p class="hero__eyebrow">UManager</p>
-        <h1>Répertoire intelligent des contacts</h1>
-        <p>
-          Une interface plus claire, organisée par catégories et onglets, pour gérer vos personnes,
-          imports et recherches sans friction.
-        </p>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand__logo" aria-hidden="true">📊</span>
+        <span class="brand__name">UManager</span>
       </div>
-    </header>
 
-    <main>
-      <nav class="tabs" aria-label="Fonctionnalités principales">
-        <button class="tab is-active" data-tab="tab-categories" type="button">Catégories</button>
-        <button class="tab" data-tab="tab-person" type="button">Créer une fiche</button>
-        <button class="tab" data-tab="tab-import" type="button">Import Excel</button>
-        <button class="tab" data-tab="tab-contacts" type="button">Contacts</button>
+      <nav class="topbar__menu" aria-label="Navigation principale">
+        <a href="#" class="topbar__link">Accueil</a>
+        <a href="#" class="topbar__link">Calendrier</a>
+        <a href="#" class="topbar__link">Tâches</a>
+        <a href="#" class="topbar__link is-active">Répertoire</a>
+        <a href="#" class="topbar__link">Communication</a>
+        <a href="#" class="topbar__link">Équipe</a>
       </nav>
 
-      <section id="tab-categories" class="tab-panel is-active card">
-        <h2>Catégories</h2>
-        <p class="muted">Créez, éditez et organisez les catégories utilisées dans vos fiches.</p>
-        <form id="add-category-form" class="inline-form">
-          <input type="text" id="new-category-label" placeholder="Nouvelle catégorie" required />
-          <button type="submit">Ajouter</button>
-        </form>
-        <div id="categories-list"></div>
-      </section>
+      <p class="topbar__user"><span>Connecté :</span> lijo62</p>
+    </header>
 
-      <section id="tab-person" class="tab-panel card">
-        <h2>Ajouter une personne</h2>
-        <p class="muted">Les catégories ci-dessous incluent les catégories par défaut et celles ajoutées par l'utilisateur.</p>
+    <main class="layout">
+      <section class="workspace">
+        <header class="workspace__header card card--hero">
+          <div>
+            <h1>Gestion des catégories</h1>
+            <p>Créez, modifiez et organisez vos contacts dans une interface moderne et pratique.</p>
+          </div>
+          <div class="metric">
+            <p>Catégories actives</p>
+            <strong id="categories-count">0</strong>
+          </div>
+        </header>
 
-        <div class="category-overview">
-          <h3>Catégories disponibles pour cette fiche</h3>
-          <div id="person-categories-overview" class="tags"></div>
-        </div>
+        <section id="tab-categories" class="tab-panel is-active card">
+          <h2>Ajouter une catégorie</h2>
+          <p class="muted">Ces catégories seront disponibles partout dans vos fiches contacts.</p>
+          <form id="add-category-form" class="stack-form">
+            <label>
+              Nom de la catégorie *
+              <input type="text" id="new-category-label" placeholder="Ex. Donateurs, Bénévoles, Prospects" required />
+            </label>
+            <button type="submit" class="btn btn--primary">Ajouter la catégorie</button>
+          </form>
+          <div id="categories-list"></div>
+        </section>
 
-        <form id="person-form">
-          <div class="grid">
-            <label>Nom de naissance* <input id="last_name_birth" required /></label>
-            <label>Prénom* <input id="first_name" required /></label>
-            <label>Date de naissance* <input id="birth_date" type="date" required /></label>
-            <label>Mots-clés (séparés par virgule) <input id="keywords" placeholder="client, premium" /></label>
+        <section id="tab-person" class="tab-panel card">
+          <h2>Ajouter une personne</h2>
+          <p class="muted">Les catégories ci-dessous incluent les catégories par défaut et celles ajoutées par l'utilisateur.</p>
+
+          <div class="category-overview">
+            <h3>Catégories disponibles pour cette fiche</h3>
+            <div id="person-categories-overview" class="tags"></div>
           </div>
 
-          <div class="custom-fields-title">Champs des catégories personnalisées</div>
-          <div id="custom-fields" class="grid"></div>
-          <button type="submit">Créer la personne</button>
-        </form>
-        <p class="info" id="person-create-result"></p>
+          <form id="person-form">
+            <div class="grid">
+              <label>Nom de naissance* <input id="last_name_birth" required /></label>
+              <label>Prénom* <input id="first_name" required /></label>
+              <label>Date de naissance* <input id="birth_date" type="date" required /></label>
+              <label>Mots-clés (séparés par virgule) <input id="keywords" placeholder="client, premium" /></label>
+            </div>
+
+            <div class="custom-fields-title">Champs des catégories personnalisées</div>
+            <div id="custom-fields" class="grid"></div>
+            <button type="submit" class="btn btn--primary">Créer la personne</button>
+          </form>
+          <p class="info" id="person-create-result"></p>
+        </section>
+
+        <section id="tab-import" class="tab-panel card">
+          <h2>Import Excel</h2>
+          <p class="muted">Analysez, mappez vos colonnes et importez vos contacts en masse.</p>
+          <div class="grid grid--align-end">
+            <label>Fichier Excel (.xlsx/.xls)
+              <input id="excel-file" type="file" accept=".xlsx,.xls" />
+            </label>
+            <button id="preview-import" class="btn" type="button">1) Analyser le fichier</button>
+          </div>
+
+          <div id="import-mapping"></div>
+          <button id="commit-import" class="btn btn--primary" type="button" hidden>2) Importer</button>
+          <pre id="import-result" class="info"></pre>
+        </section>
+
+        <section id="tab-contacts" class="tab-panel card">
+          <h2>Contacts</h2>
+          <p class="muted">Retrouvez rapidement une fiche grâce à la recherche dynamique.</p>
+          <input id="search-input" placeholder="Recherche dynamique (nom, prénom, ID, mot-clé)" />
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID Unique</th>
+                  <th>Nom</th>
+                  <th>Prénom</th>
+                  <th>Date naissance</th>
+                  <th>Mots-clés</th>
+                  <th>Champs personnalisés</th>
+                </tr>
+              </thead>
+              <tbody id="people-body"></tbody>
+            </table>
+          </div>
+        </section>
       </section>
 
-      <section id="tab-import" class="tab-panel card">
-        <h2>Import Excel</h2>
-        <p class="muted">Analysez, mappez vos colonnes et importez vos contacts en masse.</p>
-        <div class="grid">
-          <label>Fichier Excel (.xlsx/.xls)
-            <input id="excel-file" type="file" accept=".xlsx,.xls" />
-          </label>
-          <button id="preview-import" type="button">1) Analyser le fichier</button>
-        </div>
-
-        <div id="import-mapping"></div>
-        <button id="commit-import" type="button" hidden>2) Importer</button>
-        <pre id="import-result" class="info"></pre>
-      </section>
-
-      <section id="tab-contacts" class="tab-panel card">
-        <h2>Contacts</h2>
-        <p class="muted">Retrouvez rapidement une fiche grâce à la recherche dynamique.</p>
-        <input id="search-input" placeholder="Recherche dynamique (nom, prénom, ID, mot-clé)" />
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID Unique</th>
-                <th>Nom</th>
-                <th>Prénom</th>
-                <th>Date naissance</th>
-                <th>Mots-clés</th>
-                <th>Champs personnalisés</th>
-              </tr>
-            </thead>
-            <tbody id="people-body"></tbody>
-          </table>
-        </div>
-      </section>
+      <aside class="sidemenu card" aria-label="Navigation répertoire">
+        <button class="tab sidemenu__item is-active" type="button" data-tab="tab-categories">Gestion des catégories</button>
+        <button class="tab sidemenu__item" type="button" data-tab="tab-person">Ajouter des contacts</button>
+        <button class="tab sidemenu__item" type="button" data-tab="tab-import">Importer des contacts</button>
+        <button class="tab sidemenu__item" type="button" data-tab="tab-contacts">Rechercher des contacts</button>
+      </aside>
     </main>
 
     <script src="/app.js"></script>
